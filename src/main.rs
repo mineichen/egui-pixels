@@ -6,6 +6,7 @@ use eframe::egui::{self};
 mod app;
 mod history;
 mod inference;
+mod storage;
 mod viewer;
 
 type SubGroup = (u32, NonZeroU16);
