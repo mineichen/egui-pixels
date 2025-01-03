@@ -133,7 +133,7 @@ impl ImageViewer {
     }
 }
 
-impl<'a> Widget for &'a mut ImageViewer {
+impl Widget for &mut ImageViewer {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         self.ui_meta(ui, None).response
     }

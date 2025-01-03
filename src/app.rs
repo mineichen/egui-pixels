@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, io::BufRead, ops::Deref, str::FromStr, task::Context};
+use std::{io::BufRead, str::FromStr, task::Context};
 
 use crate::{
     history::History,
@@ -18,15 +18,14 @@ use futures::{
     FutureExt,
 };
 use image::{ImageBuffer, Luma, Rgb};
-use log::info;
+use log::{debug, info};
+
+type LoadedOrLoading<T> = Either<T, BoxFuture<'static, T>>;
 
 pub(crate) struct ImageViewerApp {
     pub storage: Storage,
     pub url_idx: usize,
-    pub urls: Either<
-        std::io::Result<Vec<(String, String)>>,
-        BoxFuture<'static, std::io::Result<Vec<(String, String)>>>,
-    >,
+    pub urls: LoadedOrLoading<std::io::Result<Vec<(String, String)>>>,
     pub viewer: ImageViewer,
     pub current_raw_data: Option<(
         TextureHandle,
@@ -39,31 +38,8 @@ pub(crate) struct ImageViewerApp {
 
 impl ImageViewerApp {
     pub fn new() -> Self {
-        let base = "file:///Users/mineichen/Downloads/2024-10-31_13/";
         let storage = Storage::new("//Users/mineichen/Downloads/2024-10-31_13/");
         let urls = Either::Right(storage.list_images());
-        // let urls = Either::Left(Ok(vec![
-        //     (
-        //         format!("{base}2024-10-31_13-46-28-194.png"),
-        //         "2024-10-31_13-46-28-194.png".into(),
-        //     ),
-        //     (
-        //         format!("{base}2024-10-31_13-46-36-599.png"),
-        //         "2024-10-31_13-46-36-599.png".into(),
-        //     ),
-        //     (
-        //         format!("{base}2024-10-31_13-46-27-278.png"),
-        //         "2024-10-31_13-46-27-278.png".into(),
-        //     ),
-        //     (
-        //         format!("{base}2024-10-31_13-46-33-767.png"),
-        //         "2024-10-31_13-46-33-767.png".into(),
-        //     ),
-        //     (
-        //         format!("{base}2024-10-31_13-46-17-933.png"),
-        //         "2024-10-31_13-46-17-933.png".into(),
-        //     ),
-        // ]));
 
         Self {
             storage,
@@ -86,7 +62,6 @@ impl eframe::App for ImageViewerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
 
-            if let Either::Right(x) = &mut self.urls {}
             let mut reload_images = false;
             match &mut self.urls {
                 Either::Right(x) => {
@@ -253,36 +228,35 @@ impl eframe::App for ImageViewerApp {
             }
 
             if self.viewer.sources.len() == 1 {
-                match ctx.try_load_bytes("file://masks.csv") {
-                    Ok(BytesPoll::Ready { bytes, mime, .. }) => {
-                        let x = original_image_size.x as usize;
-                        let y = original_image_size.y as usize;
+                if let Ok(BytesPoll::Ready { bytes, mime, .. }) =
+                    ctx.try_load_bytes("file://masks.csv")
+                {
+                    let x = original_image_size.x as usize;
+                    let y = original_image_size.y as usize;
 
-                        let lines = bytes
-                            .lines()
-                            .filter_map(|x| {
-                                let s = x.ok()?;
-                                let mut parts = s.split(';');
-                                let label = parts.next()?;
-                                let lines = parts
-                                    .map(|x| {
-                                        let (start, end) = x.split_once(',')?;
-                                        Some((u32::from_str(start).ok()?, end.parse().ok()?))
-                                    })
-                                    .collect::<Option<SubGroups>>()?;
-                                Some((label.into(), lines))
-                            })
-                            .collect::<Vec<_>>();
+                    let lines = bytes
+                        .lines()
+                        .filter_map(|x| {
+                            let s = x.ok()?;
+                            let mut parts = s.split(';');
+                            let label = parts.next()?;
+                            let lines = parts
+                                .map(|x| {
+                                    let (start, end) = x.split_once(',')?;
+                                    Some((u32::from_str(start).ok()?, end.parse().ok()?))
+                                })
+                                .collect::<Option<SubGroups>>()?;
+                            Some((label.into(), lines))
+                        })
+                        .collect::<Vec<_>>();
 
-                        self.mask_image = Some(([x, y], lines, Default::default(), None));
+                    self.mask_image = Some(([x, y], lines, Default::default(), None));
 
-                        println!(
-                            "Got {:?} bytes of type {mime:?}: {}",
-                            bytes.len(),
-                            String::from_utf8_lossy(&bytes)
-                        )
-                    }
-                    _ => {}
+                    debug!(
+                        "Got {:?} bytes of type {mime:?}: {}",
+                        bytes.len(),
+                        String::from_utf8_lossy(&bytes)
+                    )
                 }
             }
             if let Some((size, groups, history, x @ None)) = self.mask_image.as_mut() {
@@ -292,7 +266,7 @@ impl eframe::App for ImageViewerApp {
                 };
 
                 let mut pixels = vec![Color32::TRANSPARENT; size[0] * size[1]];
-                let group_color = Color32::from_rgba_unmultiplied(255, 255, 0, 10);
+                let group_color = Color32::from_rgba_premultiplied(64, 64, 0, 64);
                 for (pos, len) in groups
                     .iter()
                     .flat_map(|(_, b)| b)

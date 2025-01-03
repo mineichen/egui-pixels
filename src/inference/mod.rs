@@ -21,6 +21,7 @@ impl From<TryFromIntError> for InferenceError {
 }
 
 pub type SamEmbeddings = ResizedImageData<Array<f32, IxDyn>>;
+pub type SamInputData = ResizedImageData<ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>>>;
 
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum InferenceError {
@@ -34,19 +35,17 @@ pub enum InferenceError {
     UnexpectedOutput(String),
 }
 
-fn prepare_image_input(
-    img: DynamicImage,
-) -> Result<ResizedImageData<ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>>>, InferenceError> {
+fn prepare_image_input(img: DynamicImage) -> Result<SamInputData, InferenceError> {
     let (original_width, original_height) = img.dimensions();
     let (original_width, original_height) = (
-        NonZeroU32::try_from(original_width as u32)?,
-        NonZeroU32::try_from(original_height as u32)?,
+        NonZeroU32::try_from(original_width)?,
+        NonZeroU32::try_from(original_height)?,
     );
     let img_resized = img.resize(1024, 1024, FilterType::CatmullRom);
     let (resized_width, resized_height) = img_resized.dimensions();
     let (resized_width, resized_height) = (
-        NonZeroU32::try_from(resized_width as u32)?,
-        NonZeroU32::try_from(resized_height as u32)?,
+        NonZeroU32::try_from(resized_width)?,
+        NonZeroU32::try_from(resized_height)?,
     );
 
     let mut input = Array::zeros((1, 3, 1024, 1024));

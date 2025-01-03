@@ -1,6 +1,5 @@
-use std::{path::PathBuf, task::Poll};
+use std::path::PathBuf;
 
-use eframe::egui::ImageSource;
 use futures::FutureExt;
 
 pub struct Storage {
@@ -21,17 +20,12 @@ impl Storage {
             let r = Self::list_images_blocking(path);
             tx.send(r)
         });
-        async move {
-            rx.await
-                .map_err(|e| std::io::Error::other(e))
-                .and_then(|a| a)
-        }
-        .boxed()
+        async move { rx.await.map_err(std::io::Error::other).and_then(|a| a) }.boxed()
     }
 
     fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(String, String)>> {
         let files = std::fs::read_dir(path)?;
-        Ok(files
+        files
             .into_iter()
             .map(|x| {
                 let x = x?;
@@ -40,6 +34,6 @@ impl Storage {
                     x.file_name().to_string_lossy().to_string(),
                 ))
             })
-            .collect::<std::io::Result<Vec<_>>>()?)
+            .collect::<std::io::Result<Vec<_>>>()
     }
 }

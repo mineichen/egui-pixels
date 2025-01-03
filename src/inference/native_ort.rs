@@ -1,6 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use image::DynamicImage;
+use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
@@ -53,7 +54,7 @@ impl SamSession {
         // Run encoder to get image embeddings
         let outputs = encoder.run(encoder_inputs)?;
         let embeddings = outputs
-            .get(0)
+            .first()
             .ok_or_else(|| InferenceError::UnexpectedOutput("Expected a output".into()))?
             .try_extract::<f32>()
             .map_err(|e| InferenceError::UnexpectedOutput(format!("Expected f32: {e:?}")))?
@@ -134,7 +135,7 @@ impl SamSession {
 
         // Run the SAM decoder
         let outputs = decoder.run(decoder_inputs)?;
-        println!(
+        debug!(
             "Outputs {:?}",
             outputs
                 .iter()
@@ -144,7 +145,7 @@ impl SamSession {
 
         // Process and return output mask (replace negative pixel values to 0 and positive to 1)
         let pixels = outputs
-            .get(0)
+            .first()
             .ok_or_else(|| InferenceError::UnexpectedOutput("No output".into()))?
             .try_extract::<f32>()
             .map_err(|e| InferenceError::UnexpectedOutput(format!("Output of type f32: {e:?}")))?;
