@@ -1,24 +1,32 @@
-use std::{io::BufRead, ops::Deref, str::FromStr};
+use std::{borrow::BorrowMut, io::BufRead, ops::Deref, str::FromStr, task::Context};
 
 use crate::{
     history::History,
     inference::{self, DefaultSession, InferenceError, SamEmbeddings},
+    storage::Storage,
     viewer::{ImageViewer, ImageViewerInteraction},
     Annotation, SubGroups,
 };
 use eframe::egui::{
     self,
     load::{BytesPoll, SizedTexture},
-    Color32, ColorImage, ComboBox, ImageSource, InnerResponse, Sense, TextureHandle,
+    Color32, ColorImage, ComboBox, ImageSource, InnerResponse, Key, Sense, TextureHandle,
     TextureOptions, UiBuilder,
 };
-use futures::{future::BoxFuture, FutureExt};
+use futures::{
+    future::{BoxFuture, Either},
+    FutureExt,
+};
 use image::{ImageBuffer, Luma, Rgb};
 use log::info;
 
 pub(crate) struct ImageViewerApp {
+    pub storage: Storage,
     pub url_idx: usize,
-    pub urls: Vec<String>,
+    pub urls: Either<
+        std::io::Result<Vec<(String, String)>>,
+        BoxFuture<'static, std::io::Result<Vec<(String, String)>>>,
+    >,
     pub viewer: ImageViewer,
     pub current_raw_data: Option<(
         TextureHandle,
@@ -32,15 +40,36 @@ pub(crate) struct ImageViewerApp {
 impl ImageViewerApp {
     pub fn new() -> Self {
         let base = "file:///Users/mineichen/Downloads/2024-10-31_13/";
+        let storage = Storage::new("//Users/mineichen/Downloads/2024-10-31_13/");
+        let urls = Either::Right(storage.list_images());
+        // let urls = Either::Left(Ok(vec![
+        //     (
+        //         format!("{base}2024-10-31_13-46-28-194.png"),
+        //         "2024-10-31_13-46-28-194.png".into(),
+        //     ),
+        //     (
+        //         format!("{base}2024-10-31_13-46-36-599.png"),
+        //         "2024-10-31_13-46-36-599.png".into(),
+        //     ),
+        //     (
+        //         format!("{base}2024-10-31_13-46-27-278.png"),
+        //         "2024-10-31_13-46-27-278.png".into(),
+        //     ),
+        //     (
+        //         format!("{base}2024-10-31_13-46-33-767.png"),
+        //         "2024-10-31_13-46-33-767.png".into(),
+        //     ),
+        //     (
+        //         format!("{base}2024-10-31_13-46-17-933.png"),
+        //         "2024-10-31_13-46-17-933.png".into(),
+        //     ),
+        // ]));
+
         Self {
+            storage,
             url_idx: 0,
-            urls: vec![
-                format!("{base}2024-10-31_13-46-28-194.png"),
-                format!("{base}2024-10-31_13-46-36-599.png"),
-                format!("{base}2024-10-31_13-46-27-278.png"),
-                format!("{base}2024-10-31_13-46-33-767.png"),
-                format!("{base}2024-10-31_13-46-17-933.png"),
-            ],
+
+            urls,
             viewer: ImageViewer::new(vec![]),
             current_raw_data: None,
             mask_image: None,
@@ -52,64 +81,90 @@ impl ImageViewerApp {
 
 impl eframe::App for ImageViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let waker = futures::task::noop_waker();
+        let mut context = Context::from_waker(&waker);
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
 
-            ui.horizontal(|ui| {
-                if ui.button("<").clicked() {
-                    self.url_idx = (self.url_idx.checked_sub(1)).unwrap_or(self.urls.len() - 1);
-                    self.viewer.reset();
-                }
-                if ComboBox::from_id_salt("url_selector")
-                    .show_index(ui, &mut self.url_idx, self.urls.len(), |x| {
-                        self.urls[x].deref()
-                    })
-                    .changed()
-                {
-                    self.viewer.reset();
-                }
-                if ui.button(">").clicked() {
-                    self.url_idx = (self.url_idx + 1) % self.urls.len();
-                    self.viewer.reset();
-                }
-            });
-            if let Some(url) = self.urls.get(self.url_idx) {
-                if self.viewer.sources.is_empty() {
-                    if let BytesPoll::Ready { bytes, .. } = ctx.try_load_bytes(&url).unwrap() {
-                        let image = match image::load_from_memory(&bytes)
-                            .expect("Expected valid imagedata")
-                        {
-                            image::DynamicImage::ImageLuma16(i) => {
-                                image::DynamicImage::ImageLuma16(fix_image_contrast(i))
-                            }
-                            image::DynamicImage::ImageLuma8(i) => {
-                                image::DynamicImage::ImageLuma8(fix_image_contrast(i))
-                            }
-                            image => image,
-                        };
-                        let rgb_image = image.to_rgb8();
-                        let handle = ctx.load_texture(
-                            "Overlays",
-                            ColorImage {
-                                size: [rgb_image.width() as _, rgb_image.height() as _],
-                                pixels: rgb_image
-                                    .pixels()
-                                    .map(|&Rgb([r, g, b])| Color32::from_rgb(r, g, b))
-                                    .collect(),
-                            },
-                            TextureOptions {
-                                magnification: egui::TextureFilter::Nearest,
-                                ..Default::default()
-                            },
-                        );
-                        let texture = SizedTexture::from_handle(&handle);
-                        self.viewer.sources = vec![ImageSource::Texture(texture)];
-                        let embeddings = self.session.get_image_embeddings(image).boxed();
-                        self.current_raw_data = Some((handle, Err(embeddings)));
+            if let Either::Right(x) = &mut self.urls {}
+            let mut reload_images = false;
+            match &mut self.urls {
+                Either::Right(x) => {
+                    if let std::task::Poll::Ready(x) = x.poll_unpin(&mut context) {
+                        self.urls = Either::Left(x);
                     }
                 }
-            } else {
-                self.viewer.sources = Vec::new();
+                Either::Left(Err(e)) => {
+                    ui.label(format!("{e}"));
+                }
+                Either::Left(Ok(urls)) => {
+                    ui.horizontal(|ui| {
+                        if ui.button("<").clicked() || ui.input(|i| i.key_pressed(Key::ArrowLeft)) {
+                            self.url_idx = (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                            self.viewer.reset();
+                        }
+                        if ComboBox::from_id_salt("url_selector")
+                            .show_index(ui, &mut self.url_idx, urls.len(), |x| {
+                                urls.get(x).map(|x| x.1.as_str()).unwrap_or("")
+                            })
+                            .changed()
+                        {
+                            self.viewer.reset();
+                        }
+                        if ui.button(">").clicked() || ui.input(|i| i.key_pressed(Key::ArrowRight))
+                        {
+                            self.url_idx = (self.url_idx + 1) % urls.len();
+                            self.viewer.reset();
+                        }
+                        if ui.button("reload").clicked() {
+                            reload_images = true;
+                        }
+                    });
+                    if let Some((url, _)) = urls.get(self.url_idx) {
+                        if self.viewer.sources.is_empty() {
+                            if let BytesPoll::Ready { bytes, .. } = ctx
+                                .try_load_bytes(format!("file://{url}").as_str())
+                                .unwrap()
+                            {
+                                let image = match image::load_from_memory(&bytes)
+                                    .expect("Expected valid imagedata")
+                                {
+                                    image::DynamicImage::ImageLuma16(i) => {
+                                        image::DynamicImage::ImageLuma16(fix_image_contrast(i))
+                                    }
+                                    image::DynamicImage::ImageLuma8(i) => {
+                                        image::DynamicImage::ImageLuma8(fix_image_contrast(i))
+                                    }
+                                    image => image,
+                                };
+                                let rgb_image = image.to_rgb8();
+                                let handle = ctx.load_texture(
+                                    "Overlays",
+                                    ColorImage {
+                                        size: [rgb_image.width() as _, rgb_image.height() as _],
+                                        pixels: rgb_image
+                                            .pixels()
+                                            .map(|&Rgb([r, g, b])| Color32::from_rgb(r, g, b))
+                                            .collect(),
+                                    },
+                                    TextureOptions {
+                                        magnification: egui::TextureFilter::Nearest,
+                                        ..Default::default()
+                                    },
+                                );
+                                let texture = SizedTexture::from_handle(&handle);
+                                self.viewer.sources = vec![ImageSource::Texture(texture)];
+                                let embeddings = self.session.get_image_embeddings(image).boxed();
+                                self.current_raw_data = Some((handle, Err(embeddings)));
+                            }
+                        }
+                    } else {
+                        self.viewer.sources = Vec::new();
+                    }
+                }
+            }
+            if reload_images {
+                self.urls = Either::Right(self.storage.list_images());
             }
 
             let mut available = ui.available_rect_before_wrap();
