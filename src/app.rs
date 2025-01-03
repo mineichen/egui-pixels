@@ -2,7 +2,7 @@ use std::{io::BufRead, ops::Deref, str::FromStr};
 
 use crate::{
     history::History,
-    inference::{self, InferenceError, SamEmbeddings, SamSession},
+    inference::{self, DefaultSession, InferenceError, SamEmbeddings},
     viewer::{ImageViewer, ImageViewerInteraction},
     Annotation, SubGroups,
 };
@@ -26,7 +26,7 @@ pub(crate) struct ImageViewerApp {
     )>,
     pub mask_image: Option<([usize; 2], Vec<Annotation>, History, Option<TextureHandle>)>,
     pub last_drag_start: Option<(usize, usize)>,
-    pub session: SamSession,
+    pub session: DefaultSession,
 }
 
 impl ImageViewerApp {
@@ -45,7 +45,7 @@ impl ImageViewerApp {
             current_raw_data: None,
             mask_image: None,
             last_drag_start: None,
-            session: SamSession::new().unwrap(),
+            session: DefaultSession::new().unwrap(),
         }
     }
 }
