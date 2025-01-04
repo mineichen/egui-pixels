@@ -1,11 +1,12 @@
-use std::{io::BufRead, str::FromStr, task::Context};
+use std::task::Context;
 
 use crate::{
     history::History,
+    image_utils::load_image,
     inference::{self, DefaultSession, InferenceError, SamEmbeddings},
-    storage::Storage,
+    storage::{parse_masks, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
-    Annotation, SubGroups,
+    Annotation,
 };
 use eframe::egui::{
     self,
@@ -17,7 +18,7 @@ use futures::{
     future::{BoxFuture, Either},
     FutureExt,
 };
-use image::{ImageBuffer, Luma, Rgb};
+use image::Rgb;
 use log::{debug, info};
 
 type LoadedOrLoading<T> = Either<T, BoxFuture<'static, T>>;
@@ -25,7 +26,7 @@ type LoadedOrLoading<T> = Either<T, BoxFuture<'static, T>>;
 pub(crate) struct ImageViewerApp {
     pub storage: Storage,
     pub url_idx: usize,
-    pub urls: LoadedOrLoading<std::io::Result<Vec<(String, String)>>>,
+    pub urls: LoadedOrLoading<std::io::Result<Vec<(ImageId, String)>>>,
     pub viewer: ImageViewer,
     pub current_raw_data: Option<(
         TextureHandle,
@@ -97,21 +98,10 @@ impl eframe::App for ImageViewerApp {
                     });
                     if let Some((url, _)) = urls.get(self.url_idx) {
                         if self.viewer.sources.is_empty() {
-                            if let BytesPoll::Ready { bytes, .. } = ctx
-                                .try_load_bytes(format!("file://{url}").as_str())
-                                .unwrap()
+                            if let BytesPoll::Ready { bytes, .. } =
+                                ctx.try_load_bytes(url.uri().as_str()).unwrap()
                             {
-                                let image = match image::load_from_memory(&bytes)
-                                    .expect("Expected valid imagedata")
-                                {
-                                    image::DynamicImage::ImageLuma16(i) => {
-                                        image::DynamicImage::ImageLuma16(fix_image_contrast(i))
-                                    }
-                                    image::DynamicImage::ImageLuma8(i) => {
-                                        image::DynamicImage::ImageLuma8(fix_image_contrast(i))
-                                    }
-                                    image => image,
-                                };
+                                let image = load_image(&bytes).unwrap();
                                 let rgb_image = image.to_rgb8();
                                 let handle = ctx.load_texture(
                                     "Overlays",
@@ -148,6 +138,7 @@ impl eframe::App for ImageViewerApp {
             let r = ui.allocate_new_ui(UiBuilder::new().max_rect(available), |ui| {
                 self.viewer.ui_meta(ui, Some(Sense::click()))
             });
+
             let InnerResponse {
                 inner:
                     InnerResponse {
@@ -234,22 +225,7 @@ impl eframe::App for ImageViewerApp {
                     let x = original_image_size.x as usize;
                     let y = original_image_size.y as usize;
 
-                    let lines = bytes
-                        .lines()
-                        .filter_map(|x| {
-                            let s = x.ok()?;
-                            let mut parts = s.split(';');
-                            let label = parts.next()?;
-                            let lines = parts
-                                .map(|x| {
-                                    let (start, end) = x.split_once(',')?;
-                                    Some((u32::from_str(start).ok()?, end.parse().ok()?))
-                                })
-                                .collect::<Option<SubGroups>>()?;
-                            Some((label.into(), lines))
-                        })
-                        .collect::<Vec<_>>();
-
+                    let lines = parse_masks(&bytes);
                     self.mask_image = Some(([x, y], lines, Default::default(), None));
 
                     debug!(
@@ -303,35 +279,4 @@ impl eframe::App for ImageViewerApp {
             }
         });
     }
-}
-
-fn fix_image_contrast<T: image::Primitive + Ord>(
-    i: ImageBuffer<Luma<T>, Vec<T>>,
-) -> ImageBuffer<Luma<T>, Vec<T>>
-where
-    f32: From<T>,
-{
-    let mut pixels = i.pixels().map(|Luma([p])| p).collect::<Vec<_>>();
-    pixels.sort_unstable();
-    let five_percent_pos = pixels.len() / 20;
-    let lower: f32 = (*pixels[five_percent_pos]).into();
-    let upper: f32 = (*pixels[five_percent_pos * 18]).into();
-    let max_pixel_value: f32 = T::DEFAULT_MAX_VALUE.into();
-    let range = max_pixel_value / (upper - lower);
-
-    ImageBuffer::from_raw(
-        i.width(),
-        i.height(),
-        i.pixels()
-            .map(|Luma([p])| {
-                let as_f: f32 = (*p).into();
-
-                num_traits::cast::NumCast::from(
-                    ((as_f - lower) * range).clamp(0.0, max_pixel_value),
-                )
-                .unwrap()
-            })
-            .collect(),
-    )
-    .unwrap()
 }

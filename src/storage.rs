@@ -1,9 +1,20 @@
-use std::path::PathBuf;
+use std::{io::BufRead, ops::Deref, path::PathBuf, str::FromStr, sync::Arc};
 
-use futures::FutureExt;
+use futures::{future::BoxFuture, FutureExt};
+use image::DynamicImage;
+
+use crate::{Annotation, SubGroups};
 
 pub struct Storage {
     base: PathBuf,
+}
+
+pub struct ImageId(Arc<str>);
+
+impl ImageId {
+    pub fn uri(&self) -> String {
+        format!("file://{}", self.0)
+    }
 }
 
 impl Storage {
@@ -11,9 +22,7 @@ impl Storage {
         Self { base: base.into() }
     }
     // uri -> Display
-    pub fn list_images(
-        &self,
-    ) -> futures::future::BoxFuture<'static, std::io::Result<Vec<(String, String)>>> {
+    pub fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String)>>> {
         let (tx, rx) = futures::channel::oneshot::channel();
         let path = self.base.to_path_buf();
         std::thread::spawn(|| {
@@ -23,17 +32,51 @@ impl Storage {
         async move { rx.await.map_err(std::io::Error::other).and_then(|a| a) }.boxed()
     }
 
-    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(String, String)>> {
+    pub fn load_image(
+        &self,
+        id: &ImageId,
+    ) -> BoxFuture<'static, std::io::Result<(Vec<crate::Annotation>, DynamicImage)>> {
+        let id = id.0.clone();
+        async move {
+            let image_bytes = std::fs::read(id.deref())?;
+            let image = crate::image_utils::load_image(&image_bytes)?;
+            let mask_bytes = std::fs::read("masks.csv")?;
+            let masks = parse_masks(&mask_bytes);
+
+            Ok((masks, image))
+        }
+        .boxed()
+    }
+
+    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String)>> {
         let files = std::fs::read_dir(path)?;
-        files
+        Ok(files
             .into_iter()
-            .map(|x| {
-                let x = x?;
-                Ok((
-                    x.path().to_string_lossy().to_string(),
+            .filter_map(|x| {
+                let x = x.ok()?;
+                Some((
+                    ImageId(x.path().to_str()?.into()),
                     x.file_name().to_string_lossy().to_string(),
                 ))
             })
-            .collect::<std::io::Result<Vec<_>>>()
+            .collect::<Vec<_>>())
     }
+}
+
+pub fn parse_masks(bytes: &[u8]) -> Vec<Annotation> {
+    bytes
+        .lines()
+        .filter_map(|x| {
+            let s = x.ok()?;
+            let mut parts = s.split(';');
+            let label = parts.next()?;
+            let lines = parts
+                .map(|x| {
+                    let (start, end) = x.split_once(',')?;
+                    Some((u32::from_str(start).ok()?, end.parse().ok()?))
+                })
+                .collect::<Option<SubGroups>>()?;
+            Some((label.into(), lines))
+        })
+        .collect::<Vec<_>>()
 }

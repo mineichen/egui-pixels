@@ -5,6 +5,7 @@ use eframe::egui::{self};
 
 mod app;
 mod history;
+mod image_utils;
 mod inference;
 mod storage;
 mod viewer;
