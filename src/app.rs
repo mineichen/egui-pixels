@@ -1,10 +1,10 @@
-use std::task::Context;
+use std::task::{Context, Poll};
 
 use crate::{
     history::History,
     image_utils::load_image,
     inference::{self, DefaultSession, InferenceError, SamEmbeddings},
-    storage::{parse_masks, ImageId, Storage},
+    storage::{parse_masks, ImageData, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
     Annotation,
 };
@@ -18,7 +18,7 @@ use futures::{
     future::{BoxFuture, Either},
     FutureExt,
 };
-use image::Rgb;
+use image::GenericImageView;
 use log::{debug, info};
 
 type LoadedOrLoading<T> = Either<T, BoxFuture<'static, T>>;
@@ -28,6 +28,7 @@ pub(crate) struct ImageViewerApp {
     pub url_idx: usize,
     pub urls: LoadedOrLoading<std::io::Result<Vec<(ImageId, String)>>>,
     pub viewer: ImageViewer,
+    pub selected: Option<LoadedOrLoading<std::io::Result<ImageData>>>,
     pub current_raw_data: Option<(
         TextureHandle,
         Result<inference::SamEmbeddings, BoxFuture<'static, Result<SamEmbeddings, InferenceError>>>,
@@ -45,9 +46,9 @@ impl ImageViewerApp {
         Self {
             storage,
             url_idx: 0,
-
             urls,
             viewer: ImageViewer::new(vec![]),
+            selected: None,
             current_raw_data: None,
             mask_image: None,
             last_drag_start: None,
@@ -96,20 +97,33 @@ impl eframe::App for ImageViewerApp {
                             reload_images = true;
                         }
                     });
-                    if let Some((url, _)) = urls.get(self.url_idx) {
+                    if let Some((image_id, _)) = urls.get(self.url_idx) {
+                        if self.selected.is_none() {
+                            self.selected = Some(Either::Right(self.storage.load_image(image_id)));
+                        }
+                        let selected = self.selected.as_mut().expect("If empty, it was set above");
+                        match selected {
+                            Either::Right(x) => {
+                                if let Poll::Ready(x) = x.poll_unpin(&mut context) {
+                                    *selected = Either::Left(x);
+                                }
+                            }
+                            Either::Left(image_data) => {}
+                        }
                         if self.viewer.sources.is_empty() {
                             if let BytesPoll::Ready { bytes, .. } =
-                                ctx.try_load_bytes(url.uri().as_str()).unwrap()
+                                ctx.try_load_bytes(image_id.uri().as_str()).unwrap()
                             {
                                 let image = load_image(&bytes).unwrap();
-                                let rgb_image = image.to_rgb8();
                                 let handle = ctx.load_texture(
                                     "Overlays",
                                     ColorImage {
-                                        size: [rgb_image.width() as _, rgb_image.height() as _],
-                                        pixels: rgb_image
+                                        size: [image.width() as _, image.height() as _],
+                                        pixels: image
                                             .pixels()
-                                            .map(|&Rgb([r, g, b])| Color32::from_rgb(r, g, b))
+                                            .map(|(_, _, image::Rgba([r, g, b, _]))| {
+                                                Color32::from_rgb(r, g, b)
+                                            })
                                             .collect(),
                                     },
                                     TextureOptions {

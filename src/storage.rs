@@ -11,6 +11,12 @@ pub struct Storage {
 
 pub struct ImageId(Arc<str>);
 
+pub struct ImageData {
+    pub id: ImageId,
+    pub adjust_image: DynamicImage,
+    pub masks: Vec<Annotation>,
+}
+
 impl ImageId {
     pub fn uri(&self) -> String {
         format!("file://{}", self.0)
@@ -32,18 +38,19 @@ impl Storage {
         async move { rx.await.map_err(std::io::Error::other).and_then(|a| a) }.boxed()
     }
 
-    pub fn load_image(
-        &self,
-        id: &ImageId,
-    ) -> BoxFuture<'static, std::io::Result<(Vec<crate::Annotation>, DynamicImage)>> {
+    pub fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>> {
         let id = id.0.clone();
         async move {
             let image_bytes = std::fs::read(id.deref())?;
-            let image = crate::image_utils::load_image(&image_bytes)?;
+            let adjust_image = crate::image_utils::load_image(&image_bytes)?;
             let mask_bytes = std::fs::read("masks.csv")?;
             let masks = parse_masks(&mask_bytes);
 
-            Ok((masks, image))
+            Ok(ImageData {
+                id: ImageId(id),
+                masks,
+                adjust_image,
+            })
         }
         .boxed()
     }
