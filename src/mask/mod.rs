@@ -76,9 +76,9 @@ impl MaskImage {
                 },
                 texture_options,
             );
-
+            let result = Some(SizedTexture::from_handle(&handle));
             self.texture_handle = Some(handle);
-            None
+            result
         } else {
             None
         }

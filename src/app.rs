@@ -1,4 +1,4 @@
-use std::{io, num::NonZeroU16, sync::Arc};
+use std::{io, sync::Arc};
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
@@ -6,7 +6,6 @@ use crate::{
     mask::MaskImage,
     storage::{ImageData, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
-    Annotation,
 };
 use eframe::egui::{
     self, load::SizedTexture, Color32, ColorImage, ComboBox, ImageSource, InnerResponse, Key,
@@ -14,7 +13,6 @@ use eframe::egui::{
 };
 use futures::FutureExt;
 use image::{DynamicImage, GenericImageView};
-use log::info;
 
 pub(crate) struct ImageViewerApp {
     storage: Storage,
@@ -213,7 +211,6 @@ impl eframe::App for ImageViewerApp {
                         )
                         .unwrap();
 
-                    //mask.remove_overlaps();
                     mask.add_subgroup(("New group".into(), new_mask));
 
                     self.last_drag_start = None;
