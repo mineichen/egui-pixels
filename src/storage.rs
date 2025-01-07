@@ -13,15 +13,8 @@ pub struct Storage {
 pub struct ImageId(Arc<str>);
 
 pub struct ImageData {
-    pub id: ImageId,
     pub adjust_image: Arc<DynamicImage>,
     pub masks: Vec<Annotation>,
-}
-
-impl ImageId {
-    pub fn uri(&self) -> String {
-        format!("file://{}", self.0)
-    }
 }
 
 impl Storage {
@@ -48,7 +41,6 @@ impl Storage {
             let masks = parse_masks(&mask_bytes);
 
             Ok(ImageData {
-                id: ImageId(id),
                 masks,
                 adjust_image,
             })

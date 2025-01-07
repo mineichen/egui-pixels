@@ -1,12 +1,9 @@
-use std::{
-    num::NonZeroU16,
-    task::{Context, Poll},
-};
+use std::{num::NonZeroU16, sync::Arc};
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
     history::History,
-    inference::{self, DefaultSession, InferenceError, SamEmbeddings},
+    inference::{DefaultSession, InferenceError, SamEmbeddings},
     storage::{ImageData, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
     Annotation,
@@ -15,31 +12,29 @@ use eframe::egui::{
     self, load::SizedTexture, Color32, ColorImage, ComboBox, ImageSource, InnerResponse, Key,
     Sense, TextureHandle, TextureOptions, UiBuilder,
 };
-use futures::{future::BoxFuture, FutureExt};
-use image::GenericImageView;
+use futures::FutureExt;
+use image::{DynamicImage, GenericImageView};
 use log::info;
 
 pub(crate) struct ImageViewerApp {
-    pub storage: Storage,
-    pub url_idx: usize,
-    pub urls: AsyncRefTask<std::io::Result<Vec<(ImageId, String)>>>,
-    pub viewer: ImageViewer,
-    pub image_state: ImageState,
-    pub selected: Option<AsyncRefTask<std::io::Result<ImageData>>>,
-    pub current_raw_data: Option<(
-        TextureHandle,
-        Result<inference::SamEmbeddings, BoxFuture<'static, Result<SamEmbeddings, InferenceError>>>,
-    )>,
-    pub mask_image: Option<MaskImage>,
-    pub last_drag_start: Option<(usize, usize)>,
-    pub session: DefaultSession,
+    storage: Storage,
+    url_idx: usize,
+    urls: AsyncRefTask<std::io::Result<Vec<(ImageId, String)>>>,
+    viewer: ImageViewer,
+    image_state: ImageState,
+    last_drag_start: Option<(usize, usize)>,
+    session: DefaultSession,
 }
 
 enum ImageState {
     NotLoaded,
     LoadingImageData(AsyncTask<std::io::Result<ImageData>>),
-    LoadingEmbeddings(ImageData, AsyncTask<Result<SamEmbeddings, InferenceError>>),
-    Loaded(ImageData, SamEmbeddings),
+    Loaded(
+        Arc<DynamicImage>,
+        TextureHandle,
+        MaskImage,
+        AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
+    ),
     Error(String),
 }
 
@@ -74,9 +69,8 @@ impl ImageViewerApp {
             urls,
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
-            selected: None,
-            current_raw_data: None,
-            mask_image: None,
+            //current_raw_data: None,
+            //mask_image: None,
             last_drag_start: None,
             session: DefaultSession::new().unwrap(),
         }
@@ -98,7 +92,7 @@ impl eframe::App for ImageViewerApp {
                     ui.horizontal(|ui| {
                         if ui.button("<").clicked() || ui.input(|i| i.key_pressed(Key::ArrowLeft)) {
                             self.url_idx = (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                            self.viewer.reset();
+                            self.image_state = ImageState::NotLoaded;
                         }
                         if ComboBox::from_id_salt("url_selector")
                             .show_index(ui, &mut self.url_idx, urls.len(), |x| {
@@ -106,77 +100,132 @@ impl eframe::App for ImageViewerApp {
                             })
                             .changed()
                         {
-                            self.viewer.reset();
+                            self.image_state = ImageState::NotLoaded;
                         }
                         if ui.button(">").clicked() || ui.input(|i| i.key_pressed(Key::ArrowRight))
                         {
                             self.url_idx = (self.url_idx + 1) % urls.len();
-                            self.viewer.reset();
+                            self.image_state = ImageState::NotLoaded;
                         }
                         if ui.button("reload").clicked() {
                             reload_images = true;
                         }
                     });
                     if let Some((image_id, _)) = urls.get(self.url_idx) {
-                        match self
-                            .selected
-                            .get_or_insert(AsyncRefTask::new(self.storage.load_image(image_id)))
-                            .data()
-                        {
-                            None => {
-                                ui.label("Loading...");
+                        match &mut self.image_state {
+                            ImageState::NotLoaded => {
+                                self.image_state = ImageState::LoadingImageData(AsyncTask::new(
+                                    self.storage.load_image(image_id),
+                                ))
                             }
-                            Some(Err(e)) => {
-                                ui.label(format!("{e:?}"));
+                            ImageState::LoadingImageData(t) => {
+                                if let Some(x) = t.data() {
+                                    //self.image_state = ImageState::LoadingEmbeddings(x, ())
+                                    self.image_state = match x {
+                                        Ok(i) => {
+                                            let handle = ctx.load_texture(
+                                                "Overlays",
+                                                ColorImage {
+                                                    size: [
+                                                        i.adjust_image.width() as _,
+                                                        i.adjust_image.height() as _,
+                                                    ],
+                                                    pixels: i
+                                                        .adjust_image
+                                                        .pixels()
+                                                        .map(|(_, _, image::Rgba([r, g, b, _]))| {
+                                                            Color32::from_rgb(r, g, b)
+                                                        })
+                                                        .collect(),
+                                                },
+                                                TextureOptions {
+                                                    magnification: egui::TextureFilter::Nearest,
+                                                    ..Default::default()
+                                                },
+                                            );
+                                            let texture = SizedTexture::from_handle(&handle);
+                                            self.viewer.sources =
+                                                vec![ImageSource::Texture(texture)];
+                                            let embeddings = self
+                                                .session
+                                                .get_image_embeddings(i.adjust_image.clone())
+                                                .boxed();
+                                            //self.current_raw_data = Some((handle, Err(embeddings)));
+                                            let x = i.adjust_image.width() as usize;
+                                            let y = i.adjust_image.height() as usize;
+
+                                            ImageState::Loaded(
+                                                i.adjust_image,
+                                                handle,
+                                                MaskImage {
+                                                    size: [x, y],
+                                                    annotations: Annotations(i.masks.clone()),
+                                                    history: Default::default(),
+                                                    texture_handle: None,
+                                                },
+                                                AsyncRefTask::new(embeddings),
+                                            )
+                                        }
+                                        Err(_) => ImageState::Error("Ignored for now".into()),
+                                    }
+                                }
                             }
-                            Some(Ok(ImageData {
-                                adjust_image,
-                                id,
-                                masks,
-                                ..
-                            })) if id == image_id => {
-                                if self.viewer.sources.is_empty() {
+                            ImageState::Loaded(_, _, mask, _) => {
+                                if let ((shift_pressed, true),) = (ui.input(|i| {
+                                    (
+                                        i.modifiers.shift,
+                                        i.key_pressed(egui::Key::Z) && i.modifiers.command,
+                                    )
+                                }),)
+                                {
+                                    let require_redraw = if shift_pressed {
+                                        info!("Redo");
+                                        mask.history.redo().is_some()
+                                    } else {
+                                        info!("Undo");
+                                        mask.history.undo().is_some()
+                                    };
+                                    if require_redraw {
+                                        mask.texture_handle = None;
+                                    };
+                                }
+
+                                if mask.texture_handle.is_none() {
+                                    let texture_options = TextureOptions {
+                                        magnification: egui::TextureFilter::Nearest,
+                                        ..Default::default()
+                                    };
+
+                                    let mut pixels =
+                                        vec![Color32::TRANSPARENT; mask.size[0] * mask.size[1]];
+
+                                    for (pos, len) in mask.subgroups() {
+                                        let group_color =
+                                            Color32::from_rgba_premultiplied(64, 64, 0, 64);
+                                        let pos = pos as usize;
+                                        pixels[pos..(pos + len.get() as usize)].fill(group_color);
+                                    }
+
                                     let handle = ctx.load_texture(
                                         "Overlays",
                                         ColorImage {
-                                            size: [
-                                                adjust_image.width() as _,
-                                                adjust_image.height() as _,
-                                            ],
-                                            pixels: adjust_image
-                                                .pixels()
-                                                .map(|(_, _, image::Rgba([r, g, b, _]))| {
-                                                    Color32::from_rgb(r, g, b)
-                                                })
-                                                .collect(),
+                                            size: mask.size,
+                                            pixels,
                                         },
-                                        TextureOptions {
-                                            magnification: egui::TextureFilter::Nearest,
-                                            ..Default::default()
-                                        },
+                                        texture_options,
                                     );
-                                    let texture = SizedTexture::from_handle(&handle);
-                                    self.viewer.sources = vec![ImageSource::Texture(texture)];
-                                    let embeddings = self
-                                        .session
-                                        .get_image_embeddings(adjust_image.clone())
-                                        .boxed();
-                                    self.current_raw_data = Some((handle, Err(embeddings)));
-                                    let x = adjust_image.width() as usize;
-                                    let y = adjust_image.height() as usize;
 
-                                    self.mask_image = Some(MaskImage {
-                                        size: [x, y],
-                                        annotations: Annotations(masks.clone()),
-                                        history: Default::default(),
-                                        texture_handle: None,
-                                    });
+                                    self.viewer.sources.truncate(1);
+                                    self.viewer.sources.push(ImageSource::Texture(
+                                        SizedTexture::from_handle(&handle),
+                                    ));
+                                    mask.texture_handle = Some(handle);
                                 }
                             }
-                            _ => self.selected = None,
+                            ImageState::Error(error) => {
+                                ui.label(format!("Error: {error}"));
+                            }
                         }
-                    } else {
-                        self.viewer.sources = Vec::new();
                     }
                 }
             }
@@ -212,107 +261,42 @@ impl eframe::App for ImageViewerApp {
             }
 
             if let (
-                Some(MaskImage {
-                    history,
-                    texture_handle,
-                    ..
-                }),
-                (shift_pressed, true),
-            ) = (
-                self.mask_image.as_mut(),
-                ui.input(|i| {
-                    (
-                        i.modifiers.shift,
-                        i.key_pressed(egui::Key::Z) && i.modifiers.command,
-                    )
-                }),
-            ) {
-                let require_redraw = if shift_pressed {
-                    info!("Redo");
-                    history.redo().is_some()
-                } else {
-                    info!("Undo");
-                    history.undo().is_some()
-                };
-                if require_redraw {
-                    *texture_handle = None;
-                };
-            }
-
-            if let (
-                Some(MaskImage {
-                    history,
-                    texture_handle,
-                    ..
-                }),
                 Some(&(cursor_x, cursor_y)),
-                Some(e),
+                ImageState::Loaded(
+                    _image_data,
+                    _texture,
+                    MaskImage {
+                        history,
+                        texture_handle,
+                        ..
+                    },
+                    embeddings,
+                ),
                 Some(&(start_x, start_y)),
                 true,
             ) = (
-                self.mask_image.as_mut(),
                 cursor_image_pos.as_ref(),
-                self.current_raw_data.as_mut(),
+                &mut self.image_state,
                 self.last_drag_start.as_ref(),
                 response.drag_stopped() && !ui.input(|i| i.modifiers.command || i.modifiers.ctrl),
             ) {
-                info!("Dragging ended");
-                if let Err(pending) = e.1.as_mut() {
-                    let x = futures::executor::block_on(pending).unwrap();
-                    e.1 = Ok(x);
-                };
-                let Ok(loaded_embeddings) = e.1.as_ref() else {
-                    unreachable!("Loaded above")
-                };
-                let mask = self
-                    .session
-                    .decode_prompt(
-                        cursor_x.min(start_x) as f32,
-                        cursor_y.min(start_y) as f32,
-                        cursor_x.max(start_x) as f32,
-                        cursor_y.max(start_y) as f32,
-                        loaded_embeddings,
-                    )
-                    .unwrap();
+                if let Some(Ok(loaded_embeddings)) = embeddings.data() {
+                    let mask = self
+                        .session
+                        .decode_prompt(
+                            cursor_x.min(start_x) as f32,
+                            cursor_y.min(start_y) as f32,
+                            cursor_x.max(start_x) as f32,
+                            cursor_y.max(start_y) as f32,
+                            loaded_embeddings,
+                        )
+                        .unwrap();
 
-                history.push(("New group".into(), mask));
+                    history.push(("New group".into(), mask));
 
-                self.last_drag_start = None;
-                *texture_handle = None;
-            }
-
-            if let Some(
-                i @ MaskImage {
-                    texture_handle: None,
-                    ..
-                },
-            ) = self.mask_image.as_mut()
-            {
-                let texture_options = TextureOptions {
-                    magnification: egui::TextureFilter::Nearest,
-                    ..Default::default()
-                };
-
-                let mut pixels = vec![Color32::TRANSPARENT; i.size[0] * i.size[1]];
-
-                for (pos, len) in i.subgroups() {
-                    let group_color = Color32::from_rgba_premultiplied(64, 64, 0, 64);
-                    let pos = pos as usize;
-                    pixels[pos..(pos + len.get() as usize)].fill(group_color);
+                    self.last_drag_start = None;
+                    *texture_handle = None;
                 }
-
-                let handle = ctx.load_texture(
-                    "Overlays",
-                    ColorImage {
-                        size: i.size,
-                        pixels,
-                    },
-                    texture_options,
-                );
-
-                let mask = ImageSource::Texture(SizedTexture::from_handle(&handle));
-                self.viewer.sources.push(mask);
-                i.texture_handle = Some(handle);
             }
 
             // Zoom level display
