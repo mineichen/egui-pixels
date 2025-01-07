@@ -71,7 +71,7 @@ impl MaskImage {
 
             let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
 
-            for (group_id, subgroups) in self.subgroups() {
+            for (group_id, subgroups) in self.subgroups().enumerate() {
                 let [r, g, b] = generate_rgb_color(group_id as u16);
                 let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
                 for &(pos, len) in subgroups {
@@ -96,13 +96,12 @@ impl MaskImage {
         }
     }
 
-    fn subgroups(&self) -> impl Iterator<Item = (usize, &Vec<(u32, NonZeroU16)>)> {
+    pub fn subgroups(&self) -> impl Iterator<Item = &Vec<(u32, NonZeroU16)>> {
         self.annotations
             .0
             .iter()
             .map(|(_, b)| b)
             .chain(self.history.iter())
-            .enumerate()
     }
 
     fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, u32, NonZeroU16)> + '_ {
@@ -129,6 +128,7 @@ impl MaskImage {
 
         let x: BinaryHeap<_> = self
             .subgroups()
+            .enumerate()
             .map(|(group_id, x)| {
                 let mut iter = x.iter();
                 HeapItem(

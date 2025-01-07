@@ -12,6 +12,10 @@ impl<T> AsyncRefTask<T> {
         Self::Pending(b)
     }
 
+    pub fn new_ready(r: T) -> Self {
+        Self::Ready(r)
+    }
+
     pub fn data(&mut self) -> Option<&mut T> {
         match self {
             AsyncRefTask::Pending(x) => {

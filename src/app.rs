@@ -22,12 +22,14 @@ pub(crate) struct ImageViewerApp {
     image_state: ImageState,
     last_drag_start: Option<(usize, usize)>,
     session: DefaultSession,
+    save_job: AsyncRefTask<std::io::Result<()>>,
 }
 
 enum ImageState {
     NotLoaded,
     LoadingImageData(AsyncTask<io::Result<ImageData>>),
     Loaded(
+        ImageId,
         Arc<DynamicImage>,
         TextureHandle,
         MaskImage,
@@ -49,6 +51,7 @@ impl ImageViewerApp {
             viewer: ImageViewer::new(vec![]),
             last_drag_start: None,
             session: DefaultSession::new().unwrap(),
+            save_job: AsyncRefTask::new_ready(Ok(())),
         }
     }
 }
@@ -85,6 +88,21 @@ impl eframe::App for ImageViewerApp {
                         }
                         if ui.button("reload").clicked() {
                             reload_images = true;
+                        }
+                        match (self.save_job.data(), &self.image_state) {
+                            (Some(last_save), ImageState::Loaded(id, _, _, masks, _)) => {
+                                if let Err(e) = last_save {
+                                    ui.label(format!("Error during save: {e}"));
+                                }
+                                if ui.button("Save").clicked() {
+                                    self.save_job = AsyncRefTask::new(
+                                        self.storage
+                                            .store_masks(id.clone(), masks.subgroups())
+                                            .boxed(),
+                                    );
+                                }
+                            }
+                            _ => {}
                         }
                     });
                     if let Some((image_id, _)) = urls.get(self.url_idx) {
@@ -130,6 +148,7 @@ impl eframe::App for ImageViewerApp {
                                             let y = i.adjust_image.height() as usize;
 
                                             ImageState::Loaded(
+                                                i.id,
                                                 i.adjust_image,
                                                 handle,
                                                 MaskImage::new(
@@ -144,7 +163,7 @@ impl eframe::App for ImageViewerApp {
                                     }
                                 }
                             }
-                            ImageState::Loaded(_, _, mask, _) => {
+                            ImageState::Loaded(_, _, _, mask, _) => {
                                 if let Some(x) = mask.ui_events(ui) {
                                     self.viewer.sources.truncate(1);
                                     self.viewer.sources.push(ImageSource::Texture(x));
@@ -190,7 +209,7 @@ impl eframe::App for ImageViewerApp {
 
             if let (
                 Some(&(cursor_x, cursor_y)),
-                ImageState::Loaded(_image_data, _texture, mask, embeddings),
+                ImageState::Loaded(_id, _image_data, _texture, mask, embeddings),
                 Some(&(start_x, start_y)),
                 true,
             ) = (
