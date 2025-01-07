@@ -4,7 +4,8 @@ use eframe::egui::{
     self, load::SizedTexture, Color32, ColorImage, TextureHandle, TextureOptions, Ui,
 };
 use history::History;
-use log::info;
+use itertools::Itertools;
+use log::{debug, info};
 
 use crate::Annotation;
 
@@ -29,7 +30,15 @@ impl MaskImage {
         }
     }
 
-    pub fn add_subgroup(&mut self, annotation: Annotation) {
+    pub fn add_subgroup(&mut self, mut annotation: Annotation) {
+        Self::remove_overlaps(
+            &mut annotation.1,
+            self.subgroups_ordered().map(|(_, a, b)| (a, b)),
+        );
+        if annotation.1.is_empty() {
+            debug!("All Pixels are in a other subgroup already");
+            return;
+        }
         self.history.push(annotation);
         self.texture_handle = None;
     }
@@ -146,6 +155,43 @@ impl MaskImage {
         }
         GroupIterator(x)
     }
+    fn remove_overlaps(
+        annotations: &mut Vec<(u32, NonZeroU16)>,
+        existing: impl Iterator<Item = (u32, NonZeroU16)>,
+    ) {
+        let mut peekable_sorted = existing.peekable();
+        annotations.retain_mut(|(new_pos, new_len)| {
+            let before = peekable_sorted
+                .peeking_take_while(|(other_pos, _)| other_pos < new_pos)
+                .last();
+            if let Some((before_pos, before_len)) = before {
+                let before_end = before_pos + before_len.get() as u32;
+                if before_end > *new_pos {
+                    let offset = before_end - *new_pos;
+                    if let Ok(x) = NonZeroU16::try_from(new_len.get().saturating_sub(offset as _)) {
+                        *new_pos += offset;
+                        *new_len = x;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            if let Some((after_pos, _)) = peekable_sorted.peek() {
+                let new_end = *new_pos + new_len.get() as u32;
+                if *after_pos < new_end {
+                    let offset = new_end.saturating_sub(*after_pos);
+
+                    if let Ok(x) = NonZeroU16::try_from(new_len.get().saturating_sub(offset as _)) {
+                        *new_len = x;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+
+            true
+        });
+    }
 }
 
 fn generate_rgb_color(group: u16) -> [u8; 3] {
@@ -158,6 +204,46 @@ fn generate_rgb_color(group: u16) -> [u8; 3] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlapping_before() {
+        let mut annotation = vec![(2, 4.try_into().unwrap())];
+        let existing = vec![(0, 3.try_into().unwrap())];
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(annotation, vec![(3, 3.try_into().unwrap())])
+    }
+
+    #[test]
+    fn overlapping_both() {
+        let mut annotation = vec![(2, 4.try_into().unwrap())];
+        let existing = vec![(0, 6.try_into().unwrap())];
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(annotation, vec![])
+    }
+
+    #[test]
+    fn overlapping_end() {
+        let mut annotation = vec![(1, 4.try_into().unwrap())];
+        let existing = vec![(2, 6.try_into().unwrap())];
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(annotation, vec![(1, 1.try_into().unwrap())])
+    }
+
+    #[test]
+    fn overlapping_between() {
+        let mut annotation = vec![(2, 4.try_into().unwrap())];
+        let existing = vec![(0, 3.try_into().unwrap()), (0, 8.try_into().unwrap())];
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(annotation, vec![])
+    }
+
+    #[test]
+    fn no_overlap_before() {
+        let mut annotation = vec![(2, 4.try_into().unwrap())];
+        let existing = vec![(0, 2.try_into().unwrap())];
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(annotation, vec![(2, 4.try_into().unwrap())])
+    }
 
     #[test]
     fn iter_sorted() {
