@@ -22,7 +22,7 @@ futures = "0.3"
 num-traits = "0.2.19"
 
 
-[patch.crates-io]
-egui = { path = "../myegui/crates/egui" }
-egui-winit = { path = "../myegui/crates/egui-winit" }
-eframe = { path = "../myegui/crates/eframe" }
+#[patch.crates-io]
+#egui = { path = "../myegui/crates/egui" }
+#egui-winit = { path = "../myegui/crates/egui-winit" }
+#eframe = { path = "../myegui/crates/eframe" }
