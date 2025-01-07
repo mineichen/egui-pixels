@@ -5,9 +5,9 @@ use eframe::egui::{self};
 
 mod app;
 mod async_task;
-mod history;
 mod image_utils;
 mod inference;
+mod mask;
 mod storage;
 mod viewer;
 

@@ -1,9 +1,9 @@
-use std::{num::NonZeroU16, sync::Arc};
+use std::{io, num::NonZeroU16, sync::Arc};
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
-    history::History,
     inference::{DefaultSession, InferenceError, SamEmbeddings},
+    mask::MaskImage,
     storage::{ImageData, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
     Annotation,
@@ -19,7 +19,7 @@ use log::info;
 pub(crate) struct ImageViewerApp {
     storage: Storage,
     url_idx: usize,
-    urls: AsyncRefTask<std::io::Result<Vec<(ImageId, String)>>>,
+    urls: AsyncRefTask<io::Result<Vec<(ImageId, String)>>>,
     viewer: ImageViewer,
     image_state: ImageState,
     last_drag_start: Option<(usize, usize)>,
@@ -28,7 +28,7 @@ pub(crate) struct ImageViewerApp {
 
 enum ImageState {
     NotLoaded,
-    LoadingImageData(AsyncTask<std::io::Result<ImageData>>),
+    LoadingImageData(AsyncTask<io::Result<ImageData>>),
     Loaded(
         Arc<DynamicImage>,
         TextureHandle,
@@ -37,26 +37,6 @@ enum ImageState {
     ),
     Error(String),
 }
-
-pub(crate) struct MaskImage {
-    size: [usize; 2],
-    annotations: Annotations,
-    history: History,
-    texture_handle: Option<TextureHandle>,
-}
-
-impl MaskImage {
-    fn subgroups(&self) -> impl Iterator<Item = (u32, NonZeroU16)> + '_ {
-        self.annotations
-            .0
-            .iter()
-            .flat_map(|(_, b)| b)
-            .chain(self.history.iter().flatten())
-            .copied()
-    }
-}
-
-pub(crate) struct Annotations(Vec<Annotation>);
 
 impl ImageViewerApp {
     pub fn new() -> Self {
@@ -69,8 +49,6 @@ impl ImageViewerApp {
             urls,
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
-            //current_raw_data: None,
-            //mask_image: None,
             last_drag_start: None,
             session: DefaultSession::new().unwrap(),
         }
@@ -120,7 +98,6 @@ impl eframe::App for ImageViewerApp {
                             }
                             ImageState::LoadingImageData(t) => {
                                 if let Some(x) = t.data() {
-                                    //self.image_state = ImageState::LoadingEmbeddings(x, ())
                                     self.image_state = match x {
                                         Ok(i) => {
                                             let handle = ctx.load_texture(
@@ -150,76 +127,29 @@ impl eframe::App for ImageViewerApp {
                                                 .session
                                                 .get_image_embeddings(i.adjust_image.clone())
                                                 .boxed();
-                                            //self.current_raw_data = Some((handle, Err(embeddings)));
+
                                             let x = i.adjust_image.width() as usize;
                                             let y = i.adjust_image.height() as usize;
 
                                             ImageState::Loaded(
                                                 i.adjust_image,
                                                 handle,
-                                                MaskImage {
-                                                    size: [x, y],
-                                                    annotations: Annotations(i.masks.clone()),
-                                                    history: Default::default(),
-                                                    texture_handle: None,
-                                                },
+                                                MaskImage::new(
+                                                    [x, y],
+                                                    i.masks.clone(),
+                                                    Default::default(),
+                                                ),
                                                 AsyncRefTask::new(embeddings),
                                             )
                                         }
-                                        Err(_) => ImageState::Error("Ignored for now".into()),
+                                        Err(e) => ImageState::Error(format!("Error: {e}")),
                                     }
                                 }
                             }
                             ImageState::Loaded(_, _, mask, _) => {
-                                if let ((shift_pressed, true),) = (ui.input(|i| {
-                                    (
-                                        i.modifiers.shift,
-                                        i.key_pressed(egui::Key::Z) && i.modifiers.command,
-                                    )
-                                }),)
-                                {
-                                    let require_redraw = if shift_pressed {
-                                        info!("Redo");
-                                        mask.history.redo().is_some()
-                                    } else {
-                                        info!("Undo");
-                                        mask.history.undo().is_some()
-                                    };
-                                    if require_redraw {
-                                        mask.texture_handle = None;
-                                    };
-                                }
-
-                                if mask.texture_handle.is_none() {
-                                    let texture_options = TextureOptions {
-                                        magnification: egui::TextureFilter::Nearest,
-                                        ..Default::default()
-                                    };
-
-                                    let mut pixels =
-                                        vec![Color32::TRANSPARENT; mask.size[0] * mask.size[1]];
-
-                                    for (pos, len) in mask.subgroups() {
-                                        let group_color =
-                                            Color32::from_rgba_premultiplied(64, 64, 0, 64);
-                                        let pos = pos as usize;
-                                        pixels[pos..(pos + len.get() as usize)].fill(group_color);
-                                    }
-
-                                    let handle = ctx.load_texture(
-                                        "Overlays",
-                                        ColorImage {
-                                            size: mask.size,
-                                            pixels,
-                                        },
-                                        texture_options,
-                                    );
-
+                                if let Some(x) = mask.ui_events(ui) {
                                     self.viewer.sources.truncate(1);
-                                    self.viewer.sources.push(ImageSource::Texture(
-                                        SizedTexture::from_handle(&handle),
-                                    ));
-                                    mask.texture_handle = Some(handle);
+                                    self.viewer.sources.push(ImageSource::Texture(x));
                                 }
                             }
                             ImageState::Error(error) => {
@@ -262,16 +192,7 @@ impl eframe::App for ImageViewerApp {
 
             if let (
                 Some(&(cursor_x, cursor_y)),
-                ImageState::Loaded(
-                    _image_data,
-                    _texture,
-                    MaskImage {
-                        history,
-                        texture_handle,
-                        ..
-                    },
-                    embeddings,
-                ),
+                ImageState::Loaded(_image_data, _texture, mask, embeddings),
                 Some(&(start_x, start_y)),
                 true,
             ) = (
@@ -281,7 +202,7 @@ impl eframe::App for ImageViewerApp {
                 response.drag_stopped() && !ui.input(|i| i.modifiers.command || i.modifiers.ctrl),
             ) {
                 if let Some(Ok(loaded_embeddings)) = embeddings.data() {
-                    let mask = self
+                    let new_mask = self
                         .session
                         .decode_prompt(
                             cursor_x.min(start_x) as f32,
@@ -292,10 +213,10 @@ impl eframe::App for ImageViewerApp {
                         )
                         .unwrap();
 
-                    history.push(("New group".into(), mask));
+                    //mask.remove_overlaps();
+                    mask.add_subgroup(("New group".into(), new_mask));
 
                     self.last_drag_start = None;
-                    *texture_handle = None;
                 }
             }
 
