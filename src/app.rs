@@ -1,52 +1,78 @@
-use std::task::{Context, Poll};
+use std::{
+    num::NonZeroU16,
+    task::{Context, Poll},
+};
 
 use crate::{
+    async_task::{AsyncRefTask, AsyncTask},
     history::History,
-    image_utils::load_image,
     inference::{self, DefaultSession, InferenceError, SamEmbeddings},
-    storage::{parse_masks, ImageData, ImageId, Storage},
+    storage::{ImageData, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
     Annotation,
 };
 use eframe::egui::{
-    self,
-    load::{BytesPoll, SizedTexture},
-    Color32, ColorImage, ComboBox, ImageSource, InnerResponse, Key, Sense, TextureHandle,
-    TextureOptions, UiBuilder,
+    self, load::SizedTexture, Color32, ColorImage, ComboBox, ImageSource, InnerResponse, Key,
+    Sense, TextureHandle, TextureOptions, UiBuilder,
 };
-use futures::{
-    future::{BoxFuture, Either},
-    FutureExt,
-};
+use futures::{future::BoxFuture, FutureExt};
 use image::GenericImageView;
-use log::{debug, info};
-
-type LoadedOrLoading<T> = Either<T, BoxFuture<'static, T>>;
+use log::info;
 
 pub(crate) struct ImageViewerApp {
     pub storage: Storage,
     pub url_idx: usize,
-    pub urls: LoadedOrLoading<std::io::Result<Vec<(ImageId, String)>>>,
+    pub urls: AsyncRefTask<std::io::Result<Vec<(ImageId, String)>>>,
     pub viewer: ImageViewer,
-    pub selected: Option<LoadedOrLoading<std::io::Result<ImageData>>>,
+    pub image_state: ImageState,
+    pub selected: Option<AsyncRefTask<std::io::Result<ImageData>>>,
     pub current_raw_data: Option<(
         TextureHandle,
         Result<inference::SamEmbeddings, BoxFuture<'static, Result<SamEmbeddings, InferenceError>>>,
     )>,
-    pub mask_image: Option<([usize; 2], Vec<Annotation>, History, Option<TextureHandle>)>,
+    pub mask_image: Option<MaskImage>,
     pub last_drag_start: Option<(usize, usize)>,
     pub session: DefaultSession,
 }
 
+enum ImageState {
+    NotLoaded,
+    LoadingImageData(AsyncTask<std::io::Result<ImageData>>),
+    LoadingEmbeddings(ImageData, AsyncTask<Result<SamEmbeddings, InferenceError>>),
+    Loaded(ImageData, SamEmbeddings),
+    Error(String),
+}
+
+pub(crate) struct MaskImage {
+    size: [usize; 2],
+    annotations: Annotations,
+    history: History,
+    texture_handle: Option<TextureHandle>,
+}
+
+impl MaskImage {
+    fn subgroups(&self) -> impl Iterator<Item = (u32, NonZeroU16)> + '_ {
+        self.annotations
+            .0
+            .iter()
+            .flat_map(|(_, b)| b)
+            .chain(self.history.iter().flatten())
+            .copied()
+    }
+}
+
+pub(crate) struct Annotations(Vec<Annotation>);
+
 impl ImageViewerApp {
     pub fn new() -> Self {
-        let storage = Storage::new("//Users/mineichen/Downloads/2024-10-31_13/");
-        let urls = Either::Right(storage.list_images());
+        let storage = Storage::new("/Users/mineichen/Downloads/2024-10-31_13/");
+        let urls = AsyncRefTask::new(storage.list_images());
 
         Self {
             storage,
             url_idx: 0,
             urls,
+            image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
             selected: None,
             current_raw_data: None,
@@ -59,22 +85,16 @@ impl ImageViewerApp {
 
 impl eframe::App for ImageViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let waker = futures::task::noop_waker();
-        let mut context = Context::from_waker(&waker);
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
 
             let mut reload_images = false;
-            match &mut self.urls {
-                Either::Right(x) => {
-                    if let std::task::Poll::Ready(x) = x.poll_unpin(&mut context) {
-                        self.urls = Either::Left(x);
-                    }
-                }
-                Either::Left(Err(e)) => {
+            match self.urls.data() {
+                None => {}
+                Some(Err(e)) => {
                     ui.label(format!("{e}"));
                 }
-                Either::Left(Ok(urls)) => {
+                Some(Ok(urls)) => {
                     ui.horizontal(|ui| {
                         if ui.button("<").clicked() || ui.input(|i| i.key_pressed(Key::ArrowLeft)) {
                             self.url_idx = (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
@@ -98,44 +118,62 @@ impl eframe::App for ImageViewerApp {
                         }
                     });
                     if let Some((image_id, _)) = urls.get(self.url_idx) {
-                        if self.selected.is_none() {
-                            self.selected = Some(Either::Right(self.storage.load_image(image_id)));
-                        }
-                        let selected = self.selected.as_mut().expect("If empty, it was set above");
-                        match selected {
-                            Either::Right(x) => {
-                                if let Poll::Ready(x) = x.poll_unpin(&mut context) {
-                                    *selected = Either::Left(x);
+                        match self
+                            .selected
+                            .get_or_insert(AsyncRefTask::new(self.storage.load_image(image_id)))
+                            .data()
+                        {
+                            None => {
+                                ui.label("Loading...");
+                            }
+                            Some(Err(e)) => {
+                                ui.label(format!("{e:?}"));
+                            }
+                            Some(Ok(ImageData {
+                                adjust_image,
+                                id,
+                                masks,
+                                ..
+                            })) if id == image_id => {
+                                if self.viewer.sources.is_empty() {
+                                    let handle = ctx.load_texture(
+                                        "Overlays",
+                                        ColorImage {
+                                            size: [
+                                                adjust_image.width() as _,
+                                                adjust_image.height() as _,
+                                            ],
+                                            pixels: adjust_image
+                                                .pixels()
+                                                .map(|(_, _, image::Rgba([r, g, b, _]))| {
+                                                    Color32::from_rgb(r, g, b)
+                                                })
+                                                .collect(),
+                                        },
+                                        TextureOptions {
+                                            magnification: egui::TextureFilter::Nearest,
+                                            ..Default::default()
+                                        },
+                                    );
+                                    let texture = SizedTexture::from_handle(&handle);
+                                    self.viewer.sources = vec![ImageSource::Texture(texture)];
+                                    let embeddings = self
+                                        .session
+                                        .get_image_embeddings(adjust_image.clone())
+                                        .boxed();
+                                    self.current_raw_data = Some((handle, Err(embeddings)));
+                                    let x = adjust_image.width() as usize;
+                                    let y = adjust_image.height() as usize;
+
+                                    self.mask_image = Some(MaskImage {
+                                        size: [x, y],
+                                        annotations: Annotations(masks.clone()),
+                                        history: Default::default(),
+                                        texture_handle: None,
+                                    });
                                 }
                             }
-                            Either::Left(image_data) => {}
-                        }
-                        if self.viewer.sources.is_empty() {
-                            if let BytesPoll::Ready { bytes, .. } =
-                                ctx.try_load_bytes(image_id.uri().as_str()).unwrap()
-                            {
-                                let image = load_image(&bytes).unwrap();
-                                let handle = ctx.load_texture(
-                                    "Overlays",
-                                    ColorImage {
-                                        size: [image.width() as _, image.height() as _],
-                                        pixels: image
-                                            .pixels()
-                                            .map(|(_, _, image::Rgba([r, g, b, _]))| {
-                                                Color32::from_rgb(r, g, b)
-                                            })
-                                            .collect(),
-                                    },
-                                    TextureOptions {
-                                        magnification: egui::TextureFilter::Nearest,
-                                        ..Default::default()
-                                    },
-                                );
-                                let texture = SizedTexture::from_handle(&handle);
-                                self.viewer.sources = vec![ImageSource::Texture(texture)];
-                                let embeddings = self.session.get_image_embeddings(image).boxed();
-                                self.current_raw_data = Some((handle, Err(embeddings)));
-                            }
+                            _ => self.selected = None,
                         }
                     } else {
                         self.viewer.sources = Vec::new();
@@ -143,7 +181,7 @@ impl eframe::App for ImageViewerApp {
                 }
             }
             if reload_images {
-                self.urls = Either::Right(self.storage.list_images());
+                self.urls = AsyncRefTask::new(self.storage.list_images());
             }
 
             let mut available = ui.available_rect_before_wrap();
@@ -173,7 +211,14 @@ impl eframe::App for ImageViewerApp {
                 self.last_drag_start = cursor_image_pos;
             }
 
-            if let (Some((_, _, history, handle)), (shift_pressed, true)) = (
+            if let (
+                Some(MaskImage {
+                    history,
+                    texture_handle,
+                    ..
+                }),
+                (shift_pressed, true),
+            ) = (
                 self.mask_image.as_mut(),
                 ui.input(|i| {
                     (
@@ -190,12 +235,16 @@ impl eframe::App for ImageViewerApp {
                     history.undo().is_some()
                 };
                 if require_redraw {
-                    *handle = None;
+                    *texture_handle = None;
                 };
             }
 
             if let (
-                Some((_, _, history, handle)),
+                Some(MaskImage {
+                    history,
+                    texture_handle,
+                    ..
+                }),
                 Some(&(cursor_x, cursor_y)),
                 Some(e),
                 Some(&(start_x, start_y)),
@@ -229,47 +278,33 @@ impl eframe::App for ImageViewerApp {
                 history.push(("New group".into(), mask));
 
                 self.last_drag_start = None;
-                *handle = None;
+                *texture_handle = None;
             }
 
-            if self.viewer.sources.len() == 1 {
-                if let Ok(BytesPoll::Ready { bytes, mime, .. }) =
-                    ctx.try_load_bytes("file://masks.csv")
-                {
-                    let x = original_image_size.x as usize;
-                    let y = original_image_size.y as usize;
-
-                    let lines = parse_masks(&bytes);
-                    self.mask_image = Some(([x, y], lines, Default::default(), None));
-
-                    debug!(
-                        "Got {:?} bytes of type {mime:?}: {}",
-                        bytes.len(),
-                        String::from_utf8_lossy(&bytes)
-                    )
-                }
-            }
-            if let Some((size, groups, history, x @ None)) = self.mask_image.as_mut() {
+            if let Some(
+                i @ MaskImage {
+                    texture_handle: None,
+                    ..
+                },
+            ) = self.mask_image.as_mut()
+            {
                 let texture_options = TextureOptions {
                     magnification: egui::TextureFilter::Nearest,
                     ..Default::default()
                 };
 
-                let mut pixels = vec![Color32::TRANSPARENT; size[0] * size[1]];
-                let group_color = Color32::from_rgba_premultiplied(64, 64, 0, 64);
-                for (pos, len) in groups
-                    .iter()
-                    .flat_map(|(_, b)| b)
-                    .chain(history.iter().flatten())
-                {
-                    let pos = *pos as usize;
+                let mut pixels = vec![Color32::TRANSPARENT; i.size[0] * i.size[1]];
+
+                for (pos, len) in i.subgroups() {
+                    let group_color = Color32::from_rgba_premultiplied(64, 64, 0, 64);
+                    let pos = pos as usize;
                     pixels[pos..(pos + len.get() as usize)].fill(group_color);
                 }
 
                 let handle = ctx.load_texture(
                     "Overlays",
                     ColorImage {
-                        size: *size,
+                        size: i.size,
                         pixels,
                     },
                     texture_options,
@@ -277,7 +312,7 @@ impl eframe::App for ImageViewerApp {
 
                 let mask = ImageSource::Texture(SizedTexture::from_handle(&handle));
                 self.viewer.sources.push(mask);
-                *x = Some(handle);
+                i.texture_handle = Some(handle);
             }
 
             // Zoom level display

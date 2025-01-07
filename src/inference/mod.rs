@@ -35,7 +35,7 @@ pub enum InferenceError {
     UnexpectedOutput(String),
 }
 
-fn prepare_image_input(img: DynamicImage) -> Result<SamInputData, InferenceError> {
+fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, InferenceError> {
     let (original_width, original_height) = img.dimensions();
     let (original_width, original_height) = (
         NonZeroU32::try_from(original_width)?,

@@ -27,7 +27,7 @@ impl SamSession {
 
     pub fn get_image_embeddings(
         &self,
-        img: DynamicImage,
+        img: Arc<DynamicImage>,
     ) -> impl Future<Output = Result<SamEmbeddings, InferenceError>> {
         let (tx, rx) = futures::channel::oneshot::channel();
 
@@ -44,9 +44,9 @@ impl SamSession {
     }
     pub fn get_image_embeddings_blocking(
         encoder: Arc<Session>,
-        img: DynamicImage,
+        img: Arc<DynamicImage>,
     ) -> Result<SamEmbeddings, InferenceError> {
-        let image_input = super::prepare_image_input(img)?;
+        let image_input = super::prepare_image_input(&img)?;
         // Prepare tensor for the SAM encoder model
         let input_as_values = &image_input.image_data.as_standard_layout();
         let encoder_inputs = vec![Value::from_array(encoder.allocator(), input_as_values)?];

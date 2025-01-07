@@ -9,11 +9,12 @@ pub struct Storage {
     base: PathBuf,
 }
 
+#[derive(PartialEq)]
 pub struct ImageId(Arc<str>);
 
 pub struct ImageData {
     pub id: ImageId,
-    pub adjust_image: DynamicImage,
+    pub adjust_image: Arc<DynamicImage>,
     pub masks: Vec<Annotation>,
 }
 
@@ -42,7 +43,7 @@ impl Storage {
         let id = id.0.clone();
         async move {
             let image_bytes = std::fs::read(id.deref())?;
-            let adjust_image = crate::image_utils::load_image(&image_bytes)?;
+            let adjust_image = Arc::new(crate::image_utils::load_image(&image_bytes)?);
             let mask_bytes = std::fs::read("masks.csv")?;
             let masks = parse_masks(&mask_bytes);
 
