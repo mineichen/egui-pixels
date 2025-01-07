@@ -62,9 +62,10 @@ impl MaskImage {
 
             let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
 
-            for (_group_id, subgroups) in self.subgroups() {
+            for (group_id, subgroups) in self.subgroups() {
+                let [r, g, b] = generate_rgb_color(group_id as u16);
+                let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
                 for &(pos, len) in subgroups {
-                    let group_color = Color32::from_rgba_premultiplied(64, 64, 0, 64);
                     let pos = pos as usize;
                     pixels[pos..(pos + len.get() as usize)].fill(group_color);
                 }
@@ -147,6 +148,13 @@ impl MaskImage {
     }
 }
 
+fn generate_rgb_color(group: u16) -> [u8; 3] {
+    let group = group.wrapping_shl(2);
+    let r = ((group.wrapping_mul(17)) as u8).max(50);
+    let g = ((group.wrapping_mul(23)) as u8).max(50);
+    let b = ((group.wrapping_mul(29)) as u8).max(50);
+    [r, g, b]
+}
 #[cfg(test)]
 mod tests {
     use super::*;
