@@ -1,16 +1,15 @@
 use std::{
-    io::{self, BufRead, ErrorKind, Write},
+    io::{self, ErrorKind, Write},
     num::NonZeroU16,
     ops::Deref,
     path::PathBuf,
-    str::FromStr,
     sync::Arc,
 };
 
 use futures::{future::BoxFuture, FutureExt};
 use image::DynamicImage;
 
-use crate::{Annotation, SubGroups};
+use crate::Annotation;
 
 pub struct Storage {
     base: String,
@@ -55,10 +54,6 @@ impl Storage {
             let adjust_image = Arc::new(crate::image_utils::load_image(&image_bytes)?);
             let masks = match std::fs::read(mask_path) {
                 Ok(data) => {
-                    println!(
-                        "{:?}",
-                        data.get(0..PREAMBLE.len()).map(String::from_utf8_lossy)
-                    );
                     if data.get(0..PREAMBLE.len()) != Some(&PREAMBLE) {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
@@ -67,10 +62,10 @@ impl Storage {
                     }
                     assert_eq!(
                         Some(VERSION),
-                        data.get(11..13)
+                        data.get(PREAMBLE.len()..PREAMBLE.len() + 2)
                             .and_then(|bytes| Some(u16::from_le_bytes(bytes.try_into().ok()?)))
                     );
-                    let stored: StoredData = bincode::deserialize(&data[13..])
+                    let stored: StoredData = bincode::deserialize(&data[PREAMBLE.len() + 2..])
                         .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
 
                     stored
@@ -151,24 +146,6 @@ impl Storage {
 
         Ok(images_path.join(format!("{filename}.masks")))
     }
-}
-
-pub fn parse_masks(bytes: &[u8]) -> Vec<Annotation> {
-    bytes
-        .lines()
-        .filter_map(|x| {
-            let s = x.ok()?;
-            let mut parts = s.split(';');
-            let label = parts.next()?;
-            let lines = parts
-                .map(|x| {
-                    let (start, end) = x.split_once(',')?;
-                    Some((u32::from_str(start).ok()?, end.parse().ok()?))
-                })
-                .collect::<Option<SubGroups>>()?;
-            Some((label.into(), lines))
-        })
-        .collect::<Vec<_>>()
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]

@@ -94,7 +94,9 @@ impl eframe::App for ImageViewerApp {
                                 if let Err(e) = last_save {
                                     ui.label(format!("Error during save: {e}"));
                                 }
-                                if ui.button("Save").clicked() {
+                                if ui.button("Save").clicked()
+                                    || ui.input(|i| i.modifiers.command && i.key_down(Key::S))
+                                {
                                     self.save_job = AsyncRefTask::new(
                                         self.storage
                                             .store_masks(id.clone(), masks.subgroups())

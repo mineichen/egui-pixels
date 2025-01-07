@@ -195,7 +195,7 @@ impl MaskImage {
 }
 
 fn generate_rgb_color(group: u16) -> [u8; 3] {
-    let group = group.wrapping_shl(2);
+    let group = (group + 1).wrapping_shl(2);
     let r = ((group.wrapping_mul(17)) as u8).max(50);
     let g = ((group.wrapping_mul(23)) as u8).max(50);
     let b = ((group.wrapping_mul(29)) as u8).max(50);
