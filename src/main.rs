@@ -1,19 +1,6 @@
-use std::num::NonZeroU16;
-
-use app::ImageViewerApp;
 use eframe::egui::{self};
-
-mod app;
-mod async_task;
-mod image_utils;
-mod inference;
-mod mask;
-mod storage;
-mod viewer;
-
-type SubGroup = (u32, NonZeroU16);
-type SubGroups = Vec<SubGroup>;
-type Annotation = (String, SubGroups);
+use egui_pixels::ImageViewerApp;
+use egui_pixels::Storage;
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
@@ -26,10 +13,9 @@ fn main() -> Result<(), eframe::Error> {
         "Image Viewer",
         options,
         Box::new(|cc| {
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-
             Ok(Box::new(ImageViewerApp::new(
-                std::env::args().nth(1).unwrap_or_else(|| ".".to_string()),
+                cc,
+                Storage::new(std::env::args().nth(1).unwrap_or_else(|| ".".to_string())),
             )))
         }),
     )

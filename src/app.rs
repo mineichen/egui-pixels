@@ -15,7 +15,7 @@ use futures::FutureExt;
 use image::GenericImageView;
 use log::warn;
 
-pub(crate) struct ImageViewerApp {
+pub struct ImageViewerApp {
     storage: Storage,
     url_idx: usize,
     urls: AsyncRefTask<io::Result<Vec<(ImageId, String, bool)>>>,
@@ -40,8 +40,7 @@ struct ImageStateLoaded {
 }
 
 impl ImageViewerApp {
-    pub fn new(data: String) -> Self {
-        let storage = Storage::new(data);
+    pub fn new(_cc: &eframe::CreationContext<'_>, storage: Storage) -> Self {
         let urls = AsyncRefTask::new(storage.list_images());
 
         Self {
@@ -194,6 +193,7 @@ impl eframe::App for ImageViewerApp {
                                                 },
                                             );
                                             let texture = SizedTexture::from_handle(&handle);
+                                            self.viewer.reset();
                                             self.viewer.sources =
                                                 vec![ImageSource::Texture(texture)];
                                             let embeddings = self
@@ -300,7 +300,6 @@ impl eframe::App for ImageViewerApp {
             }
 
             // Zoom level display
-            ui.label(format!("Zoom (Ctrl+Wheel): {:.2}x", self.viewer.zoom));
             ui.label(format!(
                 "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
                 original_image_size,

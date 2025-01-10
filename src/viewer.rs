@@ -4,7 +4,7 @@ use eframe::egui::{
 
 pub struct ImageViewer {
     // Zoom level
-    pub zoom: f32,
+    zoom: f32,
     // Offset of the top left-corner (in percent)
     pub pan_offset: Vec2,
     // Images
