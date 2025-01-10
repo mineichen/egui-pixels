@@ -3,11 +3,13 @@ use std::{
     num::NonZeroU16,
     ops::Deref,
     path::PathBuf,
+    str::FromStr,
     sync::Arc,
 };
 
 use futures::{future::BoxFuture, FutureExt};
 use image::DynamicImage;
+use itertools::Itertools;
 use log::info;
 use num_traits::ToBytes;
 
@@ -34,7 +36,7 @@ impl Storage {
         Self { base: base.into() }
     }
     // uri -> Display
-    pub fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String)>>> {
+    pub fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String, bool)>>> {
         let (tx, rx) = futures::channel::oneshot::channel();
         let image_path = self.get_image_path();
 
@@ -168,22 +170,43 @@ impl Storage {
         .boxed()
     }
 
-    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String)>> {
-        let files = std::fs::read_dir(path)?;
-        let mut files_vec = files
+    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String, bool)>> {
+        Ok(std::fs::read_dir(path)?
             .into_iter()
             .filter_map(|x| {
                 let x = x.ok()?;
                 let path = x.path();
-                path.extension()?.to_str().filter(|e| *e == "png")?;
+                let e = path
+                    .extension()?
+                    .to_str()
+                    .and_then(|s| Kind::from_str(s).ok())?;
                 Some((
+                    path.file_stem()
+                        .expect("exists_if_extension_exists")
+                        .to_string_lossy()
+                        .to_string(),
+                    e,
                     ImageId(path.to_str()?.into()),
-                    x.file_name().to_string_lossy().to_string(),
                 ))
             })
-            .collect::<Vec<_>>();
-        files_vec.sort_unstable();
-        Ok(files_vec)
+            .sorted_unstable()
+            .chunk_by(|x| x.0.to_string())
+            .into_iter()
+            .filter_map(|(_, members)| {
+                let mut members = members.fuse();
+
+                let (name, kind, id) = members.next().expect("Needs one item to form a group");
+                match (kind, members.next()) {
+                    (Kind::Mask, None) => None,
+                    (Kind::Mask, Some((_, Kind::Mask, _))) => {
+                        unreachable!("Cannot have multiple file_stem.mask")
+                    }
+                    // Takeing any image is fine, ignore the rest
+                    (Kind::Mask, Some((name, Kind::Image, id))) => Some((id, name, true)),
+                    (Kind::Image, _) => Some((id, name, false)),
+                }
+            })
+            .collect::<Vec<_>>())
     }
     fn get_image_path(&self) -> PathBuf {
         self.base.as_str().into()
@@ -201,5 +224,26 @@ impl Storage {
             .ok_or_else(|| std::io::Error::other("Base musten't be a root-dir"))?;
 
         Ok(images_path.join(format!("{filename}.masks")))
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum Kind {
+    Mask,
+    Image,
+}
+
+impl FromStr for Kind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "jpeg" => Ok(Self::Image),
+            "jpg" => Ok(Self::Image),
+            "masks" => Ok(Self::Mask),
+            "png" => Ok(Self::Image),
+            "tiff" => Ok(Self::Image),
+            _ => Err(()),
+        }
     }
 }
