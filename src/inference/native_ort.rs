@@ -32,14 +32,17 @@ impl SamSession {
         let (tx, rx) = futures::channel::oneshot::channel();
 
         let session = self.encoder.clone();
-        std::thread::spawn(|| {
+        let handle = std::thread::spawn(|| {
             let r = Self::get_image_embeddings_blocking(session, img);
             tx.send(r)
         });
         async move {
-            rx.await
+            let r = rx
+                .await
                 .map_err(|e| InferenceError::Other(Arc::new(e)))
-                .and_then(|a| a)
+                .and_then(|a| a);
+            handle.join().unwrap().expect("Channel cant be gone");
+            r
         }
     }
     pub fn get_image_embeddings_blocking(
@@ -53,6 +56,9 @@ impl SamSession {
 
         // Run encoder to get image embeddings
         let outputs = encoder.run(encoder_inputs)?;
+        // return Err(InferenceError::Other(Arc::new(std::io::Error::other(
+        //     "Testing purpose",
+        // ))));
         let embeddings = outputs
             .first()
             .ok_or_else(|| InferenceError::UnexpectedOutput("Expected a output".into()))?

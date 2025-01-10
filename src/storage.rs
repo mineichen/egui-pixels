@@ -1,5 +1,5 @@
 use std::{
-    io::{self, ErrorKind, Write},
+    io::{self, ErrorKind, Read, Write},
     num::NonZeroU16,
     ops::Deref,
     path::PathBuf,
@@ -8,6 +8,8 @@ use std::{
 
 use futures::{future::BoxFuture, FutureExt};
 use image::DynamicImage;
+use log::info;
+use num_traits::ToBytes;
 
 use crate::Annotation;
 
@@ -15,7 +17,7 @@ pub struct Storage {
     base: String,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Eq, PartialOrd, Ord, Debug)]
 pub struct ImageId(Arc<str>);
 
 pub struct ImageData {
@@ -24,9 +26,7 @@ pub struct ImageData {
     pub masks: Vec<Annotation>,
 }
 
-const PREAMBLE: [u8; 11] = [
-    b'a', b'n', b'n', b'o', b't', b'a', b't', b'i', b'o', b'n', b's',
-];
+const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
 const VERSION: u16 = 1;
 
 impl Storage {
@@ -38,11 +38,16 @@ impl Storage {
         let (tx, rx) = futures::channel::oneshot::channel();
         let image_path = self.get_image_path();
 
-        std::thread::spawn(|| {
+        let handle = std::thread::spawn(|| {
             let r = Self::list_images_blocking(image_path);
             tx.send(r)
         });
-        async move { rx.await.map_err(std::io::Error::other).and_then(|a| a) }.boxed()
+        async move {
+            let r = rx.await.map_err(std::io::Error::other).and_then(|a| a);
+            handle.join().unwrap().expect("Channel cant be gone");
+            r
+        }
+        .boxed()
     }
 
     pub fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>> {
@@ -52,27 +57,50 @@ impl Storage {
             let mask_path = Self::get_mask_path(&id)?;
 
             let adjust_image = Arc::new(crate::image_utils::load_image(&image_bytes)?);
-            let masks = match std::fs::read(mask_path) {
-                Ok(data) => {
-                    if data.get(0..PREAMBLE.len()) != Some(&PREAMBLE) {
+            let masks = match std::fs::File::open(mask_path) {
+                Ok(mut f) => {
+                    let mut preamble = [0; PREAMBLE.len()];
+                    f.read_exact(&mut preamble)?;
+                    if preamble != PREAMBLE {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
                             "Invalid preamble",
                         ));
                     }
-                    assert_eq!(
-                        Some(VERSION),
-                        data.get(PREAMBLE.len()..PREAMBLE.len() + 2)
-                            .and_then(|bytes| Some(u16::from_le_bytes(bytes.try_into().ok()?)))
-                    );
-                    let stored: StoredData = bincode::deserialize(&data[PREAMBLE.len() + 2..])
-                        .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
+                    let mut version_bytes = [0; 2];
+                    f.read_exact(&mut version_bytes)?;
+                    assert_eq!(VERSION, u16::from_le_bytes(version_bytes));
 
-                    stored
-                        .masks
-                        .into_iter()
-                        .map(|d| ("foo".to_string(), d))
-                        .collect::<Vec<_>>()
+                    let mut f = brotli::Decompressor::new(f, 4096);
+                    let mut sub_groups_bytes = [0; 2];
+                    let mut all = Vec::new();
+                    let mut starts = Vec::new();
+                    let mut lens = Vec::new();
+
+                    while f.read_exact(&mut sub_groups_bytes).is_ok() {
+                        let sub_len = u16::from_le_bytes(sub_groups_bytes) as usize;
+
+                        starts.resize(sub_len, 0);
+                        lens.resize(sub_len, 0);
+                        f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
+                        f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
+                        all.push((
+                            "Foo".into(),
+                            starts
+                                .iter()
+                                .zip(lens.iter())
+                                .map(|(start, len)| match NonZeroU16::try_from(*len) {
+                                    Ok(l) => Ok((*start, l)),
+                                    Err(e) => Err(std::io::Error::new(
+                                        ErrorKind::InvalidData,
+                                        format!("position {start},{len}: {e:?}"),
+                                    )),
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        ));
+                    }
+
+                    all
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Default::default(),
                 Err(e) => return Err(e),
@@ -97,7 +125,7 @@ impl Storage {
         let path = Self::get_mask_path(&id);
 
         async move {
-            println!("Store at: {path:?}");
+            info!("Store at: {path:?}");
             let path = path?;
             if masks.is_empty() {
                 match std::fs::remove_file(path) {
@@ -109,7 +137,31 @@ impl Storage {
                 let mut f = std::fs::File::create(path)?;
                 f.write_all(&PREAMBLE)?;
                 f.write_all(&VERSION.to_le_bytes())?;
-                bincode::serialize_into(f, &StoredData { masks }).map_err(std::io::Error::other)?;
+
+                let mut f = brotli::CompressorWriter::new(f, 4096, 11, 22);
+                for sub in masks {
+                    if sub.len() > u16::MAX as _ {
+                        return Err(std::io::Error::new(
+                            ErrorKind::InvalidData,
+                            format!(
+                                "Version1 allows for MAX {} subgroups, got {}",
+                                u16::MAX,
+                                sub.len()
+                            ),
+                        ));
+                    }
+                    let sub_len = sub.len() as u16;
+
+                    f.write_all(&sub_len.to_le_bytes())?;
+                    for (start, _len) in sub.iter() {
+                        f.write_all(&start.to_le_bytes())?;
+                    }
+                    for (_start, len) in sub {
+                        f.write_all(&len.get().to_le_bytes())?;
+                    }
+                }
+
+                f.flush()?;
             }
             Ok(())
         }
@@ -118,16 +170,20 @@ impl Storage {
 
     fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String)>> {
         let files = std::fs::read_dir(path)?;
-        Ok(files
+        let mut files_vec = files
             .into_iter()
             .filter_map(|x| {
                 let x = x.ok()?;
+                let path = x.path();
+                path.extension()?.to_str().filter(|e| *e == "png")?;
                 Some((
-                    ImageId(x.path().to_str()?.into()),
+                    ImageId(path.to_str()?.into()),
                     x.file_name().to_string_lossy().to_string(),
                 ))
             })
-            .collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        files_vec.sort_unstable();
+        Ok(files_vec)
     }
     fn get_image_path(&self) -> PathBuf {
         self.base.as_str().into()
@@ -146,9 +202,4 @@ impl Storage {
 
         Ok(images_path.join(format!("{filename}.masks")))
     }
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-struct StoredData {
-    masks: Vec<Vec<(u32, NonZeroU16)>>,
 }

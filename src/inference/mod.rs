@@ -140,6 +140,7 @@ fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubG
     result
 }
 
+#[derive(Debug)]
 pub struct ResizedImageData<T> {
     image_data: T,
     original_width: NonZeroU32,
