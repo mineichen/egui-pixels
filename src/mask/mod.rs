@@ -17,7 +17,7 @@ pub(crate) struct MaskImage {
     size: [usize; 2],
     annotations: Annotations,
     history: History,
-    texture_handle: Option<TextureHandle>,
+    texture_handle: Option<(bool, TextureHandle)>,
 }
 
 impl MaskImage {
@@ -44,13 +44,15 @@ impl MaskImage {
     }
 
     pub fn ui_events(&mut self, ui: &mut Ui) -> Option<SizedTexture> {
-        if let ((shift_pressed, true),) = (ui.input(|i| {
+        let (shift_pressed, cmd_z_pressed, cmd_d_pressed) = ui.input(|i| {
             (
                 i.modifiers.shift,
                 i.key_pressed(egui::Key::Z) && i.modifiers.command,
+                i.key_pressed(egui::Key::D) && i.modifiers.command,
             )
-        }),)
-        {
+        });
+
+        if cmd_z_pressed {
             let require_redraw = if shift_pressed {
                 info!("Redo");
                 self.history.redo().is_some()
@@ -63,36 +65,42 @@ impl MaskImage {
             };
         }
 
-        if self.texture_handle.is_none() {
-            let texture_options = TextureOptions {
-                magnification: egui::TextureFilter::Nearest,
-                ..Default::default()
-            };
-
-            let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
-
-            for (group_id, subgroups) in self.subgroups().enumerate() {
-                let [r, g, b] = generate_rgb_color(group_id as u16);
-                let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
-                for &(pos, len) in subgroups {
-                    let pos = pos as usize;
-                    pixels[pos..(pos + len.get() as usize)].fill(group_color);
+        match &mut self.texture_handle {
+            Some((visible, handle)) => {
+                if cmd_d_pressed {
+                    *visible = !*visible;
                 }
+                visible.then(|| SizedTexture::from_handle(handle))
             }
+            None => {
+                let texture_options = TextureOptions {
+                    magnification: egui::TextureFilter::Nearest,
+                    ..Default::default()
+                };
 
-            let handle = ui.ctx().load_texture(
-                "Overlays",
-                ColorImage {
-                    size: self.size,
-                    pixels,
-                },
-                texture_options,
-            );
-            let result = Some(SizedTexture::from_handle(&handle));
-            self.texture_handle = Some(handle);
-            result
-        } else {
-            None
+                let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
+
+                for (group_id, subgroups) in self.subgroups().enumerate() {
+                    let [r, g, b] = generate_rgb_color(group_id as u16);
+                    let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
+                    for &(pos, len) in subgroups {
+                        let pos = pos as usize;
+                        pixels[pos..(pos + len.get() as usize)].fill(group_color);
+                    }
+                }
+
+                let handle = ui.ctx().load_texture(
+                    "Overlays",
+                    ColorImage {
+                        size: self.size,
+                        pixels,
+                    },
+                    texture_options,
+                );
+                let result = Some(SizedTexture::from_handle(&handle));
+                self.texture_handle = Some((true, handle));
+                result
+            }
         }
     }
 

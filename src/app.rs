@@ -166,8 +166,8 @@ impl eframe::App for ImageViewerApp {
                                 }
                             }
                             ImageState::Loaded(_, _, _, mask, _) => {
+                                self.viewer.sources.truncate(1);
                                 if let Some(x) = mask.ui_events(ui) {
-                                    self.viewer.sources.truncate(1);
                                     self.viewer.sources.push(ImageSource::Texture(x));
                                 }
                             }
