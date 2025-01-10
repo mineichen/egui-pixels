@@ -39,8 +39,8 @@ enum ImageState {
 }
 
 impl ImageViewerApp {
-    pub fn new() -> Self {
-        let storage = Storage::new("/Users/mineichen/Downloads/2024-10-31_13/");
+    pub fn new(data: String) -> Self {
+        let storage = Storage::new(data);
         let urls = AsyncRefTask::new(storage.list_images());
 
         Self {

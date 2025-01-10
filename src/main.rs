@@ -28,7 +28,9 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
 
-            Ok(Box::new(ImageViewerApp::new()))
+            Ok(Box::new(ImageViewerApp::new(
+                std::env::args().nth(1).unwrap_or_else(|| ".".to_string()),
+            )))
         }),
     )
 }
