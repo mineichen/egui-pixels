@@ -1,17 +1,41 @@
 use crate::{Annotation, SubGroups};
 
-#[derive(Default)]
 pub struct History {
     actions: Vec<Annotation>,
     end: usize,
+    not_dirty_pos: Option<usize>,
+}
+
+impl Default for History {
+    fn default() -> Self {
+        Self {
+            actions: Default::default(),
+            end: Default::default(),
+            not_dirty_pos: Some(0),
+        }
+    }
 }
 
 impl History {
     pub fn iter(&self) -> impl Iterator<Item = &'_ SubGroups> {
         self.actions.iter().take(self.end).map(|(_, x)| x)
     }
+    pub fn is_dirty(&self) -> bool {
+        self.not_dirty_pos != Some(self.end)
+    }
+
+    pub fn mark_not_dirty(&mut self) {
+        self.not_dirty_pos = Some(self.end);
+    }
 
     pub fn push(&mut self, a: Annotation) {
+        match &mut self.not_dirty_pos {
+            Some(pos) if *pos > self.end => {
+                self.not_dirty_pos = None;
+            }
+            _ => (),
+        }
+
         self.actions.truncate(self.end);
         self.actions.push(a);
         self.end = self.actions.len();

@@ -30,6 +30,14 @@ impl MaskImage {
         }
     }
 
+    pub fn is_dirty(&self) -> bool {
+        self.history.is_dirty()
+    }
+
+    pub fn mark_not_dirty(&mut self) {
+        self.history.mark_not_dirty();
+    }
+
     pub fn add_subgroup(&mut self, mut annotation: Annotation) {
         Self::remove_overlaps(
             &mut annotation.1,

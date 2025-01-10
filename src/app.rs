@@ -1,4 +1,4 @@
-use std::{io, sync::Arc};
+use std::io;
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
@@ -12,7 +12,7 @@ use eframe::egui::{
     Sense, TextureHandle, TextureOptions, UiBuilder,
 };
 use futures::FutureExt;
-use image::{DynamicImage, GenericImageView};
+use image::GenericImageView;
 use log::warn;
 
 pub(crate) struct ImageViewerApp {
@@ -29,14 +29,14 @@ pub(crate) struct ImageViewerApp {
 enum ImageState {
     NotLoaded,
     LoadingImageData(AsyncTask<io::Result<ImageData>>),
-    Loaded(
-        ImageId,
-        Arc<DynamicImage>,
-        TextureHandle,
-        MaskImage,
-        AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
-    ),
+    Loaded(ImageStateLoaded),
     Error(String),
+}
+struct ImageStateLoaded {
+    id: ImageId,
+    _texture: TextureHandle,
+    masks: MaskImage,
+    embeddings: AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
 }
 
 impl ImageViewerApp {
@@ -63,10 +63,6 @@ impl eframe::App for ImageViewerApp {
             ui.heading("Image pixel selector");
 
             let mut reload_images = false;
-            // let is_image_dirty = match self.image_state {
-            //     ImageState::Loaded(_, _, _, _, _) => todo!(),
-            //     _ => false,
-            // };
 
             match self.urls.data() {
                 None => {}
@@ -75,27 +71,38 @@ impl eframe::App for ImageViewerApp {
                 }
                 Some(Ok(urls)) => {
                     ui.horizontal(|ui| {
-                        if ui.button("<<").clicked()
-                            || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
-                        {
-                            let start_idx = self.url_idx;
-                            loop {
-                                let next_idx =
-                                    (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                                self.url_idx = next_idx;
+                        let is_image_dirty = matches!(
+                            &self.image_state,
+                            ImageState::Loaded(ImageStateLoaded {
+                                masks,
+                                ..
+                            }) if masks.is_dirty()
+                        );
 
-                                if urls[next_idx].2 || self.url_idx == start_idx {
-                                    break;
+                        if !is_image_dirty {
+                            if ui.button("<<").clicked()
+                                || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
+                            {
+                                let start_idx = self.url_idx;
+                                loop {
+                                    let next_idx =
+                                        (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                                    self.url_idx = next_idx;
+
+                                    if urls[next_idx].2 || self.url_idx == start_idx {
+                                        break;
+                                    }
                                 }
-                            }
 
-                            self.image_state = ImageState::NotLoaded;
-                        }
-                        if ui.button("<").clicked()
-                            || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
-                        {
-                            self.url_idx = (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                            self.image_state = ImageState::NotLoaded;
+                                self.image_state = ImageState::NotLoaded;
+                            }
+                            if ui.button("<").clicked()
+                                || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
+                            {
+                                self.url_idx =
+                                    (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                                self.image_state = ImageState::NotLoaded;
+                            }
                         }
 
                         if ComboBox::from_id_salt("url_selector")
@@ -106,38 +113,45 @@ impl eframe::App for ImageViewerApp {
                         {
                             self.image_state = ImageState::NotLoaded;
                         }
-                        if ui.button(">").clicked()
-                            || ui.input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
-                        {
-                            self.url_idx = (self.url_idx + 1) % urls.len();
-                            self.image_state = ImageState::NotLoaded;
-                        }
-                        if ui.button(">>").clicked()
-                            || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
-                        {
-                            let start_idx = self.url_idx;
-                            loop {
-                                let next_idx = (self.url_idx + 1) % urls.len();
-                                self.url_idx = next_idx;
-
-                                if urls[next_idx].2 || self.url_idx == start_idx {
-                                    break;
-                                }
+                        if !is_image_dirty {
+                            if ui.button(">").clicked()
+                                || ui
+                                    .input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
+                            {
+                                self.url_idx = (self.url_idx + 1) % urls.len();
+                                self.image_state = ImageState::NotLoaded;
                             }
+                            if ui.button(">>").clicked()
+                                || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
+                            {
+                                let start_idx = self.url_idx;
+                                loop {
+                                    let next_idx = (self.url_idx + 1) % urls.len();
+                                    self.url_idx = next_idx;
 
-                            self.image_state = ImageState::NotLoaded;
+                                    if urls[next_idx].2 || self.url_idx == start_idx {
+                                        break;
+                                    }
+                                }
+
+                                self.image_state = ImageState::NotLoaded;
+                            }
                         }
                         if ui.button("reload").clicked() {
                             reload_images = true;
                         }
-                        match (self.save_job.data(), &self.image_state) {
-                            (Some(last_save), ImageState::Loaded(id, _, _, masks, _)) => {
+                        match (self.save_job.data(), &mut self.image_state) {
+                            (
+                                Some(last_save),
+                                ImageState::Loaded(ImageStateLoaded { id, masks, .. }),
+                            ) => {
                                 if let Err(e) = last_save {
                                     ui.label(format!("Error during save: {e}"));
                                 }
                                 if ui.button("Save").clicked()
                                     || ui.input(|i| i.modifiers.command && i.key_pressed(Key::S))
                                 {
+                                    masks.mark_not_dirty();
                                     self.save_job = AsyncRefTask::new(
                                         self.storage
                                             .store_masks(id.clone(), masks.subgroups())
@@ -190,25 +204,24 @@ impl eframe::App for ImageViewerApp {
                                             let x = i.adjust_image.width() as usize;
                                             let y = i.adjust_image.height() as usize;
 
-                                            ImageState::Loaded(
-                                                i.id,
-                                                i.adjust_image,
-                                                handle,
-                                                MaskImage::new(
+                                            ImageState::Loaded(ImageStateLoaded {
+                                                id: i.id,
+                                                _texture: handle,
+                                                masks: MaskImage::new(
                                                     [x, y],
                                                     i.masks.clone(),
                                                     Default::default(),
                                                 ),
-                                                AsyncRefTask::new(embeddings),
-                                            )
+                                                embeddings: AsyncRefTask::new(embeddings),
+                                            })
                                         }
                                         Err(e) => ImageState::Error(format!("Error: {e}")),
                                     }
                                 }
                             }
-                            ImageState::Loaded(_, _, _, mask, _) => {
+                            ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
                                 self.viewer.sources.truncate(1);
-                                if let Some(x) = mask.ui_events(ui) {
+                                if let Some(x) = masks.ui_events(ui) {
                                     self.viewer.sources.push(ImageSource::Texture(x));
                                 }
                             }
@@ -252,7 +265,9 @@ impl eframe::App for ImageViewerApp {
 
             if let (
                 Some(&(cursor_x, cursor_y)),
-                ImageState::Loaded(_id, _image_data, _texture, mask, embeddings),
+                ImageState::Loaded(ImageStateLoaded {
+                    masks, embeddings, ..
+                }),
                 Some(&(start_x, start_y)),
                 true,
             ) = (
@@ -273,7 +288,7 @@ impl eframe::App for ImageViewerApp {
                         )
                         .unwrap();
 
-                    mask.add_subgroup(("New group".into(), new_mask));
+                    masks.add_subgroup(("New group".into(), new_mask));
                     if let Some(Ok(x)) = self.urls.data() {
                         x[self.url_idx].2 = true;
                     } else {
