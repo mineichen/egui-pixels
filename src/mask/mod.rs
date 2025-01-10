@@ -39,6 +39,9 @@ impl MaskImage {
             debug!("All Pixels are in a other subgroup already");
             return;
         }
+        if let Some((visibility @ false, _)) = &mut self.texture_handle {
+            *visibility = true;
+        }
         self.history.push(annotation);
         self.texture_handle = None;
     }
