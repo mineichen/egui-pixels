@@ -122,7 +122,6 @@ impl Storage {
         id: ImageId,
         masks: impl Iterator<Item = &'a Vec<(u32, NonZeroU16)>>,
     ) -> BoxFuture<'static, io::Result<()>> {
-        //let file = std::fs::File::open(path)
         let masks = masks.cloned().collect::<Vec<_>>();
         let path = Self::get_mask_path(&id);
 
@@ -176,7 +175,7 @@ impl Storage {
             .filter_map(|x| {
                 let x = x.ok()?;
                 let path = x.path();
-                let e = path
+                let kind = path
                     .extension()?
                     .to_str()
                     .and_then(|s| Kind::from_str(s).ok())?;
@@ -185,16 +184,14 @@ impl Storage {
                         .expect("exists_if_extension_exists")
                         .to_string_lossy()
                         .to_string(),
-                    e,
+                    kind,
                     ImageId(path.to_str()?.into()),
                 ))
             })
             .sorted_unstable()
-            .chunk_by(|x| x.0.to_string())
+            .chunk_by(|x| x.0.to_string()) // Pitty...
             .into_iter()
-            .filter_map(|(_, members)| {
-                let mut members = members.fuse();
-
+            .filter_map(|(_, mut members)| {
                 let (name, kind, id) = members.next().expect("Needs one item to form a group");
                 match (kind, members.next()) {
                     (Kind::Mask, None) => None,
