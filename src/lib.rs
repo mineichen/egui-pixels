@@ -8,12 +8,12 @@ use app::ImageViewerApp;
 
 mod app;
 mod async_task;
+mod image_selector;
 mod image_utils;
 mod inference;
 mod mask;
 mod mask_generator;
 mod storage;
-mod url_state;
 mod viewer;
 
 type SubGroup = (u32, NonZeroU16);

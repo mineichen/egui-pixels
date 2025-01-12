@@ -10,7 +10,7 @@ use image::GenericImageView;
 
 use super::{ImageState, ImageStateLoaded};
 
-const ICON_SAM: &str = "\u{2728}";
+// const ICON_SAM: &str = "\u{2728}";
 const ICON_SAVE: &str = "\u{1F4BE}";
 
 impl crate::app::ImageViewerApp {
@@ -23,7 +23,7 @@ impl crate::app::ImageViewerApp {
                     ..
                 }) if masks.is_dirty()
             );
-            if self.url.ui(is_image_dirty, &self.storage, ui) {
+            if self.selector.ui(is_image_dirty, &self.storage, ui) {
                 self.image_state = ImageState::NotLoaded;
             }
 
@@ -70,7 +70,7 @@ impl crate::app::ImageViewerApp {
                 _ => {}
             }
 
-            if let Some((image_id, _, _)) = self.url.current() {
+            if let Some((image_id, _, _)) = self.selector.current() {
                 match &mut self.image_state {
                     ImageState::NotLoaded => {
                         self.image_state = ImageState::LoadingImageData(AsyncTask::new(

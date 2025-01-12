@@ -13,13 +13,13 @@ const ICON_NEXT_ANNOTATED: &str = "\u{23E9}";
 const ICON_PREV: &str = "\u{23F4}";
 const ICON_NEXT: &str = "\u{23F5}";
 
-pub(crate) struct UrlState {
+pub(crate) struct ImageSelector {
     idx: usize,
     values: io::Result<Vec<(ImageId, String, bool)>>,
     loader: Option<AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>>,
 }
 
-impl UrlState {
+impl ImageSelector {
     pub fn new(loader: Option<AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>>) -> Self {
         Self {
             idx: 0,

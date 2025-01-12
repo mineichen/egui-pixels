@@ -2,11 +2,11 @@ use std::{io, sync::Arc};
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
+    image_selector::ImageSelector,
     inference::{InferenceError, SamEmbeddings, SamSession},
     mask::MaskImage,
     mask_generator::MaskGenerator,
     storage::{ImageData, ImageId, Storage},
-    url_state::UrlState,
     viewer::{ImageViewer, ImageViewerInteraction},
 };
 use eframe::egui::{self, InnerResponse, Sense, TextureHandle, UiBuilder};
@@ -17,7 +17,7 @@ mod menu;
 
 pub(crate) struct ImageViewerApp {
     storage: Storage,
-    url: UrlState,
+    selector: ImageSelector,
     viewer: ImageViewer,
     image_state: ImageState,
     last_drag_start: Option<(usize, usize)>,
@@ -50,7 +50,7 @@ impl ImageViewerApp {
         let url_loader = Some(AsyncTask::new(storage.list_images()));
         Self {
             storage,
-            url: UrlState::new(url_loader),
+            selector: ImageSelector::new(url_loader),
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
             last_drag_start: None,
@@ -108,7 +108,7 @@ impl eframe::App for ImageViewerApp {
 
                         masks.add_subgroup(("New group".into(), new_mask));
 
-                        if let Some((_, _, loaded)) = self.url.current() {
+                        if let Some((_, _, loaded)) = self.selector.current() {
                             *loaded = true;
                         } else {
                             warn!("Couldn't mark URL as containing masks")
