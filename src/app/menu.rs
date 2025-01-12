@@ -115,7 +115,7 @@ impl crate::app::ImageViewerApp {
                                     ImageState::Loaded(ImageStateLoaded {
                                         id: i.id,
                                         original_image: i.original_image,
-                                        _texture: handle,
+                                        texture: handle,
                                         masks: MaskImage::new(
                                             [x, y],
                                             i.masks.clone(),

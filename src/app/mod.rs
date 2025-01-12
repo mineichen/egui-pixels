@@ -34,7 +34,11 @@ enum ImageState {
 }
 struct ImageStateLoaded {
     id: ImageId,
-    _texture: TextureHandle,
+    #[allow(
+        dead_code,
+        reason = "Acts as Strong reference for SizedTexture. SizedTexture would not render a image if TextureHandle is dropped"
+    )]
+    texture: TextureHandle,
     original_image: Arc<DynamicImage>,
     masks: MaskImage,
     embeddings: AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
