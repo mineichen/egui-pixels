@@ -35,7 +35,7 @@ impl ImageSelector {
     }
 
     /// Returns, wether image-state has to be reset
-    pub fn ui(&mut self, is_image_dirty: bool, storage: &Storage, ui: &mut egui::Ui) -> bool {
+    pub fn ui(&mut self, storage: &Storage, ui: &mut egui::Ui) -> bool {
         if let Some(loader) = self.loader.as_mut() {
             if let Some(values) = loader.data() {
                 info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));
@@ -51,36 +51,34 @@ impl ImageSelector {
                 ui.label(format!("{e}"));
             }
             Ok(urls) => {
-                if !is_image_dirty {
-                    if ui
-                        .button(ICON_PREV_ANNOTATED)
-                        .on_hover_text("Previous annotated (shift + ArrowLeft)")
-                        .clicked()
-                        || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
-                    {
-                        let start_idx = self.idx;
-                        loop {
-                            let next_idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                            self.idx = next_idx;
+                if ui
+                    .button(ICON_PREV_ANNOTATED)
+                    .on_hover_text("Previous annotated (shift + ArrowLeft)")
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
+                {
+                    let start_idx = self.idx;
+                    loop {
+                        let next_idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                        self.idx = next_idx;
 
-                            if urls.get(next_idx).map(|x| x.2).unwrap_or_default()
-                                || self.idx == start_idx
-                            {
-                                break;
-                            }
+                        if urls.get(next_idx).map(|x| x.2).unwrap_or_default()
+                            || self.idx == start_idx
+                        {
+                            break;
                         }
+                    }
 
-                        reset_image_state = true;
-                    }
-                    if ui
-                        .button(ICON_PREV)
-                        .on_hover_text("Previous (ArrowLeft)")
-                        .clicked()
-                        || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
-                    {
-                        self.idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                        reset_image_state = true;
-                    }
+                    reset_image_state = true;
+                }
+                if ui
+                    .button(ICON_PREV)
+                    .on_hover_text("Previous (ArrowLeft)")
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
+                {
+                    self.idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                    reset_image_state = true;
                 }
 
                 if ComboBox::from_id_salt("url_selector")
@@ -98,36 +96,35 @@ impl ImageSelector {
                 {
                     self.loader = Some(AsyncTask::new(storage.list_images()));
                 }
-                if !is_image_dirty {
-                    if ui
-                        .button(ICON_NEXT)
-                        .on_hover_text("Next (ArrowRight)")
-                        .clicked()
-                        || ui.input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
-                    {
-                        self.idx = (self.idx + 1) % urls.len();
-                        reset_image_state = true;
-                    }
-                    if ui
-                        .button(ICON_NEXT_ANNOTATED)
-                        .on_hover_text("Next annotated (Shift + ArrowRight)")
-                        .clicked()
-                        || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
-                    {
-                        let start_idx = self.idx;
-                        loop {
-                            let next_idx = (self.idx + 1) % urls.len();
-                            self.idx = next_idx;
 
-                            if urls.get(next_idx).map(|x| x.2).unwrap_or_default()
-                                || self.idx == start_idx
-                            {
-                                break;
-                            }
+                if ui
+                    .button(ICON_NEXT)
+                    .on_hover_text("Next (ArrowRight)")
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
+                {
+                    self.idx = (self.idx + 1) % urls.len();
+                    reset_image_state = true;
+                }
+                if ui
+                    .button(ICON_NEXT_ANNOTATED)
+                    .on_hover_text("Next annotated (Shift + ArrowRight)")
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
+                {
+                    let start_idx = self.idx;
+                    loop {
+                        let next_idx = (self.idx + 1) % urls.len();
+                        self.idx = next_idx;
+
+                        if urls.get(next_idx).map(|x| x.2).unwrap_or_default()
+                            || self.idx == start_idx
+                        {
+                            break;
                         }
-
-                        reset_image_state = true;
                     }
+
+                    reset_image_state = true;
                 }
             }
         }

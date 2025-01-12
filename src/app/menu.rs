@@ -23,9 +23,14 @@ impl crate::app::ImageViewerApp {
                     ..
                 }) if masks.is_dirty()
             );
-            if self.selector.ui(is_image_dirty, &self.storage, ui) {
-                self.image_state = ImageState::NotLoaded;
-            }
+            ui.scope(|ui| {
+                if is_image_dirty {
+                    ui.disable();
+                }
+                if self.selector.ui(&self.storage, ui) {
+                    self.image_state = ImageState::NotLoaded;
+                }
+            });
 
             if let (
                 Some(last_save),
@@ -40,8 +45,10 @@ impl crate::app::ImageViewerApp {
                 if let Err(e) = last_save {
                     ui.label(format!("Error during save: {e}"));
                 }
-                #[allow(clippy::collapsible_if, reason = "Ui.button() has a side effect. Button should be hidden if there are no changes")]
-                if is_image_dirty {
+                ui.scope(|ui| {
+                    if !is_image_dirty {
+                        ui.disable();
+                    }
                     if ui
                         .button(ICON_SAVE)
                         .on_hover_text("Save (cmd + S)")
@@ -55,7 +62,7 @@ impl crate::app::ImageViewerApp {
                                 .boxed(),
                         );
                     }
-                }
+                });
 
                 if ui.button("Reset").clicked() {
                     masks.reset();
