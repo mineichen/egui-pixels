@@ -53,7 +53,9 @@ impl crate::app::ImageViewerApp {
                         .button(ICON_SAVE)
                         .on_hover_text("Save (cmd + S)")
                         .clicked()
-                        || ui.input(|i| i.modifiers.command && i.key_pressed(Key::S))
+                        || ui.input(|i| {
+                            i.modifiers.command && i.key_pressed(Key::S) && ui.is_enabled()
+                        })
                     {
                         masks.mark_not_dirty();
                         self.save_job = AsyncRefTask::new(

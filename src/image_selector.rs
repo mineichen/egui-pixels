@@ -56,6 +56,7 @@ impl ImageSelector {
                     .on_hover_text("Previous annotated (shift + ArrowLeft)")
                     .clicked()
                     || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
+                        && ui.is_enabled()
                 {
                     let start_idx = self.idx;
                     loop {
@@ -75,7 +76,9 @@ impl ImageSelector {
                     .button(ICON_PREV)
                     .on_hover_text("Previous (ArrowLeft)")
                     .clicked()
-                    || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
+                    || ui.input(|i| {
+                        i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift && ui.is_enabled()
+                    })
                 {
                     self.idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
                     reset_image_state = true;
@@ -101,7 +104,9 @@ impl ImageSelector {
                     .button(ICON_NEXT)
                     .on_hover_text("Next (ArrowRight)")
                     .clicked()
-                    || ui.input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
+                    || ui.input(|i| {
+                        i.key_pressed(Key::ArrowRight) && !i.modifiers.shift && ui.is_enabled()
+                    })
                 {
                     self.idx = (self.idx + 1) % urls.len();
                     reset_image_state = true;
@@ -110,7 +115,9 @@ impl ImageSelector {
                     .button(ICON_NEXT_ANNOTATED)
                     .on_hover_text("Next annotated (Shift + ArrowRight)")
                     .clicked()
-                    || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
+                    || ui.input(|i| {
+                        i.key_pressed(Key::ArrowRight) && i.modifiers.shift && ui.is_enabled()
+                    })
                 {
                     let start_idx = self.idx;
                     loop {
