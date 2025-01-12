@@ -1,9 +1,10 @@
-use std::io;
+use std::{io, sync::Arc};
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
-    inference::{DefaultSession, InferenceError, SamEmbeddings},
+    inference::{InferenceError, SamEmbeddings, SamSession},
     mask::MaskImage,
+    mask_generator::MaskGenerator,
     storage::{ImageData, ImageId, Storage},
     viewer::{ImageViewer, ImageViewerInteraction},
 };
@@ -12,18 +13,19 @@ use eframe::egui::{
     Sense, TextureHandle, TextureOptions, UiBuilder,
 };
 use futures::FutureExt;
-use image::GenericImageView;
+use image::{DynamicImage, GenericImageView};
 use log::warn;
 
-pub struct ImageViewerApp {
+pub(crate) struct ImageViewerApp {
     storage: Storage,
     url_idx: usize,
     urls: AsyncRefTask<io::Result<Vec<(ImageId, String, bool)>>>,
     viewer: ImageViewer,
     image_state: ImageState,
     last_drag_start: Option<(usize, usize)>,
-    session: DefaultSession,
+    session: SamSession,
     save_job: AsyncRefTask<std::io::Result<()>>,
+    mask_generator: MaskGenerator,
 }
 
 enum ImageState {
@@ -35,12 +37,26 @@ enum ImageState {
 struct ImageStateLoaded {
     id: ImageId,
     _texture: TextureHandle,
+    original_image: Arc<DynamicImage>,
     masks: MaskImage,
     embeddings: AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
 }
 
+const ICON_SAM: &str = "\u{2728}";
+const ICON_RELOAD: &str = "\u{21BB}";
+const ICON_PREV_ANNOTATED: &str = "\u{23EA}";
+const ICON_NEXT_ANNOTATED: &str = "\u{23E9}";
+const ICON_PREV: &str = "\u{23F4}";
+const ICON_NEXT: &str = "\u{23F5}";
+const ICON_SAVE: &str = "\u{1F4BE}";
+
 impl ImageViewerApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>, storage: Storage) -> Self {
+    pub fn new(
+        _cc: &eframe::CreationContext<'_>,
+        storage: Storage,
+        session: SamSession,
+        mask_generator: MaskGenerator,
+    ) -> Self {
         let urls = AsyncRefTask::new(storage.list_images());
 
         Self {
@@ -50,8 +66,9 @@ impl ImageViewerApp {
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
             last_drag_start: None,
-            session: DefaultSession::new().unwrap(),
+            session,
             save_job: AsyncRefTask::new_ready(Ok(())),
+            mask_generator,
         }
     }
 }
@@ -79,7 +96,10 @@ impl eframe::App for ImageViewerApp {
                         );
 
                         if !is_image_dirty {
-                            if ui.button("<<").clicked()
+                            if ui
+                                .button(ICON_PREV_ANNOTATED)
+                                .on_hover_text("Previous annotated (shift + ArrowLeft)")
+                                .clicked()
                                 || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
                             {
                                 let start_idx = self.url_idx;
@@ -95,7 +115,10 @@ impl eframe::App for ImageViewerApp {
 
                                 self.image_state = ImageState::NotLoaded;
                             }
-                            if ui.button("<").clicked()
+                            if ui
+                                .button(ICON_PREV)
+                                .on_hover_text("Previous (ArrowLeft)")
+                                .clicked()
                                 || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
                             {
                                 self.url_idx =
@@ -112,15 +135,28 @@ impl eframe::App for ImageViewerApp {
                         {
                             self.image_state = ImageState::NotLoaded;
                         }
+                        if ui
+                            .button(ICON_RELOAD)
+                            .on_hover_text("Reload Files")
+                            .clicked()
+                        {
+                            reload_images = true;
+                        }
                         if !is_image_dirty {
-                            if ui.button(">").clicked()
+                            if ui
+                                .button(ICON_NEXT)
+                                .on_hover_text("Next (ArrowRight)")
+                                .clicked()
                                 || ui
                                     .input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
                             {
                                 self.url_idx = (self.url_idx + 1) % urls.len();
                                 self.image_state = ImageState::NotLoaded;
                             }
-                            if ui.button(">>").clicked()
+                            if ui
+                                .button(ICON_NEXT_ANNOTATED)
+                                .on_hover_text("Next annotated (Shift + ArrowRight)")
+                                .clicked()
                                 || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
                             {
                                 let start_idx = self.url_idx;
@@ -136,26 +172,46 @@ impl eframe::App for ImageViewerApp {
                                 self.image_state = ImageState::NotLoaded;
                             }
                         }
-                        if ui.button("reload").clicked() {
-                            reload_images = true;
-                        }
+
                         match (self.save_job.data(), &mut self.image_state) {
                             (
                                 Some(last_save),
-                                ImageState::Loaded(ImageStateLoaded { id, masks, .. }),
+                                ImageState::Loaded(ImageStateLoaded {
+                                    id,
+                                    masks,
+                                    original_image,
+                                    ..
+                                }),
                             ) => {
                                 if let Err(e) = last_save {
                                     ui.label(format!("Error during save: {e}"));
                                 }
-                                if ui.button("Save").clicked()
-                                    || ui.input(|i| i.modifiers.command && i.key_pressed(Key::S))
-                                {
-                                    masks.mark_not_dirty();
-                                    self.save_job = AsyncRefTask::new(
-                                        self.storage
-                                            .store_masks(id.clone(), masks.subgroups())
-                                            .boxed(),
-                                    );
+                                if is_image_dirty {
+                                    if ui
+                                        .button(ICON_SAVE)
+                                        .on_hover_text("Save (cmd + S)")
+                                        .clicked()
+                                        || ui
+                                            .input(|i| i.modifiers.command && i.key_pressed(Key::S))
+                                    {
+                                        masks.mark_not_dirty();
+                                        self.save_job = AsyncRefTask::new(
+                                            self.storage
+                                                .store_masks(id.clone(), masks.subgroups())
+                                                .boxed(),
+                                        );
+                                    }
+                                }
+
+                                if ui.button("Reset").clicked() {
+                                    masks.reset();
+                                }
+
+                                if let Some(x) = self.mask_generator.ui(&original_image, ui) {
+                                    println!("Add {} groups", x.len());
+                                    for group in x {
+                                        masks.add_subgroup(("annotation".into(), group));
+                                    }
                                 }
                             }
                             _ => {}
@@ -206,6 +262,7 @@ impl eframe::App for ImageViewerApp {
 
                                             ImageState::Loaded(ImageStateLoaded {
                                                 id: i.id,
+                                                original_image: i.original_image,
                                                 _texture: handle,
                                                 masks: MaskImage::new(
                                                     [x, y],

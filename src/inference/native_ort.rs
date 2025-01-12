@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Arc};
+use std::{future::Future, path::Path, sync::Arc};
 
 use image::DynamicImage;
 use log::debug;
@@ -15,10 +15,12 @@ pub struct SamSession {
 }
 
 impl SamSession {
-    pub fn new() -> Result<Self, InferenceError> {
+    pub fn new(path: &Path) -> Result<Self, InferenceError> {
         let env = Arc::new(Environment::builder().with_name("SAM").build()?);
-        let encoder = SessionBuilder::new(&env)?.with_model_from_file("sam/vit_t_encoder.onnx")?;
-        let decoder = SessionBuilder::new(&env)?.with_model_from_file("sam/vit_t_decoder.onnx")?;
+        let encoder =
+            SessionBuilder::new(&env)?.with_model_from_file(path.join("vit_t_encoder.onnx"))?;
+        let decoder =
+            SessionBuilder::new(&env)?.with_model_from_file(path.join("vit_t_decoder.onnx"))?;
         Ok(Self {
             encoder: Arc::new(encoder),
             decoder,

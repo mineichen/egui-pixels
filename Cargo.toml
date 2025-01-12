@@ -1,5 +1,5 @@
 [package]
-name = "egui_pixels"
+name = "egui-pixels"
 version = "0.1.0"
 edition = "2021"
 
@@ -21,7 +21,8 @@ futures = "0.3"
 num-traits = "0.2.19"
 bytemuck = "1.21.0"
 brotli = "7.0.0"
-
+serde = { version = "1", features = ["derive"]}
+serde_json = "1"
 
 
 #[patch.crates-io]

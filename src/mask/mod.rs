@@ -3,7 +3,7 @@ use std::{collections::BinaryHeap, num::NonZeroU16};
 use eframe::egui::{
     self, load::SizedTexture, Color32, ColorImage, TextureHandle, TextureOptions, Ui,
 };
-use history::History;
+use history::{History, HistoryAction};
 use itertools::Itertools;
 use log::{debug, info};
 
@@ -38,6 +38,11 @@ impl MaskImage {
         self.history.mark_not_dirty();
     }
 
+    pub fn reset(&mut self) {
+        self.history.push(HistoryAction::Reset);
+        self.texture_handle = None;
+    }
+
     pub fn add_subgroup(&mut self, mut annotation: Annotation) {
         Self::remove_overlaps(
             &mut annotation.1,
@@ -50,7 +55,8 @@ impl MaskImage {
         if let Some((visibility @ false, _)) = &mut self.texture_handle {
             *visibility = true;
         }
-        self.history.push(annotation);
+        self.history
+            .push(HistoryAction::Add(annotation.0, annotation.1));
         self.texture_handle = None;
     }
 
@@ -91,10 +97,10 @@ impl MaskImage {
 
                 let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
 
-                for (group_id, subgroups) in self.subgroups().enumerate() {
+                for (group_id, subgroups) in self.subgroups().into_iter().enumerate() {
                     let [r, g, b] = generate_rgb_color(group_id as u16);
                     let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
-                    for &(pos, len) in subgroups {
+                    for (pos, len) in subgroups {
                         let pos = pos as usize;
                         pixels[pos..(pos + len.get() as usize)].fill(group_color);
                     }
@@ -115,12 +121,10 @@ impl MaskImage {
         }
     }
 
-    pub fn subgroups(&self) -> impl Iterator<Item = &Vec<(u32, NonZeroU16)>> {
-        self.annotations
-            .0
-            .iter()
-            .map(|(_, b)| b)
-            .chain(self.history.iter())
+    pub fn subgroups(&self) -> Vec<Vec<(u32, NonZeroU16)>> {
+        let base = self.annotations.0.iter().map(|(_, b)| b.clone()).collect();
+
+        self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
     fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, u32, NonZeroU16)> + '_ {
@@ -143,28 +147,29 @@ impl MaskImage {
             }
         }
 
-        struct GroupIterator<'a>(BinaryHeap<HeapItem<std::slice::Iter<'a, (u32, NonZeroU16)>>>);
+        struct GroupIterator(BinaryHeap<HeapItem<std::vec::IntoIter<(u32, NonZeroU16)>>>);
 
         let x: BinaryHeap<_> = self
             .subgroups()
+            .into_iter()
             .enumerate()
             .map(|(group_id, x)| {
-                let mut iter = x.iter();
+                let mut iter = x.into_iter();
                 HeapItem(
-                    *iter.next().expect("No empty groups available"),
+                    iter.next().expect("No empty groups available"),
                     group_id,
                     iter,
                 )
             })
             .collect();
 
-        impl<'a> Iterator for GroupIterator<'a> {
+        impl Iterator for GroupIterator {
             type Item = (usize, u32, NonZeroU16);
 
             fn next(&mut self) -> Option<Self::Item> {
                 if let Some(HeapItem((pos, len), group_id, mut rest)) = self.0.pop() {
                     if let Some(x) = rest.next() {
-                        self.0.push(HeapItem(*x, group_id, rest));
+                        self.0.push(HeapItem(x, group_id, rest));
                     }
                     Some((group_id, pos, len))
                 } else {
@@ -214,10 +219,10 @@ impl MaskImage {
 }
 
 fn generate_rgb_color(group: u16) -> [u8; 3] {
-    let group = (group + 1).wrapping_shl(2);
-    let r = ((group.wrapping_mul(17)) as u8).max(50);
-    let g = ((group.wrapping_mul(23)) as u8).max(50);
-    let b = ((group.wrapping_mul(29)) as u8).max(50);
+    let group = group.wrapping_shl(2).max(2);
+    let r = (group.wrapping_mul(17)) as u8;
+    let g = (group.wrapping_mul(23)) as u8;
+    let b = (group.wrapping_mul(29)) as u8;
     [r, g, b]
 }
 #[cfg(test)]
@@ -267,7 +272,7 @@ mod tests {
     #[test]
     fn iter_sorted() {
         let mut history = History::default();
-        history.push((
+        history.push(HistoryAction::Add(
             "Foo".into(),
             vec![
                 (22, NonZeroU16::try_from(7).unwrap()),

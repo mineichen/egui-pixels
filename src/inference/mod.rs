@@ -5,14 +5,13 @@ use std::{
 
 use image::{imageops::FilterType, DynamicImage, GenericImageView, Rgba};
 use itertools::Itertools;
-use native_ort::SamSession;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
 use crate::SubGroups;
 
 mod native_ort;
 
-pub type DefaultSession = SamSession;
+pub use native_ort::SamSession;
 
 impl From<TryFromIntError> for InferenceError {
     fn from(value: TryFromIntError) -> Self {

@@ -24,6 +24,7 @@ pub struct ImageId(Arc<str>);
 
 pub struct ImageData {
     pub id: ImageId,
+    pub original_image: Arc<DynamicImage>,
     pub adjust_image: Arc<DynamicImage>,
     pub masks: Vec<Annotation>,
 }
@@ -58,7 +59,7 @@ impl Storage {
             let image_bytes = std::fs::read(id.0.deref())?;
             let mask_path = Self::get_mask_path(&id)?;
 
-            let adjust_image = Arc::new(crate::image_utils::load_image(&image_bytes)?);
+            let image_load_result = crate::image_utils::load_image(&image_bytes)?;
             let masks = match std::fs::File::open(mask_path) {
                 Ok(mut f) => {
                     let mut preamble = [0; PREAMBLE.len()];
@@ -111,7 +112,8 @@ impl Storage {
             Ok(ImageData {
                 id,
                 masks,
-                adjust_image,
+                adjust_image: image_load_result.adjust,
+                original_image: image_load_result.original,
             })
         }
         .boxed()
@@ -120,9 +122,8 @@ impl Storage {
     pub fn store_masks<'a>(
         &self,
         id: ImageId,
-        masks: impl Iterator<Item = &'a Vec<(u32, NonZeroU16)>>,
+        masks: Vec<Vec<(u32, NonZeroU16)>>,
     ) -> BoxFuture<'static, io::Result<()>> {
-        let masks = masks.cloned().collect::<Vec<_>>();
         let path = Self::get_mask_path(&id);
 
         async move {
