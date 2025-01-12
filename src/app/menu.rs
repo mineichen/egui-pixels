@@ -27,47 +27,46 @@ impl crate::app::ImageViewerApp {
                 self.image_state = ImageState::NotLoaded;
             }
 
-            match (self.save_job.data(), &mut self.image_state) {
-                (
-                    Some(last_save),
-                    ImageState::Loaded(ImageStateLoaded {
-                        id,
-                        masks,
-                        original_image,
-                        ..
-                    }),
-                ) => {
-                    if let Err(e) = last_save {
-                        ui.label(format!("Error during save: {e}"));
-                    }
-                    if is_image_dirty {
-                        if ui
-                            .button(ICON_SAVE)
-                            .on_hover_text("Save (cmd + S)")
-                            .clicked()
-                            || ui.input(|i| i.modifiers.command && i.key_pressed(Key::S))
-                        {
-                            masks.mark_not_dirty();
-                            self.save_job = AsyncRefTask::new(
-                                self.storage
-                                    .store_masks(id.clone(), masks.subgroups())
-                                    .boxed(),
-                            );
-                        }
-                    }
-
-                    if ui.button("Reset").clicked() {
-                        masks.reset();
-                    }
-
-                    if let Some(x) = self.mask_generator.ui(&original_image, ui) {
-                        println!("Add {} groups", x.len());
-                        for group in x {
-                            masks.add_subgroup(("annotation".into(), group));
-                        }
+            if let (
+                Some(last_save),
+                ImageState::Loaded(ImageStateLoaded {
+                    id,
+                    masks,
+                    original_image,
+                    ..
+                }),
+            ) = (self.save_job.data(), &mut self.image_state)
+            {
+                if let Err(e) = last_save {
+                    ui.label(format!("Error during save: {e}"));
+                }
+                #[allow(clippy::collapsible_if, reason = "Ui.button() has a side effect. Button should be hidden if there are no changes")]
+                if is_image_dirty {
+                    if ui
+                        .button(ICON_SAVE)
+                        .on_hover_text("Save (cmd + S)")
+                        .clicked()
+                        || ui.input(|i| i.modifiers.command && i.key_pressed(Key::S))
+                    {
+                        masks.mark_not_dirty();
+                        self.save_job = AsyncRefTask::new(
+                            self.storage
+                                .store_masks(id.clone(), masks.subgroups())
+                                .boxed(),
+                        );
                     }
                 }
-                _ => {}
+
+                if ui.button("Reset").clicked() {
+                    masks.reset();
+                }
+
+                if let Some(x) = self.mask_generator.ui(original_image, ui) {
+                    println!("Add {} groups", x.len());
+                    for group in x {
+                        masks.add_subgroup(("annotation".into(), group));
+                    }
+                }
             }
 
             if let Some((image_id, _, _)) = self.selector.current() {

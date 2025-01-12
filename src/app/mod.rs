@@ -26,6 +26,7 @@ pub(crate) struct ImageViewerApp {
     mask_generator: MaskGenerator,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum ImageState {
     NotLoaded,
     LoadingImageData(AsyncTask<io::Result<ImageData>>),

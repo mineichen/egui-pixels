@@ -119,7 +119,7 @@ impl Storage {
         .boxed()
     }
 
-    pub fn store_masks<'a>(
+    pub fn store_masks(
         &self,
         id: ImageId,
         masks: Vec<Vec<(u32, NonZeroU16)>>,
@@ -172,7 +172,6 @@ impl Storage {
 
     fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String, bool)>> {
         Ok(std::fs::read_dir(path)?
-            .into_iter()
             .filter_map(|x| {
                 let x = x.ok()?;
                 let path = x.path();

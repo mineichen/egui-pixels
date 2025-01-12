@@ -8,7 +8,7 @@ pub struct ImageLoadResult {
 }
 
 pub fn load_image(bytes: &[u8]) -> std::io::Result<ImageLoadResult> {
-    let original = image::load_from_memory(&bytes)
+    let original = image::load_from_memory(bytes)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
     Ok(match &original {

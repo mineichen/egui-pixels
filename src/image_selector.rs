@@ -16,11 +16,13 @@ const ICON_NEXT: &str = "\u{23F5}";
 pub(crate) struct ImageSelector {
     idx: usize,
     values: io::Result<Vec<(ImageId, String, bool)>>,
-    loader: Option<AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>>,
+    loader: Option<ImageListTask>,
 }
 
+type ImageListTask = AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>;
+
 impl ImageSelector {
-    pub fn new(loader: Option<AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>>) -> Self {
+    pub fn new(loader: Option<ImageListTask>) -> Self {
         Self {
             idx: 0,
             values: Ok(Vec::new()),
