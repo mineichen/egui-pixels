@@ -67,80 +67,84 @@ impl eframe::App for ImageViewerApp {
             ui.heading("Image pixel selector");
             self.menu(ui);
 
-            let mut available = ui.available_rect_before_wrap();
-            available.max.y = (available.max.y - 80.).max(0.);
-
-            let r = ui.allocate_new_ui(UiBuilder::new().max_rect(available), |ui| {
-                self.viewer.ui_meta(ui, Some(Sense::click()))
-            });
-
-            let InnerResponse {
+            if let InnerResponse {
                 inner:
-                    InnerResponse {
-                        inner:
-                            Some(ImageViewerInteraction {
-                                original_image_size,
-                                cursor_image_pos,
-                            }),
-                        response,
-                        ..
-                    },
-                ..
-            } = r
-            else {
-                return;
-            };
-            if response.drag_started() {
-                self.last_drag_start = cursor_image_pos;
-            }
+                    Some(ImageViewerInteraction {
+                        original_image_size,
+                        cursor_image_pos,
+                    }),
+                response,
+            } = ui.reserve_bottom_space(80., |ui| self.viewer.ui_meta(ui, Some(Sense::click())))
+            {
+                if response.drag_started() {
+                    self.last_drag_start = cursor_image_pos;
+                }
 
-            if let (
-                Some(&(cursor_x, cursor_y)),
-                ImageState::Loaded(ImageStateLoaded {
-                    masks, embeddings, ..
-                }),
-                Some(&(start_x, start_y)),
-                true,
-            ) = (
-                cursor_image_pos.as_ref(),
-                &mut self.image_state,
-                self.last_drag_start.as_ref(),
-                response.drag_stopped() && !ui.input(|i| i.modifiers.command || i.modifiers.ctrl),
-            ) {
-                if let Some(Ok(loaded_embeddings)) = embeddings.data() {
-                    let new_mask = self
-                        .session
-                        .decode_prompt(
-                            cursor_x.min(start_x) as f32,
-                            cursor_y.min(start_y) as f32,
-                            cursor_x.max(start_x) as f32,
-                            cursor_y.max(start_y) as f32,
-                            loaded_embeddings,
-                        )
-                        .unwrap();
+                if let (
+                    Some(&(cursor_x, cursor_y)),
+                    ImageState::Loaded(ImageStateLoaded {
+                        masks, embeddings, ..
+                    }),
+                    Some(&(start_x, start_y)),
+                    true,
+                ) = (
+                    cursor_image_pos.as_ref(),
+                    &mut self.image_state,
+                    self.last_drag_start.as_ref(),
+                    response.drag_stopped()
+                        && !ui.input(|i| i.modifiers.command || i.modifiers.ctrl),
+                ) {
+                    if let Some(Ok(loaded_embeddings)) = embeddings.data() {
+                        let new_mask = self
+                            .session
+                            .decode_prompt(
+                                cursor_x.min(start_x) as f32,
+                                cursor_y.min(start_y) as f32,
+                                cursor_x.max(start_x) as f32,
+                                cursor_y.max(start_y) as f32,
+                                loaded_embeddings,
+                            )
+                            .unwrap();
 
-                    masks.add_subgroup(("New group".into(), new_mask));
+                        masks.add_subgroup(("New group".into(), new_mask));
 
-                    if let Some((_, _, loaded)) = self.url.current() {
-                        *loaded = true;
-                    } else {
-                        warn!("Couldn't mark URL as containing masks")
+                        if let Some((_, _, loaded)) = self.url.current() {
+                            *loaded = true;
+                        } else {
+                            warn!("Couldn't mark URL as containing masks")
+                        }
+
+                        self.last_drag_start = None;
                     }
+                }
 
-                    self.last_drag_start = None;
+                // Zoom level display
+                ui.label(format!(
+                    "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
+                    original_image_size,
+                    ui.spacing().item_spacing
+                ));
+
+                if let Some((x, y)) = cursor_image_pos {
+                    ui.label(format!("Pixel Coordinates: ({}, {})", x, y,));
                 }
             }
-
-            // Zoom level display
-            ui.label(format!(
-                "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
-                original_image_size,
-                ui.spacing().item_spacing
-            ));
-
-            if let Some((x, y)) = cursor_image_pos {
-                ui.label(format!("Pixel Coordinates: ({}, {})", x, y,));
-            }
         });
+    }
+}
+
+trait UiExt {
+    fn reserve_bottom_space<T>(&mut self, size: f32, inner: impl FnOnce(&mut egui::Ui) -> T) -> T;
+}
+
+impl UiExt for egui::Ui {
+    fn reserve_bottom_space<T>(&mut self, size: f32, inner: impl FnOnce(&mut egui::Ui) -> T) -> T {
+        let mut available = self.available_rect_before_wrap();
+        available.max.y = (available.max.y - size).max(0.);
+
+        let r = self.allocate_new_ui(UiBuilder::new().max_rect(available), inner);
+
+        let InnerResponse { inner, .. } = r;
+        inner
     }
 }
