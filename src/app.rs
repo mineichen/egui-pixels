@@ -16,10 +16,15 @@ use futures::FutureExt;
 use image::{DynamicImage, GenericImageView};
 use log::warn;
 
+struct UrlState {
+    idx: usize,
+    values: io::Result<Vec<(ImageId, String, bool)>>,
+    loader: Option<AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>>,
+}
+
 pub(crate) struct ImageViewerApp {
     storage: Storage,
-    url_idx: usize,
-    urls: AsyncRefTask<io::Result<Vec<(ImageId, String, bool)>>>,
+    url: UrlState,
     viewer: ImageViewer,
     image_state: ImageState,
     last_drag_start: Option<(usize, usize)>,
@@ -57,12 +62,15 @@ impl ImageViewerApp {
         session: SamSession,
         mask_generator: MaskGenerator,
     ) -> Self {
-        let urls = AsyncRefTask::new(storage.list_images());
+        let loader = Some(AsyncTask::new(storage.list_images()));
 
         Self {
             storage,
-            url_idx: 0,
-            urls,
+            url: UrlState {
+                idx: 0,
+                values: Ok(Vec::new()),
+                loader,
+            },
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
             last_drag_start: None,
@@ -80,12 +88,18 @@ impl eframe::App for ImageViewerApp {
 
             let mut reload_images = false;
 
-            match self.urls.data() {
-                None => {}
-                Some(Err(e)) => {
+            if let Some(loader) = self.url.loader.as_mut() {
+                if let Some(values) = loader.data() {
+                    self.url.loader = None;
+                    self.url.values = values;
+                }
+            }
+
+            match &mut self.url.values {
+                Err(e) => {
                     ui.label(format!("{e}"));
                 }
-                Some(Ok(urls)) => {
+                Ok(urls) => {
                     ui.horizontal(|ui| {
                         let is_image_dirty = matches!(
                             &self.image_state,
@@ -102,13 +116,13 @@ impl eframe::App for ImageViewerApp {
                                 .clicked()
                                 || ui.input(|i| i.key_pressed(Key::ArrowLeft) && i.modifiers.shift)
                             {
-                                let start_idx = self.url_idx;
+                                let start_idx = self.url.idx;
                                 loop {
                                     let next_idx =
-                                        (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                                    self.url_idx = next_idx;
+                                        (self.url.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                                    self.url.idx = next_idx;
 
-                                    if urls[next_idx].2 || self.url_idx == start_idx {
+                                    if urls[next_idx].2 || self.url.idx == start_idx {
                                         break;
                                     }
                                 }
@@ -121,14 +135,14 @@ impl eframe::App for ImageViewerApp {
                                 .clicked()
                                 || ui.input(|i| i.key_pressed(Key::ArrowLeft) && !i.modifiers.shift)
                             {
-                                self.url_idx =
-                                    (self.url_idx.checked_sub(1)).unwrap_or(urls.len() - 1);
+                                self.url.idx =
+                                    (self.url.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
                                 self.image_state = ImageState::NotLoaded;
                             }
                         }
 
                         if ComboBox::from_id_salt("url_selector")
-                            .show_index(ui, &mut self.url_idx, urls.len(), |x| {
+                            .show_index(ui, &mut self.url.idx, urls.len(), |x| {
                                 urls.get(x).map(|x| x.1.as_str()).unwrap_or("")
                             })
                             .changed()
@@ -150,7 +164,7 @@ impl eframe::App for ImageViewerApp {
                                 || ui
                                     .input(|i| i.key_pressed(Key::ArrowRight) && !i.modifiers.shift)
                             {
-                                self.url_idx = (self.url_idx + 1) % urls.len();
+                                self.url.idx = (self.url.idx + 1) % urls.len();
                                 self.image_state = ImageState::NotLoaded;
                             }
                             if ui
@@ -159,12 +173,12 @@ impl eframe::App for ImageViewerApp {
                                 .clicked()
                                 || ui.input(|i| i.key_pressed(Key::ArrowRight) && i.modifiers.shift)
                             {
-                                let start_idx = self.url_idx;
+                                let start_idx = self.url.idx;
                                 loop {
-                                    let next_idx = (self.url_idx + 1) % urls.len();
-                                    self.url_idx = next_idx;
+                                    let next_idx = (self.url.idx + 1) % urls.len();
+                                    self.url.idx = next_idx;
 
-                                    if urls[next_idx].2 || self.url_idx == start_idx {
+                                    if urls[next_idx].2 || self.url.idx == start_idx {
                                         break;
                                     }
                                 }
@@ -217,7 +231,7 @@ impl eframe::App for ImageViewerApp {
                             _ => {}
                         }
                     });
-                    if let Some((image_id, _, _)) = urls.get(self.url_idx) {
+                    if let Some((image_id, _, _)) = urls.get(self.url.idx) {
                         match &mut self.image_state {
                             ImageState::NotLoaded => {
                                 self.image_state = ImageState::LoadingImageData(AsyncTask::new(
@@ -290,7 +304,7 @@ impl eframe::App for ImageViewerApp {
                 }
             }
             if reload_images {
-                self.urls = AsyncRefTask::new(self.storage.list_images());
+                self.url.loader = Some(AsyncTask::new(self.storage.list_images()));
             }
 
             let mut available = ui.available_rect_before_wrap();
@@ -346,8 +360,8 @@ impl eframe::App for ImageViewerApp {
                         .unwrap();
 
                     masks.add_subgroup(("New group".into(), new_mask));
-                    if let Some(Ok(x)) = self.urls.data() {
-                        x[self.url_idx].2 = true;
+                    if let Ok(x) = &mut self.url.values {
+                        x[self.url.idx].2 = true;
                     } else {
                         warn!("Couldn't mark URL as containing masks")
                     }
