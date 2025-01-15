@@ -2,18 +2,27 @@ use std::{io, sync::Arc};
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
-    image_selector::ImageSelector,
     inference::{InferenceError, SamEmbeddings, SamSession},
     mask::MaskImage,
-    mask_generator::MaskGenerator,
     storage::{ImageData, ImageId, Storage},
-    viewer::{ImageViewer, ImageViewerInteraction},
 };
 use eframe::egui::{self, InnerResponse, Sense, TextureHandle, UiBuilder};
 use image::DynamicImage;
 use log::warn;
 
+use image_selector::ImageSelector;
+use viewer::{ImageViewer, ImageViewerInteraction};
+
+mod config;
+mod image_selector;
+mod mask_generator;
 mod menu;
+mod native;
+mod viewer;
+
+pub(crate) use config::Config;
+pub(crate) use mask_generator::MaskGenerator;
+pub use native::run_native;
 
 pub(crate) struct ImageViewerApp {
     storage: Storage,
@@ -123,7 +132,6 @@ impl eframe::App for ImageViewerApp {
                     }
                 }
 
-                // Zoom level display
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
                     original_image_size,

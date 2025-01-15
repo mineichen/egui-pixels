@@ -585,6 +585,7 @@ dependencies = [
  "brotli",
  "bytemuck",
  "eframe",
+ "emath",
  "env_logger",
  "futures",
  "image",
@@ -650,6 +651,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4fe73c1207b864ee40aa0b0c038d6092af1030744678c60188a05c28553515d"
 dependencies = [
  "bytemuck",
+ "serde",
 ]
 
 [[package]]

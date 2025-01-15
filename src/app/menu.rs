@@ -112,10 +112,11 @@ impl crate::app::ImageViewerApp {
                                     let texture = SizedTexture::from_handle(&handle);
                                     self.viewer.reset();
                                     self.viewer.sources = vec![ImageSource::Texture(texture)];
-                                    let embeddings = self
-                                        .session
-                                        .get_image_embeddings(i.adjust_image.clone())
-                                        .boxed();
+                                    let embeddings = AsyncRefTask::new(
+                                        self.session
+                                            .get_image_embeddings(i.adjust_image.clone())
+                                            .boxed(),
+                                    );
 
                                     let x = i.adjust_image.width() as usize;
                                     let y = i.adjust_image.height() as usize;
@@ -129,7 +130,7 @@ impl crate::app::ImageViewerApp {
                                             i.masks.clone(),
                                             Default::default(),
                                         ),
-                                        embeddings: AsyncRefTask::new(embeddings),
+                                        embeddings,
                                     })
                                 }
                                 Err(e) => ImageState::Error(format!("Error: {e}")),
