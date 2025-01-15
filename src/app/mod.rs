@@ -8,7 +8,6 @@ use crate::{
 };
 use eframe::egui::{self, InnerResponse, Sense, TextureHandle, UiBuilder};
 use image::DynamicImage;
-use log::warn;
 
 use image_selector::ImageSelector;
 use viewer::{ImageViewer, ImageViewerInteraction};
@@ -18,6 +17,7 @@ mod image_selector;
 mod mask_generator;
 mod menu;
 mod native;
+mod tools;
 mod viewer;
 
 pub(crate) use config::Config;
@@ -29,7 +29,7 @@ pub(crate) struct ImageViewerApp {
     selector: ImageSelector,
     viewer: ImageViewer,
     image_state: ImageState,
-    last_drag_start: Option<(usize, usize)>,
+    tools: tools::Tools,
     session: SamSession,
     save_job: AsyncRefTask<std::io::Result<()>>,
     mask_generator: MaskGenerator,
@@ -67,7 +67,7 @@ impl ImageViewerApp {
             selector: ImageSelector::new(url_loader),
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
-            last_drag_start: None,
+            tools: Default::default(),
             session,
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,
@@ -90,48 +90,7 @@ impl eframe::App for ImageViewerApp {
                 response,
             } = ui.reserve_bottom_space(80., |ui| self.viewer.ui_meta(ui, Some(Sense::click())))
             {
-                if response.drag_started() {
-                    self.last_drag_start = cursor_image_pos;
-                }
-
-                if let (
-                    Some(&(cursor_x, cursor_y)),
-                    ImageState::Loaded(ImageStateLoaded {
-                        masks, embeddings, ..
-                    }),
-                    Some(&(start_x, start_y)),
-                    true,
-                ) = (
-                    cursor_image_pos.as_ref(),
-                    &mut self.image_state,
-                    self.last_drag_start.as_ref(),
-                    response.drag_stopped()
-                        && !ui.input(|i| i.modifiers.command || i.modifiers.ctrl),
-                ) {
-                    if let Some(Ok(loaded_embeddings)) = embeddings.data() {
-                        let new_mask = self
-                            .session
-                            .decode_prompt(
-                                cursor_x.min(start_x) as f32,
-                                cursor_y.min(start_y) as f32,
-                                cursor_x.max(start_x) as f32,
-                                cursor_y.max(start_y) as f32,
-                                loaded_embeddings,
-                            )
-                            .unwrap();
-
-                        masks.add_subgroup(("New group".into(), new_mask));
-
-                        if let Some((_, _, loaded)) = self.selector.current() {
-                            *loaded = true;
-                        } else {
-                            warn!("Couldn't mark URL as containing masks")
-                        }
-
-                        self.last_drag_start = None;
-                    }
-                }
-
+                self.handle_interaction(response, cursor_image_pos, ui);
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
                     original_image_size,
