@@ -6,7 +6,7 @@ impl ImageViewerApp {
     pub(super) fn handle_clear_interaction(
         &mut self,
         response: egui::Response,
-        cursor_image_pos: Option<(usize, usize)>,
+        cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
     ) {
         if let (ImageState::Loaded(ImageStateLoaded { masks, .. }), Some(region)) = (

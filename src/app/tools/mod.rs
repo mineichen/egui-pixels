@@ -29,20 +29,19 @@ impl Tools {
 
     fn drag_stopped(
         &mut self,
-        cursor_image_pos: Option<(usize, usize)>,
+        (start_x, start_y): (usize, usize),
         response: &egui::Response,
         ctx: &egui::Context,
     ) -> Option<[[usize; 2]; 2]> {
-        if let (Some((start_x, start_y)), Some((cursor_x, cursor_y)), true) = (
-            cursor_image_pos,
+        if let (Some((cursor_x, cursor_y)), true) = (
             self.last_drag_start,
             response.drag_stopped() && !ctx.input(|i| i.modifiers.command || i.modifiers.ctrl),
         ) {
             self.last_drag_start = None;
-            Some([
+            Some(dbg!([
                 [cursor_x.min(start_x), cursor_y.min(start_y)],
                 [cursor_x.max(start_x), cursor_y.max(start_y)],
-            ])
+            ]))
         } else {
             None
         }
@@ -62,15 +61,15 @@ impl super::ImageViewerApp {
     pub(super) fn handle_interaction(
         &mut self,
         response: egui::Response,
-        cursor_image_pos: Option<(usize, usize)>,
+        cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
     ) {
-        if response.drag_started() {
-            self.tools.last_drag_start = cursor_image_pos;
-        }
         match self.tools.active_tool {
             ToolVariant::Sam => self.handle_sam_interaction(response, cursor_image_pos, ctx),
             ToolVariant::Clear => self.handle_clear_interaction(response, cursor_image_pos, ctx),
+        }
+        if ctx.input(|i| !i.pointer.primary_down()) {
+            self.tools.last_drag_start = Some(cursor_image_pos);
         }
     }
 }

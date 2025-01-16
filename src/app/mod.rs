@@ -89,7 +89,9 @@ impl eframe::App for ImageViewerApp {
                 response,
             } = ui.reserve_bottom_space(80., |ui| self.viewer.ui_meta(ui, Some(Sense::click())))
             {
-                self.handle_interaction(response, cursor_image_pos, ui.ctx());
+                if let Some(cursor_image_pos) = cursor_image_pos {
+                    self.handle_interaction(response, cursor_image_pos, ui.ctx());
+                }
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
                     original_image_size,
