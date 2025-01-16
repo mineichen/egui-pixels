@@ -13,7 +13,6 @@ impl ImageViewerApp {
             &mut self.image_state,
             self.tools.drag_stopped(cursor_image_pos, &response, ctx),
         ) {
-            //println!("Enqueue region drop {region:?}");
             masks.clear_region(region);
 
             // if let Some((_, _, loaded)) = self.selector.current() {

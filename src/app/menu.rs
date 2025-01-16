@@ -7,6 +7,7 @@ use eframe::egui::{
 };
 use futures::FutureExt;
 use image::GenericImageView;
+use log::info;
 
 use super::{ImageState, ImageStateLoaded};
 
@@ -71,7 +72,7 @@ impl crate::app::ImageViewerApp {
                 }
 
                 if let Some(x) = self.mask_generator.ui(original_image, ui) {
-                    println!("Add {} groups", x.len());
+                    info!("Add {} groups", x.len());
                     for group in x {
                         masks.add_subgroup(("annotation".into(), group));
                     }

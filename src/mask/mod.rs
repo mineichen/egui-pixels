@@ -223,22 +223,16 @@ impl MaskImage {
             }
             // Overlaps end of new
             if let Some((existing_pos, _)) = peekable_ordered_existing.peek() {
-                if *existing_pos < new_end {
-                    let offset = new_end.saturating_sub(*existing_pos);
-
-                    if let Ok(x) = NonZeroU16::try_from(new_len.get().saturating_sub(offset as _)) {
-                        new_len = x;
-                    } else {
-                        return;
-                    }
+                if let Ok(x) = NonZeroU16::try_from(
+                    new_len
+                        .get()
+                        .saturating_sub(new_end.saturating_sub(*existing_pos) as _),
+                ) {
+                    new_len = x;
+                } else {
+                    return;
                 }
             }
-
-            // if let Some((before_pos, before_len)) = dbg!(before) {}
-            // if let Some((after_pos, _)) = peekable_ordered_existing.peek() {
-            //     let new_end = *new_pos + new_len.get() as u32;
-            //
-            // }
 
             i.insert((new_pos, new_len));
         });

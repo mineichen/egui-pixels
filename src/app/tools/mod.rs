@@ -38,10 +38,10 @@ impl Tools {
             response.drag_stopped() && !ctx.input(|i| i.modifiers.command || i.modifiers.ctrl),
         ) {
             self.last_drag_start = None;
-            Some(dbg!([
+            Some([
                 [cursor_x.min(start_x), cursor_y.min(start_y)],
                 [cursor_x.max(start_x), cursor_y.max(start_y)],
-            ]))
+            ])
         } else {
             None
         }
