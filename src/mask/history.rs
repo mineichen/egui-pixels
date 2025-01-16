@@ -1,4 +1,4 @@
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroU32};
 
 use crate::SubGroups;
 
@@ -6,6 +6,8 @@ use crate::SubGroups;
 pub enum HistoryAction {
     Add(String, SubGroups),
     Reset,
+    // Box, image_width
+    Clear([[usize; 2]; 2], NonZeroU32),
 }
 
 impl HistoryAction {
@@ -13,6 +15,21 @@ impl HistoryAction {
         match self {
             HistoryAction::Add(_, s) => rest.push(s.clone()),
             HistoryAction::Reset => rest.clear(),
+            HistoryAction::Clear([[x_top, y_top], [x_bottom, y_bottom]], image_width) => {
+                let x_left = *x_top as u32;
+                let x_right = *x_bottom as u32;
+                let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
+
+                rest.retain_mut(|mut sub| {
+                    let y_range = *y_top as u32..=*y_bottom as u32;
+                    super::MaskImage::remove_overlaps(
+                        &mut sub,
+                        y_range.map(|y| (y * image_width.get() + x_left, x_width)),
+                    );
+
+                    !sub.is_empty()
+                });
+            }
         };
         rest
     }
@@ -47,6 +64,16 @@ impl History {
     }
 
     pub fn push(&mut self, a: HistoryAction) {
+        if matches!(
+            (
+                &a,
+                self.end.checked_sub(1).and_then(|i| self.actions.get(i))
+            ),
+            (HistoryAction::Reset, Some(HistoryAction::Reset))
+        ) {
+            return;
+        }
+
         match &mut self.not_dirty_pos {
             Some(pos) if *pos > self.end => {
                 self.not_dirty_pos = None;

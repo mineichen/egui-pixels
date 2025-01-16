@@ -10,6 +10,7 @@ use eframe::egui::{self, InnerResponse, Sense, TextureHandle, UiBuilder};
 use image::DynamicImage;
 
 use image_selector::ImageSelector;
+use tools::Tools;
 use viewer::{ImageViewer, ImageViewerInteraction};
 
 mod config;
@@ -29,8 +30,7 @@ pub(crate) struct ImageViewerApp {
     selector: ImageSelector,
     viewer: ImageViewer,
     image_state: ImageState,
-    tools: tools::Tools,
-    session: SamSession,
+    tools: Tools,
     save_job: AsyncRefTask<std::io::Result<()>>,
     mask_generator: MaskGenerator,
 }
@@ -67,8 +67,7 @@ impl ImageViewerApp {
             selector: ImageSelector::new(url_loader),
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
-            tools: Default::default(),
-            session,
+            tools: Tools::new(session),
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,
         }
@@ -90,7 +89,7 @@ impl eframe::App for ImageViewerApp {
                 response,
             } = ui.reserve_bottom_space(80., |ui| self.viewer.ui_meta(ui, Some(Sense::click())))
             {
-                self.handle_interaction(response, cursor_image_pos, ui);
+                self.handle_interaction(response, cursor_image_pos, ui.ctx());
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
                     original_image_size,

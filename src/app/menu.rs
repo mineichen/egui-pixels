@@ -78,6 +78,8 @@ impl crate::app::ImageViewerApp {
                 }
             }
 
+            self.tools.ui(ui);
+
             if let Some((image_id, _, _)) = self.selector.current() {
                 match &mut self.image_state {
                     ImageState::NotLoaded => {
@@ -113,7 +115,8 @@ impl crate::app::ImageViewerApp {
                                     self.viewer.reset();
                                     self.viewer.sources = vec![ImageSource::Texture(texture)];
                                     let embeddings = AsyncRefTask::new(
-                                        self.session
+                                        self.tools
+                                            .session
                                             .get_image_embeddings(i.adjust_image.clone())
                                             .boxed(),
                                     );
@@ -139,7 +142,7 @@ impl crate::app::ImageViewerApp {
                     }
                     ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
                         self.viewer.sources.truncate(1);
-                        if let Some(x) = masks.ui_events(ui) {
+                        if let Some(x) = masks.handle_events(ui.ctx()) {
                             self.viewer.sources.push(ImageSource::Texture(x));
                         }
                     }

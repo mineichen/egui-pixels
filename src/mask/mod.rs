@@ -1,14 +1,14 @@
 use std::{collections::BinaryHeap, num::NonZeroU16};
 
-use eframe::egui::{
-    self, load::SizedTexture, Color32, ColorImage, TextureHandle, TextureOptions, Ui,
-};
+use eframe::egui::{self, load::SizedTexture, Color32, ColorImage, TextureHandle, TextureOptions};
+use flat_map_inplace::NextInPlaceExt;
 use history::{History, HistoryAction};
 use itertools::Itertools;
 use log::{debug, info};
 
 use crate::Annotation;
 
+mod flat_map_inplace;
 mod history;
 
 struct Annotations(Vec<Annotation>);
@@ -43,6 +43,13 @@ impl MaskImage {
         self.texture_handle = None;
     }
 
+    pub fn clear_region(&mut self, region: [[usize; 2]; 2]) {
+        self.add_history_action(HistoryAction::Clear(
+            region,
+            (self.size[0] as u32).try_into().unwrap(), // Todo: Move Constraint to MaskImage.size
+        ))
+    }
+
     pub fn add_subgroup(&mut self, mut annotation: Annotation) {
         Self::remove_overlaps(
             &mut annotation.1,
@@ -55,13 +62,16 @@ impl MaskImage {
         if let Some((visibility @ false, _)) = &mut self.texture_handle {
             *visibility = true;
         }
-        self.history
-            .push(HistoryAction::Add(annotation.0, annotation.1));
+        self.add_history_action(HistoryAction::Add(annotation.0, annotation.1))
+    }
+
+    pub fn add_history_action(&mut self, action: HistoryAction) {
+        self.history.push(action);
         self.texture_handle = None;
     }
 
-    pub fn ui_events(&mut self, ui: &mut Ui) -> Option<SizedTexture> {
-        let (shift_pressed, cmd_z_pressed, cmd_d_pressed) = ui.input(|i| {
+    pub fn handle_events(&mut self, ctx: &egui::Context) -> Option<SizedTexture> {
+        let (shift_pressed, cmd_z_pressed, cmd_d_pressed) = ctx.input(|i| {
             (
                 i.modifiers.shift,
                 i.key_pressed(egui::Key::Z) && i.modifiers.command,
@@ -106,7 +116,7 @@ impl MaskImage {
                     }
                 }
 
-                let handle = ui.ctx().load_texture(
+                let handle = ctx.load_texture(
                     "Overlays",
                     ColorImage {
                         size: self.size,
@@ -181,39 +191,56 @@ impl MaskImage {
     }
     fn remove_overlaps(
         annotations: &mut Vec<(u32, NonZeroU16)>,
-        existing: impl Iterator<Item = (u32, NonZeroU16)>,
+        ordered_existing: impl Iterator<Item = (u32, NonZeroU16)>,
     ) {
-        let mut peekable_sorted = existing.peekable();
-        annotations.retain_mut(|(new_pos, new_len)| {
-            let before = peekable_sorted
-                .peeking_take_while(|(other_pos, _)| other_pos < new_pos)
-                .last();
-            if let Some((before_pos, before_len)) = before {
-                let before_end = before_pos + before_len.get() as u32;
-                if before_end > *new_pos {
-                    let offset = before_end - *new_pos;
+        let mut peekable_ordered_existing = ordered_existing
+            .map(|(pos, len)| (pos, pos + len.get() as u32))
+            .peekable();
+
+        annotations.flat_map_inplace(|(mut new_pos, mut new_len), i| {
+            let new_end = new_pos + new_len.get() as u32;
+
+            // Overlap start or within new
+            for (existing_pos, existing_end) in peekable_ordered_existing
+                .peeking_take_while(|(_, existing_end)| new_end > *existing_end)
+            {
+                if new_pos > existing_end {
+                    continue;
+                } else if let Ok(len) =
+                    NonZeroU16::try_from(existing_pos.saturating_sub(new_pos) as u16)
+                {
+                    i.insert((new_pos, len));
+                }
+                if existing_end > new_pos {
+                    let offset = existing_end - new_pos;
                     if let Ok(x) = NonZeroU16::try_from(new_len.get().saturating_sub(offset as _)) {
-                        *new_pos += offset;
-                        *new_len = x;
+                        new_pos += offset;
+                        new_len = x;
                     } else {
-                        return false;
+                        return;
                     }
                 }
             }
-            if let Some((after_pos, _)) = peekable_sorted.peek() {
-                let new_end = *new_pos + new_len.get() as u32;
-                if *after_pos < new_end {
-                    let offset = new_end.saturating_sub(*after_pos);
+            // Overlaps end of new
+            if let Some((existing_pos, _)) = peekable_ordered_existing.peek() {
+                if *existing_pos < new_end {
+                    let offset = new_end.saturating_sub(*existing_pos);
 
                     if let Ok(x) = NonZeroU16::try_from(new_len.get().saturating_sub(offset as _)) {
-                        *new_len = x;
+                        new_len = x;
                     } else {
-                        return false;
+                        return;
                     }
                 }
             }
 
-            true
+            // if let Some((before_pos, before_len)) = dbg!(before) {}
+            // if let Some((after_pos, _)) = peekable_ordered_existing.peek() {
+            //     let new_end = *new_pos + new_len.get() as u32;
+            //
+            // }
+
+            i.insert((new_pos, new_len));
         });
     }
 }
@@ -238,11 +265,31 @@ mod tests {
     }
 
     #[test]
+    fn existing_within_new() {
+        let mut annotation = vec![(0, 6.try_into().unwrap())];
+        let existing = vec![(1, 4.try_into().unwrap())];
+
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(
+            annotation,
+            vec![(0, 1.try_into().unwrap()), (5, 1.try_into().unwrap())]
+        )
+    }
+
+    #[test]
     fn overlapping_both() {
         let mut annotation = vec![(2, 4.try_into().unwrap())];
         let existing = vec![(0, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![])
+    }
+
+    #[test]
+    fn overlapping_twice() {
+        let mut annotation = vec![(2, 1.try_into().unwrap()), (4, 1.try_into().unwrap())];
+        let existing = vec![(0, 6.try_into().unwrap())];
+        MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
+        assert_eq!(annotation, vec![]);
     }
 
     #[test]
