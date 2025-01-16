@@ -1,5 +1,9 @@
 use std::fmt::Debug;
 
+///
+/// Reuses the Vec, as long as possible.
+/// Moves data into cache, if there are more writes than reads during flat_map_inplace()
+///
 #[derive(Debug)]
 pub(super) struct InplaceFlatMapper<'a, T> {
     data: &'a mut Vec<T>,
@@ -16,7 +20,7 @@ pub trait NextInPlaceExt<T> {
     );
 }
 
-impl<T: Copy + Debug> NextInPlaceExt<T> for Vec<T> {
+impl<T: Copy> NextInPlaceExt<T> for Vec<T> {
     fn flat_map_inplace<TMap: for<'b> FnMut(T, &mut InplaceFlatMapper<'b, T>)>(
         &mut self,
         handler: TMap,
@@ -26,7 +30,7 @@ impl<T: Copy + Debug> NextInPlaceExt<T> for Vec<T> {
     }
 }
 
-impl<'a, T: Copy + std::fmt::Debug> InplaceFlatMapper<'a, T> {
+impl<'a, T: Copy> InplaceFlatMapper<'a, T> {
     fn new(data: &'a mut Vec<T>) -> Self {
         Self {
             data,
@@ -36,6 +40,7 @@ impl<'a, T: Copy + std::fmt::Debug> InplaceFlatMapper<'a, T> {
             cache_pos: 0,
         }
     }
+
     fn map(&mut self, mut handler: impl for<'b> FnMut(T, &mut InplaceFlatMapper<'b, T>)) {
         while self.read_pos < self.data.len() {
             let el = self.data[self.read_pos];
