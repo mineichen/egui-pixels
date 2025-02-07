@@ -1,4 +1,5 @@
 use std::{
+    fs::DirEntry,
     io::{self, ErrorKind, Read, Write},
     num::NonZeroU16,
     ops::Deref,
@@ -171,7 +172,7 @@ impl Storage {
     }
 
     fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String, bool)>> {
-        Ok(std::fs::read_dir(path)?
+        Ok(visit_directory_files(path)
             .filter_map(|x| {
                 let x = x.ok()?;
                 let path = x.path();
@@ -241,6 +242,46 @@ impl FromStr for Kind {
             "png" => Ok(Self::Image),
             "tiff" => Ok(Self::Image),
             _ => Err(()),
+        }
+    }
+}
+
+pub fn visit_directory_files(
+    path: impl Into<PathBuf>,
+) -> impl Iterator<Item = std::io::Result<DirEntry>> {
+    fn one_level(path: PathBuf) -> MaybeOneOrMany<std::io::Result<DirEntry>> {
+        match std::fs::read_dir(path) {
+            Ok(readdir) => MaybeOneOrMany::Many(Box::new(readdir.flat_map(|entry| match entry {
+                Ok(entry) => match entry.file_type() {
+                    Ok(filetype) => {
+                        if filetype.is_dir() {
+                            one_level(entry.path())
+                        } else {
+                            MaybeOneOrMany::MaybeOne(Some(Ok(entry)))
+                        }
+                    }
+                    Err(e) => MaybeOneOrMany::MaybeOne(Some(Err(e))),
+                },
+                Err(e) => MaybeOneOrMany::MaybeOne(Some(Err(e))),
+            }))),
+            Err(e) => MaybeOneOrMany::MaybeOne(Some(Err(e))),
+        }
+    }
+    one_level(path.into())
+}
+
+enum MaybeOneOrMany<T> {
+    MaybeOne(Option<T>),
+    Many(Box<dyn Iterator<Item = T>>),
+}
+
+impl<T> Iterator for MaybeOneOrMany<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            MaybeOneOrMany::MaybeOne(x) => x.take(),
+            MaybeOneOrMany::Many(iterator) => iterator.next(),
         }
     }
 }
