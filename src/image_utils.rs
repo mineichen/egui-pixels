@@ -42,7 +42,7 @@ where
     pixels.sort_unstable();
     let five_percent_pos = pixels.len() / 20;
     let lower: f32 = (*pixels[five_percent_pos]).into();
-    let upper: f32 = (*pixels[five_percent_pos * 18]).into();
+    let upper: f32 = (*pixels[five_percent_pos * 19]).into();
     let max_pixel_value: f32 = T::DEFAULT_MAX_VALUE.into();
     let range = max_pixel_value / (upper - lower);
 
