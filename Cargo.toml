@@ -4,13 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-eframe = { version = "0.31", default-features = false, features = ["wgpu", "default_fonts"]}
+eframe = { version = "0.31", default-features = false, features = [
+    "wgpu",
+    "default_fonts",
+] }
 emath = { version = "0.31.0", features = ["serde"] }
 env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",
     "humantime",
 ] }
-image = { version = "0.25.5", default-features = false, features = ["png", "jpeg"] }
+image = { version = "0.25.5", default-features = false, features = [
+    "png",
+    "jpeg",
+] }
 log = "0.4.22"
 thiserror = "2"
 
@@ -22,9 +28,12 @@ futures = "0.3"
 num-traits = "0.2.19"
 bytemuck = "1.21.0"
 brotli = "7.0.0"
-serde = { version = "1", features = ["derive"]}
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[features]
+wayland = ["eframe/wayland"]
+x11 = ["eframe/x11"]
 
 #[patch.crates-io]
 #egui = { path = "../myegui/crates/egui" }
