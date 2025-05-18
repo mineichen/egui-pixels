@@ -3,6 +3,11 @@
 This tool helps to annotate image-segments with labels. It uses the SAM (Facebook Segment anything model) to rapidly generate the masks.
 It can be used offline as well as in the browser eventually.
 
+## Setup
+mkdir sam
+wget https://github.com/AndreyGermanov/sam_onnx_rust/raw/refs/heads/main/vit_t_encoder.onnx -O sam/vit_t_encoder.onnx
+wget https://github.com/AndreyGermanov/sam_onnx_rust/raw/refs/heads/main/vit_t_decoder.onnx -O sam/vit_t_decoder.onnx
+
 Features
  - Select image from list
  - Zoom / pan image

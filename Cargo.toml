@@ -21,13 +21,13 @@ log = "0.4.22"
 thiserror = "2"
 
 ort = "1.15.2"
-ndarray = "0.15.6"
+ndarray = "0.15"
 rolling-stats = "0.7"
 itertools = "0.14.0"
 futures = "0.3"
 num-traits = "0.2.19"
 bytemuck = "1.21.0"
-brotli = "7.0.0"
+brotli = "8.0.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
