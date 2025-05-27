@@ -241,6 +241,7 @@ impl FromStr for Kind {
             "masks" => Ok(Self::Mask),
             "png" => Ok(Self::Image),
             "tiff" => Ok(Self::Image),
+            "tif" => Ok(Self::Image),
             _ => Err(()),
         }
     }
