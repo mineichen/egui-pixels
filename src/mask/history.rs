@@ -20,10 +20,10 @@ impl HistoryAction {
                 let x_right = *x_bottom as u32;
                 let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
 
-                rest.retain_mut(|mut sub| {
+                rest.retain_mut(|sub| {
                     let y_range = *y_top as u32..=*y_bottom as u32;
                     super::MaskImage::remove_overlaps(
-                        &mut sub,
+                        sub,
                         y_range.map(|y| (y * image_width.get() + x_left, x_width)),
                     );
 
