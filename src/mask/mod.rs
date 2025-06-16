@@ -209,7 +209,7 @@ impl MaskImage {
                 } else if let Ok(len) =
                     NonZeroU16::try_from(existing_pos.saturating_sub(new_pos) as u16)
                 {
-                    i.insert(SubGroup::new(new_pos, len));
+                    i.insert(SubGroup::new_opaque(new_pos, len));
                 }
                 if existing_end > new_pos {
                     let offset = existing_end - new_pos;
@@ -234,7 +234,7 @@ impl MaskImage {
                 }
             }
 
-            i.insert(SubGroup::new(new_pos, new_len));
+            i.insert(SubGroup::new_opaque(new_pos, new_len));
         });
     }
 }
@@ -252,31 +252,31 @@ mod tests {
 
     #[test]
     fn overlapping_before() {
-        let mut annotation = vec![SubGroup::new(2, 4.try_into().unwrap())];
-        let existing = vec![SubGroup::new(0, 3.try_into().unwrap())];
+        let mut annotation = vec![SubGroup::new_opaque(2, 4.try_into().unwrap())];
+        let existing = vec![SubGroup::new_opaque(0, 3.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![SubGroup::new(3, 3.try_into().unwrap())])
+        assert_eq!(annotation, vec![SubGroup::new_opaque(3, 3.try_into().unwrap())])
     }
 
     #[test]
     fn existing_within_new() {
-        let mut annotation = vec![SubGroup::new(0, 6.try_into().unwrap())];
-        let existing = vec![SubGroup::new(1, 4.try_into().unwrap())];
+        let mut annotation = vec![SubGroup::new_opaque(0, 6.try_into().unwrap())];
+        let existing = vec![SubGroup::new_opaque(1, 4.try_into().unwrap())];
 
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(
             annotation,
             vec![
-                SubGroup::new(0, 1.try_into().unwrap()),
-                SubGroup::new(5, 1.try_into().unwrap())
+                SubGroup::new_opaque(0, 1.try_into().unwrap()),
+                SubGroup::new_opaque(5, 1.try_into().unwrap())
             ]
         )
     }
 
     #[test]
     fn overlapping_both() {
-        let mut annotation = vec![SubGroup::new(2, 4.try_into().unwrap())];
-        let existing = vec![SubGroup::new(0, 6.try_into().unwrap())];
+        let mut annotation = vec![SubGroup::new_opaque(2, 4.try_into().unwrap())];
+        let existing = vec![SubGroup::new_opaque(0, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![])
     }
@@ -284,28 +284,28 @@ mod tests {
     #[test]
     fn overlapping_twice() {
         let mut annotation = vec![
-            SubGroup::new(2, 1.try_into().unwrap()),
-            SubGroup::new(4, 1.try_into().unwrap()),
+            SubGroup::new_opaque(2, 1.try_into().unwrap()),
+            SubGroup::new_opaque(4, 1.try_into().unwrap()),
         ];
-        let existing = vec![SubGroup::new(0, 6.try_into().unwrap())];
+        let existing = vec![SubGroup::new_opaque(0, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![]);
     }
 
     #[test]
     fn overlapping_end() {
-        let mut annotation = vec![SubGroup::new(1, 4.try_into().unwrap())];
-        let existing = vec![SubGroup::new(2, 6.try_into().unwrap())];
+        let mut annotation = vec![SubGroup::new_opaque(1, 4.try_into().unwrap())];
+        let existing = vec![SubGroup::new_opaque(2, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![SubGroup::new(1, NonZeroU16::MIN)])
+        assert_eq!(annotation, vec![SubGroup::new_opaque(1, NonZeroU16::MIN)])
     }
 
     #[test]
     fn overlapping_between() {
-        let mut annotation = vec![SubGroup::new(2, 4.try_into().unwrap())];
+        let mut annotation = vec![SubGroup::new_opaque(2, 4.try_into().unwrap())];
         let existing = vec![
-            SubGroup::new(0, 3.try_into().unwrap()),
-            SubGroup::new(0, 8.try_into().unwrap()),
+            SubGroup::new_opaque(0, 3.try_into().unwrap()),
+            SubGroup::new_opaque(0, 8.try_into().unwrap()),
         ];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![])
@@ -313,10 +313,10 @@ mod tests {
 
     #[test]
     fn no_overlap_before() {
-        let mut annotation = vec![SubGroup::new(2, 4.try_into().unwrap())];
-        let existing = vec![SubGroup::new(0, 2.try_into().unwrap())];
+        let mut annotation = vec![SubGroup::new_opaque(2, 4.try_into().unwrap())];
+        let existing = vec![SubGroup::new_opaque(0, 2.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![SubGroup::new(2, 4.try_into().unwrap())])
+        assert_eq!(annotation, vec![SubGroup::new_opaque(2, 4.try_into().unwrap())])
     }
 
     #[test]
@@ -325,9 +325,9 @@ mod tests {
         history.push(HistoryAction::Add(
             "Foo".into(),
             vec![
-                SubGroup::new(22, NonZeroU16::try_from(7).unwrap()),
-                SubGroup::new(39, NonZeroU16::try_from(1).unwrap()),
-                SubGroup::new(42, NonZeroU16::try_from(7).unwrap()),
+                SubGroup::new_opaque(22, NonZeroU16::try_from(7).unwrap()),
+                SubGroup::new_opaque(39, NonZeroU16::try_from(1).unwrap()),
+                SubGroup::new_opaque(42, NonZeroU16::try_from(7).unwrap()),
             ],
         ));
         let x = MaskImage {
@@ -336,13 +336,13 @@ mod tests {
                 (
                     "Test".into(),
                     vec![
-                        SubGroup::new(2, NonZeroU16::try_from(5).unwrap()),
-                        SubGroup::new(12, NonZeroU16::try_from(5).unwrap()),
+                        SubGroup::new_opaque(2, NonZeroU16::try_from(5).unwrap()),
+                        SubGroup::new_opaque(12, NonZeroU16::try_from(5).unwrap()),
                     ],
                 ),
                 (
                     "Test2".into(),
-                    vec![SubGroup::new(32, NonZeroU16::try_from(5).unwrap())],
+                    vec![SubGroup::new_opaque(32, NonZeroU16::try_from(5).unwrap())],
                 ),
             ]),
             history,

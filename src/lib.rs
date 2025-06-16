@@ -14,11 +14,24 @@ mod storage;
 pub struct SubGroup {
     position: u32,
     length: NonZeroU16,
+    opacity: u8,
 }
 
 impl SubGroup {
-    pub fn new(position: u32, length: NonZeroU16) -> Self {
-        Self { position, length }
+    pub fn new(position: u32, length: NonZeroU16, opacity: u8) -> Self {
+        Self {
+            position,
+            length,
+            opacity,
+        }
+    }
+
+    pub fn new_opaque(position: u32, length: NonZeroU16) -> Self {
+        Self {
+            position,
+            length,
+            opacity: 255,
+        }
     }
 
     pub fn as_range(&self) -> std::ops::Range<usize> {

@@ -24,7 +24,8 @@ impl HistoryAction {
                     let y_range = *y_top as u32..=*y_bottom as u32;
                     super::MaskImage::remove_overlaps(
                         sub,
-                        y_range.map(|y| SubGroup::new(y * image_width.get() + x_left, x_width)),
+                        y_range
+                            .map(|y| SubGroup::new_opaque(y * image_width.get() + x_left, x_width)),
                     );
 
                     !sub.is_empty()
@@ -115,7 +116,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add("Foo".into(), vec![SubGroup::new(0, NonZeroU16::MIN)]);
+        let item = HistoryAction::Add("Foo".into(), vec![SubGroup::new_opaque(0, NonZeroU16::MIN)]);
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -125,8 +126,11 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add("Foo".into(), vec![SubGroup::new(0, NonZeroU16::MIN)]);
-        let item2 = HistoryAction::Add("Foo2".into(), vec![SubGroup::new(10, NonZeroU16::MIN)]);
+        let item = HistoryAction::Add("Foo".into(), vec![SubGroup::new_opaque(0, NonZeroU16::MIN)]);
+        let item2 = HistoryAction::Add(
+            "Foo2".into(),
+            vec![SubGroup::new_opaque(10, NonZeroU16::MIN)],
+        );
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
