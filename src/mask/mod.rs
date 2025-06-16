@@ -44,11 +44,21 @@ impl MaskImage {
         self.texture_handle = None;
     }
 
-    pub fn clear_region(&mut self, region: [[usize; 2]; 2]) {
-        self.add_history_action(HistoryAction::Clear(
-            region,
-            (self.size[0] as u32).try_into().unwrap(), // Todo: Move Constraint to MaskImage.size
-        ))
+    pub fn clear_region(&mut self, [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2]) {
+        let x_left = x_top as u32;
+        let x_right = x_bottom as u32;
+        let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
+
+        let y_range = y_top as u32..=y_bottom as u32;
+        let image_width = self.size[0] as u32;
+
+        assert!(image_width > 0, "Todo: Move Constraint to MaskImage.size");
+
+        let region = y_range
+            .map(|y| SubGroup::new_total(y * image_width + x_left, x_width))
+            .collect();
+
+        self.add_history_action(HistoryAction::Clear(region))
     }
 
     pub fn add_subgroups(&mut self, mut subgroups: SubGroups) {

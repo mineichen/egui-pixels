@@ -1,21 +1,10 @@
-use std::num::{NonZeroU16, NonZeroU32};
-
-use crate::{SubGroup, SubGroups};
+use crate::SubGroups;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
     Add(SubGroups),
     Reset,
-    // Box, image_width
-    Clear([[usize; 2]; 2], NonZeroU32),
-}
-
-pub struct HistoryUpdate {
-    group_index: usize,
-    sub_group_id: usize,
-    new_start: u32,
-    new_len: Option<NonZeroU16>,
-    new_association: u8,
+    Clear(SubGroups),
 }
 
 impl HistoryAction {
@@ -23,19 +12,9 @@ impl HistoryAction {
         match self {
             HistoryAction::Add(s) => rest.push(s.clone()),
             HistoryAction::Reset => rest.clear(),
-            HistoryAction::Clear([[x_top, y_top], [x_bottom, y_bottom]], image_width) => {
-                let x_left = *x_top as u32;
-                let x_right = *x_bottom as u32;
-                let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
-
+            HistoryAction::Clear(s) => {
                 rest.retain_mut(|sub| {
-                    let y_range = *y_top as u32..=*y_bottom as u32;
-                    super::MaskImage::remove_overlaps(
-                        sub,
-                        y_range
-                            .map(|y| SubGroup::new_total(y * image_width.get() + x_left, x_width)),
-                    );
-
+                    super::MaskImage::remove_overlaps(sub, s.iter().copied());
                     !sub.is_empty()
                 });
             }
@@ -112,6 +91,8 @@ impl History {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU16;
+
+    use crate::SubGroup;
 
     use super::*;
 
