@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
 use eframe::egui;
+use futures::FutureExt;
+use image::DynamicImage;
 use log::warn;
 
 use crate::{
@@ -8,9 +12,18 @@ use crate::{
 };
 
 pub struct SamTool(
-    pub AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
-    pub SamSession,
+    AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
+    SamSession,
 );
+
+impl SamTool {
+    pub fn new(session: SamSession, img: Arc<DynamicImage>) -> Self {
+        Self(
+            AsyncRefTask::new(session.get_image_embeddings(img).boxed()),
+            session,
+        )
+    }
+}
 
 impl super::Tool for SamTool {
     fn handle_interaction(

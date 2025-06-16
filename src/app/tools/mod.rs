@@ -26,15 +26,8 @@ pub fn default_tools(session: SamSession) -> ToolFactories {
         (
             "SAM".to_string(),
             Box::new(move |img| {
-                let clone_session = session.clone();
-                let image = img.adjust.clone();
-                async move {
-                    Ok(Box::new(SamTool(
-                        AsyncRefTask::new(clone_session.get_image_embeddings(image).boxed()),
-                        clone_session,
-                    )) as Box<dyn Tool + Send>)
-                }
-                .boxed()
+                let tool = SamTool::new(session.clone(), img.adjust.clone());
+                async move { Ok(Box::new(tool) as Box<dyn Tool + Send>) }.boxed()
             }),
         ),
         (
