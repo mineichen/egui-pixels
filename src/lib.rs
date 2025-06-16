@@ -10,7 +10,8 @@ mod inference;
 mod mask;
 mod storage;
 
-type SubGroup = (u32, NonZeroU16);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SubGroup(u32, NonZeroU16);
 type SubGroups = Vec<SubGroup>;
 type Annotation = (String, SubGroups);
 

@@ -7,7 +7,7 @@ use image::{imageops::FilterType, DynamicImage, GenericImageView, Rgba};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
-use crate::SubGroups;
+use crate::{SubGroup, SubGroups};
 
 mod native_ort;
 
@@ -122,7 +122,7 @@ fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubG
         .into_iter()
         .for_each(|(_, mut b)| {
             let first = b.next().expect("Doesn't yield if group is empty");
-            result.push((first, NonZeroU16::MIN));
+            result.push(SubGroup(first, NonZeroU16::MIN));
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
@@ -131,7 +131,7 @@ fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubG
                         .checked_add(1)
                         .expect("image.width is never > u16::MAX");
                 } else {
-                    result.push((x, NonZeroU16::MIN));
+                    result.push(SubGroup(x, NonZeroU16::MIN));
                 }
                 x
             });
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn extract_subgroups_summarizes_pixels() {
         assert_eq!(
-            vec![(0, 3.try_into().unwrap())],
+            vec![SubGroup(0, 3.try_into().unwrap())],
             extract_subgroups([1., 1., 1.].iter().copied(), 3.try_into().unwrap())
         );
     }

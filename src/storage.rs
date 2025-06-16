@@ -14,7 +14,7 @@ use itertools::Itertools;
 use log::info;
 use num_traits::ToBytes;
 
-use crate::{Annotation, SubGroups};
+use crate::{Annotation, SubGroup, SubGroups};
 
 pub struct Storage {
     base: String,
@@ -94,7 +94,7 @@ impl Storage {
                                 .iter()
                                 .zip(lens.iter())
                                 .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                    Ok(l) => Ok((*start, l)),
+                                    Ok(l) => Ok(SubGroup(*start, l)),
                                     Err(e) => Err(std::io::Error::new(
                                         ErrorKind::InvalidData,
                                         format!("position {start},{len}: {e:?}"),
@@ -156,10 +156,10 @@ impl Storage {
                     let sub_len = sub.len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
-                    for (start, _len) in sub.iter() {
+                    for SubGroup(start, _len) in sub.iter() {
                         f.write_all(&start.to_le_bytes())?;
                     }
-                    for (_start, len) in sub {
+                    for SubGroup(_start, len) in sub {
                         f.write_all(&len.get().to_le_bytes())?;
                     }
                 }

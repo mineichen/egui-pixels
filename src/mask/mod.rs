@@ -55,7 +55,7 @@ impl MaskImage {
     pub fn add_subgroup(&mut self, mut annotation: Annotation) {
         Self::remove_overlaps(
             &mut annotation.1,
-            self.subgroups_ordered().map(|(_, a, b)| (a, b)),
+            self.subgroups_ordered().map(|(_, a, b)| SubGroup(a, b)),
         );
         if annotation.1.is_empty() {
             debug!("All Pixels are in a other subgroup already");
@@ -112,7 +112,7 @@ impl MaskImage {
                 for (group_id, subgroups) in self.subgroups().into_iter().enumerate() {
                     let [r, g, b] = generate_rgb_color(group_id as u16);
                     let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
-                    for (pos, len) in subgroups {
+                    for SubGroup(pos, len) in subgroups {
                         let pos = pos as usize;
                         pixels[pos..(pos + len.get() as usize)].fill(group_color);
                     }
@@ -179,7 +179,7 @@ impl MaskImage {
             type Item = (usize, u32, NonZeroU16);
 
             fn next(&mut self) -> Option<Self::Item> {
-                if let Some(HeapItem((pos, len), group_id, mut rest)) = self.0.pop() {
+                if let Some(HeapItem(SubGroup(pos, len), group_id, mut rest)) = self.0.pop() {
                     if let Some(x) = rest.next() {
                         self.0.push(HeapItem(x, group_id, rest));
                     }
@@ -196,10 +196,10 @@ impl MaskImage {
         ordered_existing: impl Iterator<Item = SubGroup>,
     ) {
         let mut peekable_ordered_existing = ordered_existing
-            .map(|(pos, len)| (pos, pos + len.get() as u32))
+            .map(|SubGroup(pos, len)| (pos, pos + len.get() as u32))
             .peekable();
 
-        annotations.flat_map_inplace(|(mut new_pos, mut new_len), i| {
+        annotations.flat_map_inplace(|SubGroup(mut new_pos, mut new_len), i| {
             let new_end = new_pos + new_len.get() as u32;
 
             // Overlap start or within new
@@ -211,7 +211,7 @@ impl MaskImage {
                 } else if let Ok(len) =
                     NonZeroU16::try_from(existing_pos.saturating_sub(new_pos) as u16)
                 {
-                    i.insert((new_pos, len));
+                    i.insert(SubGroup(new_pos, len));
                 }
                 if existing_end > new_pos {
                     let offset = existing_end - new_pos;
@@ -236,7 +236,7 @@ impl MaskImage {
                 }
             }
 
-            i.insert((new_pos, new_len));
+            i.insert(SubGroup(new_pos, new_len));
         });
     }
 }
@@ -254,62 +254,71 @@ mod tests {
 
     #[test]
     fn overlapping_before() {
-        let mut annotation = vec![(2, 4.try_into().unwrap())];
-        let existing = vec![(0, 3.try_into().unwrap())];
+        let mut annotation = vec![SubGroup(2, 4.try_into().unwrap())];
+        let existing = vec![SubGroup(0, 3.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![(3, 3.try_into().unwrap())])
+        assert_eq!(annotation, vec![SubGroup(3, 3.try_into().unwrap())])
     }
 
     #[test]
     fn existing_within_new() {
-        let mut annotation = vec![(0, 6.try_into().unwrap())];
-        let existing = vec![(1, 4.try_into().unwrap())];
+        let mut annotation = vec![SubGroup(0, 6.try_into().unwrap())];
+        let existing = vec![SubGroup(1, 4.try_into().unwrap())];
 
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(
             annotation,
-            vec![(0, 1.try_into().unwrap()), (5, 1.try_into().unwrap())]
+            vec![
+                SubGroup(0, 1.try_into().unwrap()),
+                SubGroup(5, 1.try_into().unwrap())
+            ]
         )
     }
 
     #[test]
     fn overlapping_both() {
-        let mut annotation = vec![(2, 4.try_into().unwrap())];
-        let existing = vec![(0, 6.try_into().unwrap())];
+        let mut annotation = vec![SubGroup(2, 4.try_into().unwrap())];
+        let existing = vec![SubGroup(0, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![])
     }
 
     #[test]
     fn overlapping_twice() {
-        let mut annotation = vec![(2, 1.try_into().unwrap()), (4, 1.try_into().unwrap())];
-        let existing = vec![(0, 6.try_into().unwrap())];
+        let mut annotation = vec![
+            SubGroup(2, 1.try_into().unwrap()),
+            SubGroup(4, 1.try_into().unwrap()),
+        ];
+        let existing = vec![SubGroup(0, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![]);
     }
 
     #[test]
     fn overlapping_end() {
-        let mut annotation = vec![(1, 4.try_into().unwrap())];
-        let existing = vec![(2, 6.try_into().unwrap())];
+        let mut annotation = vec![SubGroup(1, 4.try_into().unwrap())];
+        let existing = vec![SubGroup(2, 6.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![(1, 1.try_into().unwrap())])
+        assert_eq!(annotation, vec![SubGroup(1, 1.try_into().unwrap())])
     }
 
     #[test]
     fn overlapping_between() {
-        let mut annotation = vec![(2, 4.try_into().unwrap())];
-        let existing = vec![(0, 3.try_into().unwrap()), (0, 8.try_into().unwrap())];
+        let mut annotation = vec![SubGroup(2, 4.try_into().unwrap())];
+        let existing = vec![
+            SubGroup(0, 3.try_into().unwrap()),
+            SubGroup(0, 8.try_into().unwrap()),
+        ];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(annotation, vec![])
     }
 
     #[test]
     fn no_overlap_before() {
-        let mut annotation = vec![(2, 4.try_into().unwrap())];
-        let existing = vec![(0, 2.try_into().unwrap())];
+        let mut annotation = vec![SubGroup(2, 4.try_into().unwrap())];
+        let existing = vec![SubGroup(0, 2.try_into().unwrap())];
         MaskImage::remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![(2, 4.try_into().unwrap())])
+        assert_eq!(annotation, vec![SubGroup(2, 4.try_into().unwrap())])
     }
 
     #[test]
@@ -318,9 +327,9 @@ mod tests {
         history.push(HistoryAction::Add(
             "Foo".into(),
             vec![
-                (22, NonZeroU16::try_from(7).unwrap()),
-                (39, NonZeroU16::try_from(1).unwrap()),
-                (42, NonZeroU16::try_from(7).unwrap()),
+                SubGroup(22, NonZeroU16::try_from(7).unwrap()),
+                SubGroup(39, NonZeroU16::try_from(1).unwrap()),
+                SubGroup(42, NonZeroU16::try_from(7).unwrap()),
             ],
         ));
         let x = MaskImage {
@@ -329,11 +338,14 @@ mod tests {
                 (
                     "Test".into(),
                     vec![
-                        (2, NonZeroU16::try_from(5).unwrap()),
-                        (12, NonZeroU16::try_from(5).unwrap()),
+                        SubGroup(2, NonZeroU16::try_from(5).unwrap()),
+                        SubGroup(12, NonZeroU16::try_from(5).unwrap()),
                     ],
                 ),
-                ("Test2".into(), vec![(32, NonZeroU16::try_from(5).unwrap())]),
+                (
+                    "Test2".into(),
+                    vec![SubGroup(32, NonZeroU16::try_from(5).unwrap())],
+                ),
             ]),
             history,
             texture_handle: None,
