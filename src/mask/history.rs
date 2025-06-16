@@ -1,3 +1,7 @@
+//! History is a stack of actions that can be aplied to Vec<SubGroups>.
+//! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
+//! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
+
 use crate::SubGroups;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
