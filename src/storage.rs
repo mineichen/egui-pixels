@@ -12,7 +12,6 @@ use futures::{future::BoxFuture, FutureExt};
 use image::DynamicImage;
 use itertools::Itertools;
 use log::info;
-use num_traits::ToBytes;
 
 use crate::{Annotation, SubGroup, SubGroups};
 
@@ -94,7 +93,10 @@ impl Storage {
                                 .iter()
                                 .zip(lens.iter())
                                 .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                    Ok(l) => Ok(SubGroup(*start, l)),
+                                    Ok(l) => Ok(SubGroup {
+                                        position: *start,
+                                        length: l,
+                                    }),
                                     Err(e) => Err(std::io::Error::new(
                                         ErrorKind::InvalidData,
                                         format!("position {start},{len}: {e:?}"),
@@ -156,11 +158,11 @@ impl Storage {
                     let sub_len = sub.len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
-                    for SubGroup(start, _len) in sub.iter() {
-                        f.write_all(&start.to_le_bytes())?;
+                    for subgroup in sub.iter() {
+                        f.write_all(&subgroup.position.to_le_bytes())?;
                     }
-                    for SubGroup(_start, len) in sub {
-                        f.write_all(&len.get().to_le_bytes())?;
+                    for subgroup in sub {
+                        f.write_all(&subgroup.length.get().to_le_bytes())?;
                     }
                 }
 

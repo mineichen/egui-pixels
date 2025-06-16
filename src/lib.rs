@@ -11,7 +11,10 @@ mod mask;
 mod storage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SubGroup(u32, NonZeroU16);
+pub struct SubGroup {
+    position: u32,
+    length: NonZeroU16,
+}
 type SubGroups = Vec<SubGroup>;
 type Annotation = (String, SubGroups);
 
