@@ -1,18 +1,12 @@
 use std::{
-    fs::DirEntry,
-    io::{self, ErrorKind, Read, Write},
-    num::NonZeroU16,
-    ops::Deref,
-    path::PathBuf,
+    io::{self},
     str::FromStr,
     sync::Arc,
 };
 
-use futures::{future::BoxFuture, FutureExt};
-use itertools::Itertools;
-use log::info;
+use futures::future::BoxFuture;
 
-use crate::{image_utils::ImageLoadOk, SubGroup, SubGroups};
+use crate::{image_utils::ImageLoadOk, SubGroups};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;

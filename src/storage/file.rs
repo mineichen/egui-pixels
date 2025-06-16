@@ -5,7 +5,6 @@ use std::{
     ops::Deref,
     path::PathBuf,
     str::FromStr,
-    sync::Arc,
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -13,7 +12,7 @@ use itertools::Itertools;
 use log::info;
 
 use super::{ImageData, ImageId, Kind, MaybeOneOrMany, Storage, PREAMBLE, VERSION};
-use crate::{image_utils::ImageLoadOk, SubGroup, SubGroups};
+use crate::{SubGroup, SubGroups};
 
 pub struct FileStorage {
     base: String,
