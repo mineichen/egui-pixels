@@ -9,6 +9,7 @@ use crate::{inference::extract_subgroups, SubGroups};
 
 use super::{InferenceError, SamEmbeddings};
 
+#[derive(Clone)]
 pub struct SamSession {
     encoder: Arc<Session>,
     decoder: Arc<Session>,

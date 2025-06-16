@@ -139,8 +139,7 @@ impl MaskImage {
     }
 
     pub fn subgroups(&self) -> Vec<SubGroups> {
-        let base = self.annotations.0.iter().cloned().collect();
-
+        let base = self.annotations.0.clone();
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
