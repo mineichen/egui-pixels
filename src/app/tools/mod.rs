@@ -9,7 +9,7 @@ use crate::{
 mod clear;
 mod sam;
 
-pub(super) struct Tools {
+pub struct Tools {
     last_drag_start: Option<(usize, usize)>,
     active_tool_idx: usize,
     tool_factories: ToolFactories,

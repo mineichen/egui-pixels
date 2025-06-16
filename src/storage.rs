@@ -9,7 +9,6 @@ use std::{
 };
 
 use futures::{future::BoxFuture, FutureExt};
-use image::DynamicImage;
 use itertools::Itertools;
 use log::info;
 
