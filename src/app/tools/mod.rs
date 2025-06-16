@@ -1,12 +1,10 @@
 use eframe::egui;
 use futures::{future::BoxFuture, FutureExt};
 
-use crate::{
-    app::tools::sam::SamTool, async_task::AsyncRefTask, image_utils::ImageLoadOk,
-    inference::SamSession,
-};
+use crate::{async_task::AsyncRefTask, image_utils::ImageLoadOk};
 
 mod clear;
+#[cfg(feature = "sam")]
 mod sam;
 
 pub struct Tools {
@@ -21,12 +19,15 @@ type ToolFactories = Vec<(
     Box<dyn Fn(&ImageLoadOk) -> BoxFuture<'static, Result<Box<dyn Tool + Send>, String>>>,
 )>;
 
-pub fn default_tools(session: SamSession) -> ToolFactories {
+pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
+    #[cfg(feature = "sam")]
+    let session = sam::SamSession::new(&config.sam_path).unwrap();
     vec![
+        #[cfg(feature = "sam")]
         (
             "SAM".to_string(),
             Box::new(move |img| {
-                let tool = SamTool::new(session.clone(), img.adjust.clone());
+                let tool = sam::SamTool::new(session.clone(), img.adjust.clone());
                 async move { Ok(Box::new(tool) as Box<dyn Tool + Send>) }.boxed()
             }),
         ),
@@ -41,8 +42,7 @@ pub fn default_tools(session: SamSession) -> ToolFactories {
 
 impl<'a> From<&'a crate::config::Config> for Tools {
     fn from(config: &'a crate::config::Config) -> Self {
-        let session = SamSession::new(&config.sam_path).unwrap();
-        Self::new(default_tools(session))
+        Self::new(default_tools(config))
     }
 }
 
@@ -87,8 +87,9 @@ impl Tools {
         egui::ComboBox::from_label("Tool")
             .selected_text(&self.tool_factories[self.active_tool_idx].0)
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.active_tool_idx, 0, "Sam");
-                ui.selectable_value(&mut self.active_tool_idx, 1, "Clear");
+                for (i, (name, _)) in self.tool_factories.iter().enumerate() {
+                    ui.selectable_value(&mut self.active_tool_idx, i, name);
+                }
             });
         if before != self.active_tool_idx {
             self.load_tool(img);
@@ -109,7 +110,6 @@ impl super::ImageViewerApp {
         }
 
         temp_tool.handle_interaction(self, response, cursor_image_pos, ctx);
-
         self.tools.tool = AsyncRefTask::new_ready(Ok(temp_tool));
 
         if ctx.input(|i| !i.pointer.primary_down()) {

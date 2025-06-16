@@ -6,7 +6,6 @@ mod app;
 mod async_task;
 mod config;
 mod image_utils;
-mod inference;
 mod mask;
 mod storage;
 

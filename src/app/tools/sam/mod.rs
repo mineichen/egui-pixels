@@ -8,8 +8,13 @@ use log::warn;
 use crate::{
     app::{ImageState, ImageStateLoaded, ImageViewerApp},
     async_task::AsyncRefTask,
-    inference::{InferenceError, SamEmbeddings, SamSession},
 };
+use inference::{InferenceError, SamEmbeddings};
+
+mod inference;
+mod native_ort;
+
+pub use native_ort::SamSession;
 
 pub struct SamTool(
     AsyncRefTask<Result<SamEmbeddings, InferenceError>>,

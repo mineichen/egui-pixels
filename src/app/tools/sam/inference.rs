@@ -9,10 +9,6 @@ use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
 use crate::{SubGroup, SubGroups};
 
-mod native_ort;
-
-pub use native_ort::SamSession;
-
 impl From<TryFromIntError> for InferenceError {
     fn from(value: TryFromIntError) -> Self {
         Self::Other(Arc::new(value))
@@ -34,7 +30,7 @@ pub enum InferenceError {
     UnexpectedOutput(String),
 }
 
-fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, InferenceError> {
+pub(super) fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, InferenceError> {
     let (original_width, original_height) = img.dimensions();
     let (original_width, original_height) = (
         NonZeroU32::try_from(original_width)?,
@@ -114,7 +110,7 @@ fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, InferenceErro
     })
 }
 
-fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubGroups {
+pub(super) fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubGroups {
     let mut result = vec![];
     iter.enumerate()
         .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u32))
@@ -141,11 +137,11 @@ fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubG
 
 #[derive(Debug)]
 pub struct ResizedImageData<T> {
-    image_data: T,
-    original_width: NonZeroU32,
-    original_height: NonZeroU32,
-    resized_width: NonZeroU32,
-    resized_height: NonZeroU32,
+    pub(super) image_data: T,
+    pub(super) original_width: NonZeroU32,
+    pub(super) original_height: NonZeroU32,
+    pub(super) resized_width: NonZeroU32,
+    pub(super) resized_height: NonZeroU32,
 }
 
 impl<T> ResizedImageData<T> {

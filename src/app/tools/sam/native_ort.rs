@@ -5,9 +5,8 @@ use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
-use crate::{inference::extract_subgroups, SubGroups};
-
-use super::{InferenceError, SamEmbeddings};
+use super::{inference::extract_subgroups, InferenceError, SamEmbeddings};
+use crate::SubGroups;
 
 #[derive(Clone)]
 pub struct SamSession {
@@ -52,7 +51,7 @@ impl SamSession {
         encoder: Arc<Session>,
         img: Arc<DynamicImage>,
     ) -> Result<SamEmbeddings, InferenceError> {
-        let image_input = super::prepare_image_input(&img)?;
+        let image_input = super::inference::prepare_image_input(&img)?;
         // Prepare tensor for the SAM encoder model
         let input_as_values = &image_input.image_data.as_standard_layout();
         let encoder_inputs = vec![Value::from_array(encoder.allocator(), input_as_values)?];
