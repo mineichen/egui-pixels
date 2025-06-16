@@ -14,7 +14,7 @@ use itertools::Itertools;
 use log::info;
 use num_traits::ToBytes;
 
-use crate::Annotation;
+use crate::{Annotation, SubGroups};
 
 pub struct Storage {
     base: String,
@@ -123,7 +123,7 @@ impl Storage {
     pub fn store_masks(
         &self,
         id: ImageId,
-        masks: Vec<Vec<(u32, NonZeroU16)>>,
+        masks: Vec<SubGroups>,
     ) -> BoxFuture<'static, io::Result<()>> {
         let path = Self::get_mask_path(&id);
 

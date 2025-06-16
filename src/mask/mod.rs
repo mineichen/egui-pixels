@@ -7,6 +7,8 @@ use itertools::Itertools;
 use log::{debug, info};
 
 use crate::Annotation;
+use crate::SubGroup;
+use crate::SubGroups;
 
 mod flat_map_inplace;
 mod history;
@@ -131,14 +133,14 @@ impl MaskImage {
         }
     }
 
-    pub fn subgroups(&self) -> Vec<Vec<(u32, NonZeroU16)>> {
+    pub fn subgroups(&self) -> Vec<SubGroups> {
         let base = self.annotations.0.iter().map(|(_, b)| b.clone()).collect();
 
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
     fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, u32, NonZeroU16)> + '_ {
-        struct HeapItem<T>((u32, NonZeroU16), usize, T);
+        struct HeapItem<T>(SubGroup, usize, T);
 
         impl<T> Eq for HeapItem<T> {}
         impl<T> PartialEq for HeapItem<T> {
@@ -157,7 +159,7 @@ impl MaskImage {
             }
         }
 
-        struct GroupIterator(BinaryHeap<HeapItem<std::vec::IntoIter<(u32, NonZeroU16)>>>);
+        struct GroupIterator(BinaryHeap<HeapItem<std::vec::IntoIter<SubGroup>>>);
 
         let x: BinaryHeap<_> = self
             .subgroups()
@@ -190,8 +192,8 @@ impl MaskImage {
         GroupIterator(x)
     }
     fn remove_overlaps(
-        annotations: &mut Vec<(u32, NonZeroU16)>,
-        ordered_existing: impl Iterator<Item = (u32, NonZeroU16)>,
+        annotations: &mut SubGroups,
+        ordered_existing: impl Iterator<Item = SubGroup>,
     ) {
         let mut peekable_ordered_existing = ordered_existing
             .map(|(pos, len)| (pos, pos + len.get() as u32))

@@ -11,7 +11,7 @@ pub enum HistoryAction {
 }
 
 impl HistoryAction {
-    pub fn apply(&self, mut rest: Vec<Vec<(u32, NonZeroU16)>>) -> Vec<Vec<(u32, NonZeroU16)>> {
+    pub fn apply(&self, mut rest: Vec<SubGroups>) -> Vec<SubGroups> {
         match self {
             HistoryAction::Add(_, s) => rest.push(s.clone()),
             HistoryAction::Reset => rest.clear(),
