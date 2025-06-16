@@ -4,16 +4,24 @@ use crate::{SubGroup, SubGroups};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
-    Add(String, SubGroups),
+    Add(SubGroups),
     Reset,
     // Box, image_width
     Clear([[usize; 2]; 2], NonZeroU32),
 }
 
+pub struct HistoryUpdate {
+    group_index: usize,
+    sub_group_id: usize,
+    new_start: u32,
+    new_len: Option<NonZeroU16>,
+    new_association: u8,
+}
+
 impl HistoryAction {
     pub fn apply(&self, mut rest: Vec<SubGroups>) -> Vec<SubGroups> {
         match self {
-            HistoryAction::Add(_, s) => rest.push(s.clone()),
+            HistoryAction::Add(s) => rest.push(s.clone()),
             HistoryAction::Reset => rest.clear(),
             HistoryAction::Clear([[x_top, y_top], [x_bottom, y_bottom]], image_width) => {
                 let x_left = *x_top as u32;
@@ -116,7 +124,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add("Foo".into(), vec![SubGroup::new_total(0, NonZeroU16::MIN)]);
+        let item = HistoryAction::Add(vec![SubGroup::new_total(0, NonZeroU16::MIN)]);
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -126,11 +134,8 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add("Foo".into(), vec![SubGroup::new_total(0, NonZeroU16::MIN)]);
-        let item2 = HistoryAction::Add(
-            "Foo2".into(),
-            vec![SubGroup::new_total(10, NonZeroU16::MIN)],
-        );
+        let item = HistoryAction::Add(vec![SubGroup::new_total(0, NonZeroU16::MIN)]);
+        let item2 = HistoryAction::Add(vec![SubGroup::new_total(10, NonZeroU16::MIN)]);
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);

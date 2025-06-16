@@ -55,7 +55,6 @@ impl SubGroup {
 }
 
 type SubGroups = Vec<SubGroup>;
-type Annotation = (String, SubGroups);
 
 pub use app::run_native;
 pub use storage::Storage;

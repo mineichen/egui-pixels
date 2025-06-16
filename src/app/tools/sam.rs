@@ -32,7 +32,7 @@ impl ImageViewerApp {
                     )
                     .unwrap();
 
-                masks.add_subgroup(("New group".into(), new_mask));
+                masks.add_subgroups(new_mask);
 
                 if let Some((_, _, loaded)) = self.selector.current() {
                     *loaded = true;

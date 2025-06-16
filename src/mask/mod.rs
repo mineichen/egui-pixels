@@ -6,14 +6,13 @@ use history::{History, HistoryAction};
 use itertools::Itertools;
 use log::{debug, info};
 
-use crate::Annotation;
 use crate::SubGroup;
 use crate::SubGroups;
 
 mod flat_map_inplace;
 mod history;
 
-struct Annotations(Vec<Annotation>);
+struct Annotations(Vec<SubGroups>);
 
 pub(crate) struct MaskImage {
     size: [usize; 2],
@@ -23,7 +22,7 @@ pub(crate) struct MaskImage {
 }
 
 impl MaskImage {
-    pub fn new(size: [usize; 2], annotations: Vec<crate::Annotation>, history: History) -> Self {
+    pub fn new(size: [usize; 2], annotations: Vec<SubGroups>, history: History) -> Self {
         Self {
             size,
             annotations: Annotations(annotations),
@@ -52,16 +51,16 @@ impl MaskImage {
         ))
     }
 
-    pub fn add_subgroup(&mut self, mut annotation: Annotation) {
-        Self::remove_overlaps(&mut annotation.1, self.subgroups_ordered().map(|(_, g)| g));
-        if annotation.1.is_empty() {
+    pub fn add_subgroups(&mut self, mut subgroups: SubGroups) {
+        Self::remove_overlaps(&mut subgroups, self.subgroups_ordered().map(|(_, g)| g));
+        if subgroups.is_empty() {
             debug!("All Pixels are in a other subgroup already");
             return;
         }
         if let Some((visibility @ false, _)) = &mut self.texture_handle {
             *visibility = true;
         }
-        self.add_history_action(HistoryAction::Add(annotation.0, annotation.1))
+        self.add_history_action(HistoryAction::Add(subgroups))
     }
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
@@ -130,7 +129,7 @@ impl MaskImage {
     }
 
     pub fn subgroups(&self) -> Vec<SubGroups> {
-        let base = self.annotations.0.iter().map(|(_, b)| b.clone()).collect();
+        let base = self.annotations.0.iter().cloned().collect();
 
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
@@ -328,28 +327,19 @@ mod tests {
     #[test]
     fn iter_sorted() {
         let mut history = History::default();
-        history.push(HistoryAction::Add(
-            "Foo".into(),
-            vec![
-                SubGroup::new_total(22, NonZeroU16::try_from(7).unwrap()),
-                SubGroup::new_total(39, NonZeroU16::try_from(1).unwrap()),
-                SubGroup::new_total(42, NonZeroU16::try_from(7).unwrap()),
-            ],
-        ));
+        history.push(HistoryAction::Add(vec![
+            SubGroup::new_total(22, NonZeroU16::try_from(7).unwrap()),
+            SubGroup::new_total(39, NonZeroU16::try_from(1).unwrap()),
+            SubGroup::new_total(42, NonZeroU16::try_from(7).unwrap()),
+        ]));
         let x = MaskImage {
             size: [10, 10],
             annotations: Annotations(vec![
-                (
-                    "Test".into(),
-                    vec![
-                        SubGroup::new_total(2, NonZeroU16::try_from(5).unwrap()),
-                        SubGroup::new_total(12, NonZeroU16::try_from(5).unwrap()),
-                    ],
-                ),
-                (
-                    "Test2".into(),
-                    vec![SubGroup::new_total(32, NonZeroU16::try_from(5).unwrap())],
-                ),
+                vec![
+                    SubGroup::new_total(2, NonZeroU16::try_from(5).unwrap()),
+                    SubGroup::new_total(12, NonZeroU16::try_from(5).unwrap()),
+                ],
+                vec![SubGroup::new_total(32, NonZeroU16::try_from(5).unwrap())],
             ]),
             history,
             texture_handle: None,

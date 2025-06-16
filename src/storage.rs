@@ -13,7 +13,7 @@ use image::DynamicImage;
 use itertools::Itertools;
 use log::info;
 
-use crate::{Annotation, SubGroup, SubGroups};
+use crate::{SubGroup, SubGroups};
 
 pub struct Storage {
     base: String,
@@ -26,7 +26,7 @@ pub struct ImageData {
     pub id: ImageId,
     pub original_image: Arc<DynamicImage>,
     pub adjust_image: Arc<DynamicImage>,
-    pub masks: Vec<Annotation>,
+    pub masks: Vec<SubGroups>,
 }
 
 const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
@@ -87,8 +87,7 @@ impl Storage {
                         lens.resize(sub_len, 0);
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
-                        all.push((
-                            "Foo".into(),
+                        all.push(
                             starts
                                 .iter()
                                 .zip(lens.iter())
@@ -100,7 +99,7 @@ impl Storage {
                                     )),
                                 })
                                 .collect::<Result<Vec<_>, _>>()?,
-                        ));
+                        );
                     }
 
                     all
