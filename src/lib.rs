@@ -14,23 +14,24 @@ mod storage;
 pub struct SubGroup {
     position: u32,
     length: NonZeroU16,
-    opacity: u8,
+    // 255 means no other group is associated with these positions
+    association: u8,
 }
 
 impl SubGroup {
-    pub fn new(position: u32, length: NonZeroU16, opacity: u8) -> Self {
+    pub fn new(position: u32, length: NonZeroU16, association: u8) -> Self {
         Self {
             position,
             length,
-            opacity,
+            association,
         }
     }
 
-    pub fn new_opaque(position: u32, length: NonZeroU16) -> Self {
+    pub fn new_total(position: u32, length: NonZeroU16) -> Self {
         Self {
             position,
             length,
-            opacity: 255,
+            association: 255,
         }
     }
 
@@ -38,6 +39,14 @@ impl SubGroup {
         let start = self.position as usize;
         let end = start + self.length.get() as usize;
         start..end
+    }
+
+    pub fn association(&self) -> u8 {
+        self.association
+    }
+
+    pub fn start_position(&self) -> u32 {
+        self.position
     }
 
     pub fn end_position(&self) -> u32 {
