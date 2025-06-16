@@ -3,7 +3,7 @@ use std::io;
 use eframe::egui;
 use log::info;
 
-use crate::{app::Tools, ImageCallbackMap, Storage};
+use crate::{app::Tools, ImageCallbackMap};
 
 use super::ImageViewerApp;
 
@@ -36,7 +36,7 @@ pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
         Box::new(|cc| {
             Ok(Box::new(ImageViewerApp::new(
                 cc,
-                Storage::new(image_dir),
+                Box::new(crate::FileStorage::new(image_dir)),
                 Tools::from(&config),
                 super::MaskGenerator::new(mappers),
             )))

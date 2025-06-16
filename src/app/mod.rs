@@ -16,16 +16,18 @@ mod config;
 mod image_selector;
 mod mask_generator;
 mod menu;
+#[cfg(not(target_arch = "wasm32"))]
 mod native;
 mod tools;
 mod viewer;
 
 pub(crate) use config::Config;
 pub(crate) use mask_generator::MaskGenerator;
+#[cfg(not(target_arch = "wasm32"))]
 pub use native::run_native;
 
 pub(crate) struct ImageViewerApp {
-    storage: Storage,
+    storage: Box<dyn Storage>,
     selector: ImageSelector,
     viewer: ImageViewer,
     image_state: ImageState,
@@ -55,7 +57,7 @@ struct ImageStateLoaded {
 impl ImageViewerApp {
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
-        storage: Storage,
+        storage: Box<dyn Storage>,
         tools: Tools,
         mask_generator: MaskGenerator,
     ) -> Self {

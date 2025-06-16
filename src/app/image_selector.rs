@@ -35,7 +35,7 @@ impl ImageSelector {
     }
 
     /// Returns, wether image-state has to be reset
-    pub fn ui(&mut self, storage: &Storage, ui: &mut egui::Ui) -> bool {
+    pub fn ui(&mut self, storage: &dyn Storage, ui: &mut egui::Ui) -> bool {
         if let Some(loader) = self.loader.as_mut() {
             if let Some(values) = loader.data() {
                 info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));

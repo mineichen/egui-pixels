@@ -28,7 +28,7 @@ impl crate::app::ImageViewerApp {
                 if is_image_dirty {
                     ui.disable();
                 }
-                if self.selector.ui(&self.storage, ui) {
+                if self.selector.ui(&*self.storage, ui) {
                     self.image_state = ImageState::NotLoaded;
                 }
             });

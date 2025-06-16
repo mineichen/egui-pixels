@@ -56,6 +56,7 @@ impl SubGroup {
 type SubGroups = Vec<SubGroup>;
 
 pub use app::run_native;
-pub use storage::Storage;
+#[cfg(not(target_arch = "wasm32"))]
+pub use storage::file::FileStorage;
 
 type ImageCallbackMap = Vec<(String, Box<dyn Fn(&DynamicImage) -> Vec<SubGroups>>)>;

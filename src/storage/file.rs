@@ -12,30 +12,74 @@ use futures::{future::BoxFuture, FutureExt};
 use itertools::Itertools;
 use log::info;
 
+use super::{ImageData, ImageId, Kind, MaybeOneOrMany, Storage, PREAMBLE, VERSION};
 use crate::{image_utils::ImageLoadOk, SubGroup, SubGroups};
 
-pub struct Storage {
+pub struct FileStorage {
     base: String,
 }
-
-#[derive(PartialEq, Clone, Eq, PartialOrd, Ord, Debug)]
-pub struct ImageId(Arc<str>);
-
-pub struct ImageData {
-    pub id: ImageId,
-    pub image: ImageLoadOk,
-    pub masks: Vec<SubGroups>,
-}
-
-const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
-const VERSION: u16 = 1;
-
-impl Storage {
+impl FileStorage {
     pub fn new(base: impl Into<String>) -> Self {
         Self { base: base.into() }
     }
+
+    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String, bool)>> {
+        Ok(visit_directory_files(path)
+            .filter_map(|x| {
+                let x = x.ok()?;
+                let path = x.path();
+                let kind = path
+                    .extension()?
+                    .to_str()
+                    .and_then(|s| Kind::from_str(s).ok())?;
+                Some((
+                    path.file_stem()
+                        .expect("exists_if_extension_exists")
+                        .to_string_lossy()
+                        .to_string(),
+                    kind,
+                    ImageId(path.to_str()?.into()),
+                ))
+            })
+            .sorted_unstable()
+            .chunk_by(|x| x.0.to_string()) // Pitty...
+            .into_iter()
+            .filter_map(|(_, mut members)| {
+                let (name, kind, id) = members.next().expect("Needs one item to form a group");
+                match (kind, members.next()) {
+                    (Kind::Mask, None) => None,
+                    (Kind::Mask, Some((_, Kind::Mask, _))) => {
+                        unreachable!("Cannot have multiple file_stem.mask")
+                    }
+                    // Takeing any image is fine, ignore the rest
+                    (Kind::Mask, Some((name, Kind::Image, id))) => Some((id, name, true)),
+                    (Kind::Image, _) => Some((id, name, false)),
+                }
+            })
+            .collect::<Vec<_>>())
+    }
+    fn get_image_path(&self) -> PathBuf {
+        self.base.as_str().into()
+    }
+
+    fn get_mask_path(id: &ImageId) -> std::io::Result<PathBuf> {
+        let file_path = std::path::Path::new(id.0.deref());
+
+        let filename = file_path
+            .file_stem()
+            .and_then(|x| x.to_str())
+            .ok_or_else(|| std::io::Error::other("File has no filename"))?;
+        let images_path = file_path
+            .parent()
+            .ok_or_else(|| std::io::Error::other("Base musten't be a root-dir"))?;
+
+        Ok(images_path.join(format!("{filename}.masks")))
+    }
+}
+
+impl Storage for FileStorage {
     // uri -> Display
-    pub fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String, bool)>>> {
+    fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String, bool)>>> {
         let (tx, rx) = futures::channel::oneshot::channel();
         let image_path = self.get_image_path();
 
@@ -51,7 +95,7 @@ impl Storage {
         .boxed()
     }
 
-    pub fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>> {
+    fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>> {
         let id = id.clone();
         async move {
             let image_bytes = std::fs::read(id.0.deref())?;
@@ -115,7 +159,7 @@ impl Storage {
         .boxed()
     }
 
-    pub fn store_masks(
+    fn store_masks(
         &self,
         id: ImageId,
         masks: Vec<SubGroups>,
@@ -165,81 +209,6 @@ impl Storage {
         }
         .boxed()
     }
-
-    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String, bool)>> {
-        Ok(visit_directory_files(path)
-            .filter_map(|x| {
-                let x = x.ok()?;
-                let path = x.path();
-                let kind = path
-                    .extension()?
-                    .to_str()
-                    .and_then(|s| Kind::from_str(s).ok())?;
-                Some((
-                    path.file_stem()
-                        .expect("exists_if_extension_exists")
-                        .to_string_lossy()
-                        .to_string(),
-                    kind,
-                    ImageId(path.to_str()?.into()),
-                ))
-            })
-            .sorted_unstable()
-            .chunk_by(|x| x.0.to_string()) // Pitty...
-            .into_iter()
-            .filter_map(|(_, mut members)| {
-                let (name, kind, id) = members.next().expect("Needs one item to form a group");
-                match (kind, members.next()) {
-                    (Kind::Mask, None) => None,
-                    (Kind::Mask, Some((_, Kind::Mask, _))) => {
-                        unreachable!("Cannot have multiple file_stem.mask")
-                    }
-                    // Takeing any image is fine, ignore the rest
-                    (Kind::Mask, Some((name, Kind::Image, id))) => Some((id, name, true)),
-                    (Kind::Image, _) => Some((id, name, false)),
-                }
-            })
-            .collect::<Vec<_>>())
-    }
-    fn get_image_path(&self) -> PathBuf {
-        self.base.as_str().into()
-    }
-
-    fn get_mask_path(id: &ImageId) -> std::io::Result<PathBuf> {
-        let file_path = std::path::Path::new(id.0.deref());
-
-        let filename = file_path
-            .file_stem()
-            .and_then(|x| x.to_str())
-            .ok_or_else(|| std::io::Error::other("File has no filename"))?;
-        let images_path = file_path
-            .parent()
-            .ok_or_else(|| std::io::Error::other("Base musten't be a root-dir"))?;
-
-        Ok(images_path.join(format!("{filename}.masks")))
-    }
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-enum Kind {
-    Mask,
-    Image,
-}
-
-impl FromStr for Kind {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "jpeg" => Ok(Self::Image),
-            "jpg" => Ok(Self::Image),
-            "masks" => Ok(Self::Mask),
-            "png" => Ok(Self::Image),
-            "tiff" => Ok(Self::Image),
-            "tif" => Ok(Self::Image),
-            _ => Err(()),
-        }
-    }
 }
 
 pub fn visit_directory_files(
@@ -264,20 +233,4 @@ pub fn visit_directory_files(
         }
     }
     one_level(path.into())
-}
-
-enum MaybeOneOrMany<T> {
-    MaybeOne(Option<T>),
-    Many(Box<dyn Iterator<Item = T>>),
-}
-
-impl<T> Iterator for MaybeOneOrMany<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            MaybeOneOrMany::MaybeOne(x) => x.take(),
-            MaybeOneOrMany::Many(iterator) => iterator.next(),
-        }
-    }
 }
