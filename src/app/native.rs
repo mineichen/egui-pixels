@@ -3,7 +3,7 @@ use std::io;
 use eframe::egui;
 use log::info;
 
-use crate::{inference::SamSession, ImageCallbackMap, Storage};
+use crate::{app::Tools, ImageCallbackMap, Storage};
 
 use super::ImageViewerApp;
 
@@ -37,7 +37,7 @@ pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
             Ok(Box::new(ImageViewerApp::new(
                 cc,
                 Storage::new(image_dir),
-                SamSession::new(&config.sam_path).unwrap(),
+                Tools::from(&config),
                 super::MaskGenerator::new(mappers),
             )))
         }),

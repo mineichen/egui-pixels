@@ -13,7 +13,7 @@ use image::DynamicImage;
 use itertools::Itertools;
 use log::info;
 
-use crate::{SubGroup, SubGroups};
+use crate::{image_utils::ImageLoadOk, SubGroup, SubGroups};
 
 pub struct Storage {
     base: String,
@@ -24,8 +24,7 @@ pub struct ImageId(Arc<str>);
 
 pub struct ImageData {
     pub id: ImageId,
-    pub original_image: Arc<DynamicImage>,
-    pub adjust_image: Arc<DynamicImage>,
+    pub image: ImageLoadOk,
     pub masks: Vec<SubGroups>,
 }
 
@@ -59,7 +58,7 @@ impl Storage {
             let image_bytes = std::fs::read(id.0.deref())?;
             let mask_path = Self::get_mask_path(&id)?;
 
-            let image_load_result = crate::image_utils::load_image(&image_bytes)?;
+            let image_load_ok = crate::image_utils::load_image(&image_bytes)?;
             let masks = match std::fs::File::open(mask_path) {
                 Ok(mut f) => {
                     let mut preamble = [0; PREAMBLE.len()];
@@ -111,8 +110,7 @@ impl Storage {
             Ok(ImageData {
                 id,
                 masks,
-                adjust_image: image_load_result.adjust,
-                original_image: image_load_result.original,
+                image: image_load_ok,
             })
         }
         .boxed()

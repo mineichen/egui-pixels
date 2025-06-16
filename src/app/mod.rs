@@ -1,13 +1,12 @@
-use std::{io, sync::Arc};
+use std::io;
 
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
-    inference::{InferenceError, SamEmbeddings, SamSession},
+    image_utils::ImageLoadOk,
     mask::MaskImage,
     storage::{ImageData, ImageId, Storage},
 };
 use eframe::egui::{self, InnerResponse, Sense, TextureHandle, UiBuilder};
-use image::DynamicImage;
 
 use image_selector::ImageSelector;
 use tools::Tools;
@@ -49,16 +48,15 @@ struct ImageStateLoaded {
         reason = "Acts as Strong reference for SizedTexture. SizedTexture would not render a image if TextureHandle is dropped"
     )]
     texture: TextureHandle,
-    original_image: Arc<DynamicImage>,
+    image: ImageLoadOk,
     masks: MaskImage,
-    embeddings: AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
 }
 
 impl ImageViewerApp {
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
         storage: Storage,
-        session: SamSession,
+        tools: Tools,
         mask_generator: MaskGenerator,
     ) -> Self {
         let url_loader = Some(AsyncTask::new(storage.list_images()));
@@ -67,7 +65,7 @@ impl ImageViewerApp {
             selector: ImageSelector::new(url_loader),
             image_state: ImageState::NotLoaded,
             viewer: ImageViewer::new(vec![]),
-            tools: Tools::new(session),
+            tools,
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,
         }

@@ -11,7 +11,7 @@ use super::{InferenceError, SamEmbeddings};
 
 pub struct SamSession {
     encoder: Arc<Session>,
-    decoder: Session,
+    decoder: Arc<Session>,
 }
 
 impl SamSession {
@@ -23,14 +23,14 @@ impl SamSession {
             SessionBuilder::new(&env)?.with_model_from_file(path.join("vit_t_decoder.onnx"))?;
         Ok(Self {
             encoder: Arc::new(encoder),
-            decoder,
+            decoder: Arc::new(decoder),
         })
     }
 
     pub fn get_image_embeddings(
         &self,
         img: Arc<DynamicImage>,
-    ) -> impl Future<Output = Result<SamEmbeddings, InferenceError>> {
+    ) -> impl Future<Output = Result<SamEmbeddings, InferenceError>> + Send {
         let (tx, rx) = futures::channel::oneshot::channel();
 
         let session = self.encoder.clone();

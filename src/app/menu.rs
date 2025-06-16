@@ -36,10 +36,7 @@ impl crate::app::ImageViewerApp {
             if let (
                 Some(last_save),
                 ImageState::Loaded(ImageStateLoaded {
-                    id,
-                    masks,
-                    original_image,
-                    ..
+                    id, masks, image, ..
                 }),
             ) = (self.save_job.data(), &mut self.image_state)
             {
@@ -71,15 +68,13 @@ impl crate::app::ImageViewerApp {
                     masks.reset();
                 }
 
-                if let Some(x) = self.mask_generator.ui(original_image, ui) {
+                if let Some(x) = self.mask_generator.ui(&image.original, ui) {
                     info!("Add {} groups", x.len());
                     for group in x {
                         masks.add_subgroups(group);
                     }
                 }
             }
-
-            self.tools.ui(ui);
 
             if let Some((image_id, _, _)) = self.selector.current() {
                 match &mut self.image_state {
@@ -92,15 +87,17 @@ impl crate::app::ImageViewerApp {
                         if let Some(x) = t.data() {
                             self.image_state = match x {
                                 Ok(i) => {
+                                    self.tools.ui(ui, &i.image);
                                     let handle = ui.ctx().load_texture(
                                         "Overlays",
                                         ColorImage {
                                             size: [
-                                                i.adjust_image.width() as _,
-                                                i.adjust_image.height() as _,
+                                                i.image.adjust.width() as _,
+                                                i.image.adjust.height() as _,
                                             ],
                                             pixels: i
-                                                .adjust_image
+                                                .image
+                                                .adjust
                                                 .pixels()
                                                 .map(|(_, _, image::Rgba([r, g, b, _]))| {
                                                     Color32::from_rgb(r, g, b)
@@ -115,33 +112,29 @@ impl crate::app::ImageViewerApp {
                                     let texture = SizedTexture::from_handle(&handle);
                                     self.viewer.reset();
                                     self.viewer.sources = vec![ImageSource::Texture(texture)];
-                                    let embeddings = AsyncRefTask::new(
-                                        self.tools
-                                            .session
-                                            .get_image_embeddings(i.adjust_image.clone())
-                                            .boxed(),
-                                    );
 
-                                    let x = i.adjust_image.width() as usize;
-                                    let y = i.adjust_image.height() as usize;
+                                    self.tools.load_tool(&i.image);
+
+                                    let x = i.image.adjust.width() as usize;
+                                    let y = i.image.adjust.height() as usize;
 
                                     ImageState::Loaded(ImageStateLoaded {
                                         id: i.id,
-                                        original_image: i.original_image,
+                                        image: i.image,
                                         texture: handle,
                                         masks: MaskImage::new(
                                             [x, y],
                                             i.masks.clone(),
                                             Default::default(),
                                         ),
-                                        embeddings,
                                     })
                                 }
                                 Err(e) => ImageState::Error(format!("Error: {e}")),
                             }
                         }
                     }
-                    ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
+                    ImageState::Loaded(ImageStateLoaded { masks, image, .. }) => {
+                        self.tools.ui(ui, image);
                         self.viewer.sources.truncate(1);
                         if let Some(x) = masks.handle_events(ui.ctx()) {
                             self.viewer.sources.push(ImageSource::Texture(x));

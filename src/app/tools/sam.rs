@@ -1,28 +1,35 @@
 use eframe::egui;
 use log::warn;
 
-use crate::app::{ImageState, ImageStateLoaded, ImageViewerApp};
+use crate::{
+    app::{ImageState, ImageStateLoaded, ImageViewerApp},
+    async_task::AsyncRefTask,
+    inference::{InferenceError, SamEmbeddings, SamSession},
+};
 
-impl ImageViewerApp {
-    pub(super) fn handle_sam_interaction(
+pub struct SamTool(
+    pub AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
+    pub SamSession,
+);
+
+impl super::Tool for SamTool {
+    fn handle_interaction(
         &mut self,
+        app: &mut ImageViewerApp,
         response: egui::Response,
         cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
     ) {
         if let (
-            ImageState::Loaded(ImageStateLoaded {
-                masks, embeddings, ..
-            }),
+            ImageState::Loaded(ImageStateLoaded { masks, .. }),
             Some([[top_x, top_y], [bottom_x, bottom_y]]),
         ) = (
-            &mut self.image_state,
-            self.tools.drag_stopped(cursor_image_pos, &response, ctx),
+            &mut app.image_state,
+            app.tools.drag_stopped(cursor_image_pos, &response, ctx),
         ) {
-            if let Some(Ok(loaded_embeddings)) = embeddings.data() {
+            if let Some(Ok(loaded_embeddings)) = self.0.data() {
                 let new_mask = self
-                    .tools
-                    .session
+                    .1
                     .decode_prompt(
                         top_x as f32,
                         top_y as f32,
@@ -34,7 +41,7 @@ impl ImageViewerApp {
 
                 masks.add_subgroups(new_mask);
 
-                if let Some((_, _, loaded)) = self.selector.current() {
+                if let Some((_, _, loaded)) = app.selector.current() {
                     *loaded = true;
                 } else {
                     warn!("Couldn't mark URL as containing masks")

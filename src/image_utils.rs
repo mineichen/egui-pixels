@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use image::{DynamicImage, ImageBuffer, Luma};
 
-pub struct ImageLoadResult {
+pub struct ImageLoadOk {
     pub original: Arc<DynamicImage>,
     pub adjust: Arc<DynamicImage>,
 }
 
-pub fn load_image(bytes: &[u8]) -> std::io::Result<ImageLoadResult> {
+pub fn load_image(bytes: &[u8]) -> std::io::Result<ImageLoadOk> {
     let original = image::load_from_memory(bytes)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
@@ -15,16 +15,16 @@ pub fn load_image(bytes: &[u8]) -> std::io::Result<ImageLoadResult> {
         image::DynamicImage::ImageLuma16(i) => {
             let adjust = Arc::new(image::DynamicImage::ImageLuma16(fix_image_contrast(i)));
             let original = Arc::new(original);
-            ImageLoadResult { adjust, original }
+            ImageLoadOk { adjust, original }
         }
         image::DynamicImage::ImageLuma8(i) => {
             let adjust = Arc::new(image::DynamicImage::ImageLuma8(fix_image_contrast(i)));
             let original = Arc::new(original);
-            ImageLoadResult { adjust, original }
+            ImageLoadOk { adjust, original }
         }
         _ => {
             let image = Arc::new(original);
-            ImageLoadResult {
+            ImageLoadOk {
                 adjust: image.clone(),
                 original: image.clone(),
             }
