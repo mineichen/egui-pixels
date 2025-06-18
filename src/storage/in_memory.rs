@@ -1,16 +1,15 @@
 use futures::{future::BoxFuture, FutureExt};
 use std::{
+    collections::HashMap,
     io,
     sync::{Arc, Mutex},
 };
-use wasm_bindgen::JsCast;
-use web_sys::{window, FileList};
 
 use super::{ImageData, ImageId, Storage};
 use crate::{image_utils::ImageLoadOk, SubGroups};
 
 pub struct InMemoryStorage {
-    masks: Arc<Mutex<Vec<SubGroups>>>,
+    masks: Arc<Mutex<HashMap<ImageId, Vec<SubGroups>>>>,
 }
 
 impl InMemoryStorage {
@@ -23,16 +22,34 @@ impl InMemoryStorage {
 
 impl Storage for InMemoryStorage {
     fn list_images(&self) -> BoxFuture<'static, io::Result<Vec<(ImageId, String, bool)>>> {
-        async move { Ok(vec![(ImageId("test".into()), "Text".into(), true)]) }.boxed()
+        async move {
+            Ok(vec![
+                (ImageId("image1".into()), "Image2".into(), true),
+                (ImageId("image2".into()), "Image2".into(), true),
+            ])
+        }
+        .boxed()
     }
 
     fn load_image(&self, id: &ImageId) -> BoxFuture<'static, io::Result<ImageData>> {
         let id = id.clone();
+        let masks = self
+            .masks
+            .lock()
+            .unwrap()
+            .get(&id)
+            .cloned()
+            .unwrap_or_default();
         async move {
             let width = 400;
             let height = 400;
             let square_size = width / 8;
             let mut image_data = vec![0u8; width * height * 3];
+            let (color_1, color_2) = if &*id.0 == "image1" {
+                (0, 255)
+            } else {
+                (255, 0)
+            };
 
             for y in 0..height {
                 for x in 0..width {
@@ -41,7 +58,7 @@ impl Storage for InMemoryStorage {
                     let is_white = (square_x + square_y) % 2 == 0;
 
                     let idx = (y * width + x) * 3;
-                    let color = if is_white { 255 } else { 0 };
+                    let color = if is_white { color_1 } else { color_2 };
 
                     image_data[idx] = color;
                     image_data[idx + 1] = color;
@@ -53,7 +70,7 @@ impl Storage for InMemoryStorage {
 
             Ok(ImageData {
                 id,
-                masks: vec![],
+                masks,
                 image: ImageLoadOk {
                     adjust: dyn_img.clone(),
                     original: dyn_img,
@@ -65,12 +82,13 @@ impl Storage for InMemoryStorage {
 
     fn store_masks(
         &self,
-        _id: ImageId,
-        _masks: Vec<SubGroups>,
+        id: ImageId,
+        masks: Vec<SubGroups>,
     ) -> BoxFuture<'static, io::Result<()>> {
+        self.masks.lock().unwrap().insert(id, masks);
         async move {
             // Implement storing masks to web storage or IndexedDB
-            Err(io::Error::new(io::ErrorKind::Other, "Not implemented"))
+            Ok(())
         }
         .boxed()
     }
