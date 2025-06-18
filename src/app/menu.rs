@@ -135,7 +135,6 @@ impl crate::app::ImageViewerApp {
                     }
                     ImageState::Loaded(ImageStateLoaded { masks, image, .. }) => {
                         self.tools.ui(ui, image);
-                        self.viewer.sources.truncate(1);
                         if let Some(x) = masks.handle_events(ui.ctx()) {
                             self.viewer.sources.push(ImageSource::Texture(x));
                         }

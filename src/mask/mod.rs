@@ -31,6 +31,10 @@ impl MaskImage {
         }
     }
 
+    pub fn count_handles(&self) -> usize {
+        self.texture_handle.is_some() as usize
+    }
+
     pub fn is_dirty(&self) -> bool {
         self.history.is_dirty()
     }

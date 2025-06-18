@@ -47,6 +47,16 @@ enum ImageState {
     Loaded(ImageStateLoaded),
     Error(String),
 }
+
+impl ImageState {
+    fn count_handles(&self) -> usize {
+        match self {
+            ImageState::Loaded(x) => 1 + x.masks.count_handles(),
+            _ => 0,
+        }
+    }
+}
+
 struct ImageStateLoaded {
     id: ImageId,
     #[allow(
@@ -83,6 +93,9 @@ impl eframe::App for ImageViewerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
             self.menu(ui);
+            self.viewer
+                .sources
+                .truncate(self.image_state.count_handles());
 
             if let InnerResponse {
                 inner:
