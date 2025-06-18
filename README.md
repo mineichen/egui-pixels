@@ -15,7 +15,7 @@ trunk serve --release --no-default-features
 
 ## Run native with SAM
 
-cargo run --release
+cargo run --release --features sam -- ../path/to/your/images
 
 Features
 

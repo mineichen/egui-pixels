@@ -1,5 +1,8 @@
 use futures::{future::BoxFuture, FutureExt};
-use std::{io, sync::Arc};
+use std::{
+    io,
+    sync::{Arc, Mutex},
+};
 use wasm_bindgen::JsCast;
 use web_sys::{window, FileList};
 
@@ -15,15 +18,6 @@ impl InMemoryStorage {
         Self {
             masks: Default::default(),
         }
-    }
-
-    async fn read_file_as_bytes(file: &File) -> io::Result<Vec<u8>> {
-        let array_buffer = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
-            .await
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{:?}", e)))?;
-
-        let uint8_array = js_sys::Uint8Array::new(&array_buffer);
-        Ok(uint8_array.to_vec())
     }
 }
 

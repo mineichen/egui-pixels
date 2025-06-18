@@ -39,9 +39,6 @@ web-sys = { version = "0.3", features = [
     "Document",
     "Window",
     "Element",
-    "FileList",
-    "File",
-    "Blob",
     "HtmlCanvasElement",
 ] }
 js-sys = "0.3"
@@ -50,10 +47,11 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 wgpu = { version = "*", features = ["webgl"] }
 
 [features]
-default = ["wayland", "sam"]
+default = ["wayland"]
 wayland = ["eframe/wayland"]
 x11 = ["eframe/x11"]
 sam = ["ort", "ndarray"]
+
 
 #[patch.crates-io]
 #egui = { path = "../myegui/crates/egui" }
