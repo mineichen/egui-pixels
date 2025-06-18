@@ -10,6 +10,8 @@ use crate::{image_utils::ImageLoadOk, SubGroups};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;
+#[cfg(target_arch = "wasm32")]
+pub mod in_memory;
 
 #[derive(PartialEq, Clone, Eq, PartialOrd, Ord, Debug)]
 pub struct ImageId(Arc<str>);

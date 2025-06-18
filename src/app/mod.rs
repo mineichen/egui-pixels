@@ -20,11 +20,15 @@ mod menu;
 mod native;
 mod tools;
 mod viewer;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
 pub(crate) use config::Config;
 pub(crate) use mask_generator::MaskGenerator;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::run_native;
+#[cfg(target_arch = "wasm32")]
+pub use web::run_web;
 
 pub(crate) struct ImageViewerApp {
     storage: Box<dyn Storage>,
