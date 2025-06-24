@@ -25,14 +25,13 @@ impl ImageViewer {
     pub fn ui_meta(
         &mut self,
         ui: &mut egui::Ui,
-        sources: Vec<ImageSource<'static>>,
+        sources: impl Iterator<Item = ImageSource<'static>>,
         sense: Option<Sense>,
     ) -> InnerResponse<Option<ImageViewerInteraction>> {
         let centered = ui.vertical_centered(|ui| {
             let mut iter = sources
-                .iter()
                 .filter_map(|i| {
-                    let image = egui::Image::new(i.clone())
+                    let image = egui::Image::new(i)
                         .maintain_aspect_ratio(true)
                         // Important for Texture-ImageSources
                         .fit_to_exact_size(ui.available_size())

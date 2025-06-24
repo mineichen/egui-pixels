@@ -32,10 +32,10 @@ impl MaskImage {
         }
     }
 
-    pub fn sources(&self) -> Vec<ImageSource<'static>> {
+    pub fn sources(&self) -> impl Iterator<Item = ImageSource<'static>> + '_ {
         match &self.texture_handle {
-            Some((visibility, _, source)) if *visibility => vec![source.clone()],
-            _ => vec![],
+            Some((visibility, _, source)) if *visibility => Some(source.clone()).into_iter(),
+            _ => None.into_iter(),
         }
     }
 

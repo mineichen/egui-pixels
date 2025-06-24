@@ -49,14 +49,12 @@ enum ImageState {
 }
 
 impl ImageState {
-    fn sources(&self) -> Vec<ImageSource<'static>> {
+    fn sources(&self) -> impl Iterator<Item = ImageSource<'static>> + '_ {
         match self {
-            ImageState::Loaded(x) => {
-                let mut sources = x.masks.sources();
-                sources.insert(0, x.texture.1.clone());
-                sources
-            }
-            _ => vec![],
+            ImageState::Loaded(x) => itertools::Either::Left(
+                std::iter::once(x.texture.1.clone()).chain(x.masks.sources()),
+            ),
+            _ => itertools::Either::Right(std::iter::empty()),
         }
     }
 }
