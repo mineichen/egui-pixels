@@ -5,7 +5,7 @@ use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
-use super::{inference::extract_subgroups, InferenceError, SamEmbeddings};
+use super::{InferenceError, SamEmbeddings, inference::extract_subgroups};
 use crate::SubGroups;
 
 #[derive(Clone)]
@@ -30,7 +30,7 @@ impl SamSession {
     pub fn get_image_embeddings(
         &self,
         img: Arc<DynamicImage>,
-    ) -> impl Future<Output = Result<SamEmbeddings, InferenceError>> + Send {
+    ) -> impl Future<Output = Result<SamEmbeddings, InferenceError>> + Send + 'static {
         let (tx, rx) = futures::channel::oneshot::channel();
 
         let session = self.encoder.clone();

@@ -96,6 +96,7 @@ dependencies = [
  "bytemuck",
  "console_error_panic_hook",
  "eframe",
+ "egui-pixels",
  "emath",
  "env_logger",
  "futures",
