@@ -89,6 +89,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "annotation-tool"
+version = "0.1.0"
+dependencies = [
+ "brotli",
+ "bytemuck",
+ "console_error_panic_hook",
+ "eframe",
+ "emath",
+ "env_logger",
+ "futures",
+ "getrandom 0.3.3",
+ "image",
+ "itertools",
+ "js-sys",
+ "log",
+ "ndarray",
+ "num-traits",
+ "ort",
+ "rolling-stats",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -624,31 +653,6 @@ dependencies = [
 [[package]]
 name = "egui-pixels"
 version = "0.1.0"
-dependencies = [
- "brotli",
- "bytemuck",
- "console_error_panic_hook",
- "eframe",
- "emath",
- "env_logger",
- "futures",
- "getrandom 0.3.3",
- "image",
- "itertools",
- "js-sys",
- "log",
- "ndarray",
- "num-traits",
- "ort",
- "rolling-stats",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "wgpu",
-]
 
 [[package]]
 name = "egui-wgpu"
