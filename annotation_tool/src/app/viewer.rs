@@ -1,5 +1,5 @@
 use eframe::egui::{
-    self, load::TexturePoll, ImageSource, InnerResponse, Rect, Sense, TextureOptions, Vec2, Widget,
+    self, ImageSource, InnerResponse, Rect, Sense, TextureOptions, Vec2, load::TexturePoll,
 };
 
 pub struct ImageViewer {
@@ -7,33 +7,29 @@ pub struct ImageViewer {
     zoom: f32,
     // Offset of the top left-corner (in percent)
     pub pan_offset: Vec2,
-    // Images
-    pub sources: Vec<ImageSource<'static>>,
 }
 
 impl ImageViewer {
-    pub fn new(sources: Vec<ImageSource<'static>>) -> Self {
+    pub fn new() -> Self {
         Self {
             zoom: 1.0,
             pan_offset: Vec2::ZERO,
-            sources,
         }
     }
 
     pub fn reset(&mut self) {
         self.zoom = 1.0;
         self.pan_offset = Vec2::default();
-        self.sources.clear();
     }
 
     pub fn ui_meta(
         &mut self,
         ui: &mut egui::Ui,
+        sources: Vec<ImageSource<'static>>,
         sense: Option<Sense>,
     ) -> InnerResponse<Option<ImageViewerInteraction>> {
         let centered = ui.vertical_centered(|ui| {
-            let mut iter = self
-                .sources
+            let mut iter = sources
                 .iter()
                 .filter_map(|i| {
                     let image = egui::Image::new(i.clone())
@@ -130,12 +126,6 @@ impl ImageViewer {
                 response,
             },
         }
-    }
-}
-
-impl Widget for &mut ImageViewer {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        self.ui_meta(ui, None).response
     }
 }
 

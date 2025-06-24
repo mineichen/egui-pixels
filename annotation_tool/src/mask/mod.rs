@@ -1,6 +1,7 @@
 use std::{collections::BinaryHeap, num::NonZeroU16};
 
-use eframe::egui::{self, load::SizedTexture, Color32, ColorImage, TextureHandle, TextureOptions};
+use eframe::egui::ImageSource;
+use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions, load::SizedTexture};
 use flat_map_inplace::NextInPlaceExt;
 use history::{History, HistoryAction};
 use itertools::Itertools;
@@ -18,7 +19,7 @@ pub(crate) struct MaskImage {
     size: [usize; 2],
     annotations: Annotations,
     history: History,
-    texture_handle: Option<(bool, TextureHandle)>,
+    texture_handle: Option<(bool, TextureHandle, ImageSource<'static>)>,
 }
 
 impl MaskImage {
@@ -31,8 +32,11 @@ impl MaskImage {
         }
     }
 
-    pub fn count_handles(&self) -> usize {
-        self.texture_handle.is_some() as usize
+    pub fn sources(&self) -> Vec<ImageSource<'static>> {
+        match &self.texture_handle {
+            Some((visibility, _, source)) if *visibility => vec![source.clone()],
+            _ => vec![],
+        }
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -71,7 +75,7 @@ impl MaskImage {
             debug!("All Pixels are in a other subgroup already");
             return;
         }
-        if let Some((visibility @ false, _)) = &mut self.texture_handle {
+        if let Some((visibility @ false, _, _)) = &mut self.texture_handle {
             *visibility = true;
         }
         self.add_history_action(HistoryAction::Add(subgroups))
@@ -82,7 +86,7 @@ impl MaskImage {
         self.texture_handle = None;
     }
 
-    pub fn handle_events(&mut self, ctx: &egui::Context) -> Option<SizedTexture> {
+    pub fn handle_events(&mut self, ctx: &egui::Context) {
         let (shift_pressed, cmd_z_pressed, cmd_d_pressed) = ctx.input(|i| {
             (
                 i.modifiers.shift,
@@ -105,13 +109,13 @@ impl MaskImage {
         }
 
         match &mut self.texture_handle {
-            Some((visible, handle)) => {
+            Some((visible, _, _)) => {
                 if cmd_d_pressed {
                     *visible = !*visible;
                 }
-                visible.then(|| SizedTexture::from_handle(handle))
             }
             None => {
+                println!("Loading mask texture");
                 let texture_options = TextureOptions {
                     magnification: egui::TextureFilter::Nearest,
                     ..Default::default()
@@ -135,9 +139,9 @@ impl MaskImage {
                     },
                     texture_options,
                 );
-                let result = Some(SizedTexture::from_handle(&handle));
-                self.texture_handle = Some((true, handle));
-                result
+                let source = ImageSource::Texture(SizedTexture::from_handle(&handle));
+
+                self.texture_handle = Some((true, handle, source));
             }
         }
     }

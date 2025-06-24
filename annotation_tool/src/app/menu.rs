@@ -3,7 +3,7 @@ use crate::{
     mask::MaskImage,
 };
 use eframe::egui::{
-    self, load::SizedTexture, Color32, ColorImage, ImageSource, Key, TextureOptions,
+    self, Color32, ColorImage, ImageSource, Key, TextureOptions, load::SizedTexture,
 };
 use futures::FutureExt;
 use image::GenericImageView;
@@ -111,7 +111,7 @@ impl crate::app::ImageViewerApp {
                                     );
                                     let texture = SizedTexture::from_handle(&handle);
                                     self.viewer.reset();
-                                    self.viewer.sources = vec![ImageSource::Texture(texture)];
+                                    let source = ImageSource::Texture(texture);
 
                                     self.tools.load_tool(&i.image);
 
@@ -121,7 +121,7 @@ impl crate::app::ImageViewerApp {
                                     ImageState::Loaded(ImageStateLoaded {
                                         id: i.id,
                                         image: i.image,
-                                        texture: handle,
+                                        texture: (handle, source),
                                         masks: MaskImage::new(
                                             [x, y],
                                             i.masks.clone(),
@@ -133,11 +133,9 @@ impl crate::app::ImageViewerApp {
                             }
                         }
                     }
-                    ImageState::Loaded(ImageStateLoaded { masks, image, .. }) => {
+                    ImageState::Loaded(ImageStateLoaded { image, masks, .. }) => {
                         self.tools.ui(ui, image);
-                        if let Some(x) = masks.handle_events(ui.ctx()) {
-                            self.viewer.sources.push(ImageSource::Texture(x));
-                        }
+                        masks.handle_events(ui.ctx());
                     }
                     ImageState::Error(error) => {
                         ui.label(format!("Error: {error}"));

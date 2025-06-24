@@ -6,7 +6,7 @@ use crate::{
     mask::MaskImage,
     storage::{ImageData, ImageId, Storage},
 };
-use eframe::egui::{self, InnerResponse, Sense, TextureHandle, UiBuilder};
+use eframe::egui::{self, ImageSource, InnerResponse, Sense, TextureHandle, UiBuilder};
 
 use image_selector::ImageSelector;
 use tools::Tools;
@@ -49,10 +49,14 @@ enum ImageState {
 }
 
 impl ImageState {
-    fn count_handles(&self) -> usize {
+    fn sources(&self) -> Vec<ImageSource<'static>> {
         match self {
-            ImageState::Loaded(x) => 1 + x.masks.count_handles(),
-            _ => 0,
+            ImageState::Loaded(x) => {
+                let mut sources = x.masks.sources();
+                sources.insert(0, x.texture.1.clone());
+                sources
+            }
+            _ => vec![],
         }
     }
 }
@@ -63,7 +67,7 @@ struct ImageStateLoaded {
         dead_code,
         reason = "Acts as Strong reference for SizedTexture. SizedTexture would not render a image if TextureHandle is dropped"
     )]
-    texture: TextureHandle,
+    texture: (TextureHandle, ImageSource<'static>),
     image: ImageLoadOk,
     masks: MaskImage,
 }
@@ -80,7 +84,7 @@ impl ImageViewerApp {
             storage,
             selector: ImageSelector::new(url_loader),
             image_state: ImageState::NotLoaded,
-            viewer: ImageViewer::new(vec![]),
+            viewer: ImageViewer::new(),
             tools,
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,
@@ -93,9 +97,6 @@ impl eframe::App for ImageViewerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
             self.menu(ui);
-            self.viewer
-                .sources
-                .truncate(self.image_state.count_handles());
 
             if let InnerResponse {
                 inner:
@@ -104,8 +105,10 @@ impl eframe::App for ImageViewerApp {
                         cursor_image_pos,
                     }),
                 response,
-            } = ui.reserve_bottom_space(80., |ui| self.viewer.ui_meta(ui, Some(Sense::click())))
-            {
+            } = ui.reserve_bottom_space(80., |ui| {
+                self.viewer
+                    .ui_meta(ui, self.image_state.sources(), Some(Sense::click()))
+            }) {
                 if let Some(cursor_image_pos) = cursor_image_pos {
                     self.handle_interaction(response, cursor_image_pos, ui.ctx());
                 }
