@@ -1,5 +1,5 @@
 use eframe::egui;
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 
 use crate::{async_task::AsyncRefTask, image_utils::ImageLoadOk};
 
@@ -105,7 +105,7 @@ impl super::ImageViewerApp {
         ctx: &egui::Context,
     ) {
         let mut temp_tool: Box<dyn Tool + Send> = Box::new(NopTool);
-        if let Some(Ok(ref mut tool)) = &mut self.tools.tool.data() {
+        if let Some(Ok(tool)) = &mut self.tools.tool.data() {
             std::mem::swap(&mut temp_tool, tool);
         }
 
