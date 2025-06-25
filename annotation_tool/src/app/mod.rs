@@ -6,8 +6,12 @@ use crate::{
     mask::MaskImage,
     storage::{ImageData, ImageId, Storage},
 };
-use eframe::egui::{self, ImageSource, InnerResponse, Sense, TextureHandle, UiBuilder};
+use eframe::egui::{
+    self, Color32, ColorImage, ImageSource, InnerResponse, Sense, TextureHandle, TextureOptions,
+    UiBuilder, load::SizedTexture,
+};
 
+use image::GenericImageView;
 use image_selector::ImageSelector;
 use tools::Tools;
 use viewer::{ImageViewer, ImageViewerInteraction};
@@ -88,13 +92,79 @@ impl ImageViewerApp {
             mask_generator,
         }
     }
+
+    fn handle_image_transition(&mut self, ctx: &egui::Context) {
+        if let Some((image_id, _, _)) = self.selector.current() {
+            match &mut self.image_state {
+                ImageState::NotLoaded => {
+                    self.image_state = ImageState::LoadingImageData(AsyncTask::new(
+                        self.storage.load_image(image_id),
+                    ))
+                }
+                ImageState::LoadingImageData(t) => {
+                    if let Some(image_data_result) = t.data() {
+                        self.image_state = match image_data_result {
+                            Ok(i) => {
+                                let handle = ctx.load_texture(
+                                    "Overlays",
+                                    ColorImage {
+                                        size: [
+                                            i.image.adjust.width() as _,
+                                            i.image.adjust.height() as _,
+                                        ],
+                                        pixels: i
+                                            .image
+                                            .adjust
+                                            .pixels()
+                                            .map(|(_, _, image::Rgba([r, g, b, _]))| {
+                                                Color32::from_rgb(r, g, b)
+                                            })
+                                            .collect(),
+                                    },
+                                    TextureOptions {
+                                        magnification: egui::TextureFilter::Nearest,
+                                        ..Default::default()
+                                    },
+                                );
+                                let texture = SizedTexture::from_handle(&handle);
+                                self.viewer.reset();
+                                let source = ImageSource::Texture(texture);
+
+                                self.tools.load_tool(&i.image);
+
+                                let x = i.image.adjust.width() as usize;
+                                let y = i.image.adjust.height() as usize;
+
+                                ImageState::Loaded(ImageStateLoaded {
+                                    id: i.id,
+                                    image: i.image,
+                                    texture: (handle, source),
+                                    masks: MaskImage::new(
+                                        [x, y],
+                                        i.masks.clone(),
+                                        Default::default(),
+                                    ),
+                                })
+                            }
+                            Err(e) => ImageState::Error(format!("Error: {e}")),
+                        }
+                    }
+                }
+                ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
+                    masks.handle_events(ctx);
+                }
+                ImageState::Error(_error) => {}
+            }
+        }
+    }
 }
 
 impl eframe::App for ImageViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
-            self.menu(ui);
+            self.menu_ui(ui);
+            self.handle_image_transition(ui.ctx());
 
             if let InnerResponse {
                 inner:

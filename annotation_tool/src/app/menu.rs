@@ -1,12 +1,6 @@
-use crate::{
-    async_task::{AsyncRefTask, AsyncTask},
-    mask::MaskImage,
-};
-use eframe::egui::{
-    self, Color32, ColorImage, ImageSource, Key, TextureOptions, load::SizedTexture,
-};
+use crate::async_task::AsyncRefTask;
+use eframe::egui::{self, Key};
 use futures::FutureExt;
-use image::GenericImageView;
 use log::info;
 
 use super::{ImageState, ImageStateLoaded};
@@ -15,7 +9,7 @@ use super::{ImageState, ImageStateLoaded};
 const ICON_SAVE: &str = "\u{1F4BE}";
 
 impl crate::app::ImageViewerApp {
-    pub(super) fn menu(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn menu_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let is_image_dirty = matches!(
                 &self.image_state,
@@ -76,71 +70,14 @@ impl crate::app::ImageViewerApp {
                 }
             }
 
-            if let Some((image_id, _, _)) = self.selector.current() {
-                match &mut self.image_state {
-                    ImageState::NotLoaded => {
-                        self.image_state = ImageState::LoadingImageData(AsyncTask::new(
-                            self.storage.load_image(image_id),
-                        ))
-                    }
-                    ImageState::LoadingImageData(t) => {
-                        if let Some(x) = t.data() {
-                            self.image_state = match x {
-                                Ok(i) => {
-                                    self.tools.ui(ui, &i.image);
-                                    let handle = ui.ctx().load_texture(
-                                        "Overlays",
-                                        ColorImage {
-                                            size: [
-                                                i.image.adjust.width() as _,
-                                                i.image.adjust.height() as _,
-                                            ],
-                                            pixels: i
-                                                .image
-                                                .adjust
-                                                .pixels()
-                                                .map(|(_, _, image::Rgba([r, g, b, _]))| {
-                                                    Color32::from_rgb(r, g, b)
-                                                })
-                                                .collect(),
-                                        },
-                                        TextureOptions {
-                                            magnification: egui::TextureFilter::Nearest,
-                                            ..Default::default()
-                                        },
-                                    );
-                                    let texture = SizedTexture::from_handle(&handle);
-                                    self.viewer.reset();
-                                    let source = ImageSource::Texture(texture);
-
-                                    self.tools.load_tool(&i.image);
-
-                                    let x = i.image.adjust.width() as usize;
-                                    let y = i.image.adjust.height() as usize;
-
-                                    ImageState::Loaded(ImageStateLoaded {
-                                        id: i.id,
-                                        image: i.image,
-                                        texture: (handle, source),
-                                        masks: MaskImage::new(
-                                            [x, y],
-                                            i.masks.clone(),
-                                            Default::default(),
-                                        ),
-                                    })
-                                }
-                                Err(e) => ImageState::Error(format!("Error: {e}")),
-                            }
-                        }
-                    }
-                    ImageState::Loaded(ImageStateLoaded { image, masks, .. }) => {
-                        self.tools.ui(ui, image);
-                        masks.handle_events(ui.ctx());
-                    }
-                    ImageState::Error(error) => {
-                        ui.label(format!("Error: {error}"));
-                    }
+            match &mut self.image_state {
+                ImageState::Loaded(ImageStateLoaded { image, .. }) => {
+                    self.tools.ui(ui, &image);
                 }
+                ImageState::Error(error) => {
+                    ui.label(format!("Error: {error}"));
+                }
+                _ => (),
             }
         });
     }

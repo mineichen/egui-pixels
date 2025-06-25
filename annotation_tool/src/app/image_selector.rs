@@ -31,11 +31,6 @@ impl ImageSelector {
     }
 
     pub fn current(&mut self) -> Option<&mut (ImageId, String, bool)> {
-        self.values.as_mut().ok().and_then(|x| x.get_mut(self.idx))
-    }
-
-    /// Returns, wether image-state has to be reset
-    pub fn ui(&mut self, storage: &dyn Storage, ui: &mut egui::Ui) -> bool {
         if let Some(loader) = self.loader.as_mut() {
             if let Some(values) = loader.data() {
                 info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));
@@ -43,7 +38,11 @@ impl ImageSelector {
                 self.values = values;
             }
         }
+        self.values.as_mut().ok().and_then(|x| x.get_mut(self.idx))
+    }
 
+    /// Returns, wether image-state has to be reset
+    pub fn ui(&mut self, storage: &dyn Storage, ui: &mut egui::Ui) -> bool {
         let mut reset_image_state = false;
 
         match &mut self.values {
