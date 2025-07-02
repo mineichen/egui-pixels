@@ -1,4 +1,4 @@
-use eframe::egui::{
+use egui::{
     self, ImageSource, InnerResponse, Rect, Sense, TextureOptions, Vec2, load::TexturePoll,
 };
 

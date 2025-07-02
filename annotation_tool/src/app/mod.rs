@@ -3,14 +3,14 @@ use std::io;
 use crate::{
     async_task::{AsyncRefTask, AsyncTask},
     image_utils::ImageLoadOk,
-    mask::MaskImage,
     storage::{ImageData, ImageId, Storage},
 };
-use eframe::egui::{
+use egui::{
     self, Color32, ColorImage, ImageSource, InnerResponse, Sense, TextureHandle, TextureOptions,
     UiBuilder, load::SizedTexture,
 };
 
+use egui_pixels::MaskImage;
 use image::GenericImageView;
 use image_selector::ImageSelector;
 use tools::Tools;

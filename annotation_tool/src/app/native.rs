@@ -1,9 +1,9 @@
 use std::io;
 
-use eframe::egui;
+use egui;
 use log::info;
 
-use crate::{app::Tools, ImageCallbackMap};
+use crate::{ImageCallbackMap, app::Tools};
 
 use super::ImageViewerApp;
 

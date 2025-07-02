@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use eframe::egui;
+use egui;
 use futures::FutureExt;
 use image::DynamicImage;
 use log::warn;

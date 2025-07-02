@@ -1,4 +1,4 @@
-use eframe::egui::ComboBox;
+use egui::ComboBox;
 use image::DynamicImage;
 
 use crate::{ImageCallbackMap, SubGroups};
@@ -13,11 +13,7 @@ impl MaskGenerator {
         Self { map, pos: 0 }
     }
 
-    pub(super) fn ui(
-        &mut self,
-        image: &DynamicImage,
-        ui: &mut eframe::egui::Ui,
-    ) -> Option<Vec<SubGroups>> {
+    pub(super) fn ui(&mut self, image: &DynamicImage, ui: &mut egui::Ui) -> Option<Vec<SubGroups>> {
         if !self.map.is_empty() {
             ComboBox::from_id_salt("algo_selector")
                 .show_index(ui, &mut self.pos, self.map.len(), |x| {

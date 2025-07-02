@@ -96,6 +96,7 @@ dependencies = [
  "bytemuck",
  "console_error_panic_hook",
  "eframe",
+ "egui",
  "egui-pixels",
  "emath",
  "env_logger",
@@ -654,6 +655,11 @@ dependencies = [
 [[package]]
 name = "egui-pixels"
 version = "0.1.0"
+dependencies = [
+ "egui",
+ "itertools",
+ "log",
+]
 
 [[package]]
 name = "egui-wgpu"

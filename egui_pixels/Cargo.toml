@@ -8,4 +8,6 @@ description = "Image viewer with zoom, pan and label tools"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-
+egui.workspace = true
+itertools.workspace = true
+log.workspace = true

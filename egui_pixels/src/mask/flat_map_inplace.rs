@@ -5,7 +5,7 @@ use std::fmt::Debug;
 /// Moves data into cache, if there are more writes than reads during flat_map_inplace()
 ///
 #[derive(Debug)]
-pub(super) struct InplaceFlatMapper<'a, T> {
+pub(crate) struct InplaceFlatMapper<'a, T> {
     data: &'a mut Vec<T>,
     read_pos: usize,
     write_pos: usize,
@@ -13,7 +13,7 @@ pub(super) struct InplaceFlatMapper<'a, T> {
     cache_pos: usize,
 }
 
-pub trait NextInPlaceExt<T> {
+pub(crate) trait NextInPlaceExt<T> {
     fn flat_map_inplace<TMap: for<'b> FnMut(T, &mut InplaceFlatMapper<'b, T>)>(
         &mut self,
         handler: TMap,

@@ -1,4 +1,4 @@
-use eframe::egui;
+use egui;
 use futures::{FutureExt, future::BoxFuture};
 
 use crate::{async_task::AsyncRefTask, image_utils::ImageLoadOk};
@@ -19,6 +19,7 @@ type ToolFactories = Vec<(
     Box<dyn Fn(&ImageLoadOk) -> BoxFuture<'static, Result<Box<dyn Tool + Send>, String>>>,
 )>;
 
+#[allow(unused_variables)]
 pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
     #[cfg(feature = "sam")]
     let session = sam::SamSession::new(&config.sam_path).unwrap();

@@ -4,7 +4,7 @@ use crate::{
     async_task::AsyncTask,
     storage::{ImageId, Storage},
 };
-use eframe::egui::{self, ComboBox, Key};
+use egui::{self, ComboBox, Key};
 use log::info;
 
 const ICON_RELOAD: &str = "\u{21BB}";

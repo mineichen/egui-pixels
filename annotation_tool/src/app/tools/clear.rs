@@ -1,6 +1,6 @@
-use eframe::egui;
+use egui;
 
-use crate::app::{tools::Tool, ImageState, ImageStateLoaded};
+use crate::app::{ImageState, ImageStateLoaded, tools::Tool};
 
 #[derive(Default)]
 #[non_exhaustive]

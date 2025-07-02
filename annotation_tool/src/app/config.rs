@@ -1,4 +1,4 @@
-use eframe::egui::Vec2;
+use egui::Vec2;
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(default)]

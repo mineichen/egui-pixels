@@ -18,7 +18,7 @@ impl HistoryAction {
             HistoryAction::Reset => rest.clear(),
             HistoryAction::Clear(s) => {
                 rest.retain_mut(|sub| {
-                    super::MaskImage::remove_overlaps(sub, s.iter().copied());
+                    crate::remove_overlaps(sub, s.iter().copied());
                     !sub.is_empty()
                 });
             }
