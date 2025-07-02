@@ -10,11 +10,10 @@ use egui::{
     UiBuilder, load::SizedTexture,
 };
 
-use egui_pixels::MaskImage;
+use egui_pixels::{ImageViewer, ImageViewerInteraction, MaskImage};
 use image::GenericImageView;
 use image_selector::ImageSelector;
 use tools::Tools;
-use viewer::{ImageViewer, ImageViewerInteraction};
 
 mod config;
 mod image_selector;
@@ -23,7 +22,6 @@ mod menu;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 mod tools;
-mod viewer;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
