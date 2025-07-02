@@ -3,6 +3,8 @@ name = "annotation-tool"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 egui-pixels = { path = "../egui_pixels" }
@@ -53,6 +55,7 @@ default = ["wayland"]
 wayland = ["eframe/wayland"]
 x11 = ["eframe/x11"]
 sam = ["ort", "ndarray"]
+
 
 
 #[patch.crates-io]
