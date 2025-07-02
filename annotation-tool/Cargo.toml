@@ -6,8 +6,12 @@ edition.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "annotation-tool-app"
+path = "src/main.rs"
+
 [dependencies]
-egui-pixels = { path = "../egui_pixels" }
+egui-pixels = { path = "../egui-pixels" }
 egui.workspace = true
 eframe = { version = "0.31", default-features = false, features = [
     "wgpu",
@@ -56,8 +60,6 @@ default = ["wayland"]
 wayland = ["eframe/wayland"]
 x11 = ["eframe/x11"]
 sam = ["ort", "ndarray"]
-
-
 
 #[patch.crates-io]
 #egui = { path = "../myegui/crates/egui" }

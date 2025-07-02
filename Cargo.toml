@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
 members = [ 
-    "annotation_tool",
-    "egui_pixels",
+    "annotation-tool",
+    "egui-pixels",
 ]
 
 [workspace.package]
