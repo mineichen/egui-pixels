@@ -84,7 +84,7 @@ impl ImageViewerApp {
             storage,
             selector: ImageSelector::new(url_loader),
             image_state: ImageState::NotLoaded,
-            viewer: ImageViewer::new(),
+            viewer: ImageViewer::default(),
             tools,
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,

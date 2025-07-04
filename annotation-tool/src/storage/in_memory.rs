@@ -1,4 +1,4 @@
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use std::{
     collections::HashMap,
     io,
@@ -6,18 +6,11 @@ use std::{
 };
 
 use super::{ImageData, ImageId, Storage};
-use crate::{image_utils::ImageLoadOk, SubGroups};
+use crate::{SubGroups, image_utils::ImageLoadOk};
 
+#[derive(Default)]
 pub struct InMemoryStorage {
     masks: Arc<Mutex<HashMap<ImageId, Vec<SubGroups>>>>,
-}
-
-impl InMemoryStorage {
-    pub fn new() -> Self {
-        Self {
-            masks: Default::default(),
-        }
-    }
 }
 
 impl Storage for InMemoryStorage {

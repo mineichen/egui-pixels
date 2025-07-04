@@ -1,11 +1,9 @@
 use std::io;
 
-use egui;
 use log::info;
 
-use crate::{ImageCallbackMap, app::Tools};
-
 use super::ImageViewerApp;
+use crate::{ImageCallbackMap, app::Tools};
 
 pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
     env_logger::init();

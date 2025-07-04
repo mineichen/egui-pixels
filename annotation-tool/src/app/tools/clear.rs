@@ -1,5 +1,3 @@
-use egui;
-
 use crate::app::{ImageState, ImageStateLoaded, tools::Tool};
 
 #[derive(Default)]

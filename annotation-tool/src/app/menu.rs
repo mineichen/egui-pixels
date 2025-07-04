@@ -1,5 +1,5 @@
 use crate::async_task::AsyncRefTask;
-use egui::{self, Key};
+use egui::Key;
 use futures::FutureExt;
 use log::info;
 
@@ -72,7 +72,7 @@ impl crate::app::ImageViewerApp {
 
             match &mut self.image_state {
                 ImageState::Loaded(ImageStateLoaded { image, .. }) => {
-                    self.tools.ui(ui, &image);
+                    self.tools.ui(ui, image);
                 }
                 ImageState::Error(error) => {
                     ui.label(format!("Error: {error}"));

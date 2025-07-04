@@ -1,4 +1,3 @@
-use egui;
 use futures::{FutureExt, future::BoxFuture};
 
 use crate::{async_task::AsyncRefTask, image_utils::ImageLoadOk};

@@ -10,13 +10,6 @@ pub struct ImageViewer {
 }
 
 impl ImageViewer {
-    pub fn new() -> Self {
-        Self {
-            zoom: 1.0,
-            pan_offset: Vec2::ZERO,
-        }
-    }
-
     pub fn reset(&mut self) {
         self.zoom = 1.0;
         self.pan_offset = Vec2::default();
@@ -124,6 +117,15 @@ impl ImageViewer {
                 inner: None,
                 response,
             },
+        }
+    }
+}
+
+impl Default for ImageViewer {
+    fn default() -> Self {
+        Self {
+            zoom: 1.0,
+            pan_offset: Vec2::ZERO,
         }
     }
 }
