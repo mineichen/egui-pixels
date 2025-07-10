@@ -59,6 +59,67 @@ impl ImageState {
             _ => itertools::Either::Right(std::iter::empty()),
         }
     }
+
+    pub fn update(
+        &mut self,
+        ctx: &egui::Context,
+        mut on_image_load: impl FnMut(&ImageLoadOk),
+        image_id: &mut ImageId,
+        storage: &dyn Storage,
+    ) {
+        match self {
+            ImageState::NotLoaded => {
+                *self = ImageState::LoadingImageData(AsyncTask::new(storage.load_image(image_id)))
+            }
+            ImageState::LoadingImageData(t) => {
+                if let Some(image_data_result) = t.data() {
+                    *self = match image_data_result {
+                        Ok(i) => {
+                            let handle = ctx.load_texture(
+                                "Overlays",
+                                ColorImage {
+                                    size: [
+                                        i.image.adjust.width() as _,
+                                        i.image.adjust.height() as _,
+                                    ],
+                                    pixels: i
+                                        .image
+                                        .adjust
+                                        .pixels()
+                                        .map(|(_, _, image::Rgba([r, g, b, _]))| {
+                                            Color32::from_rgb(r, g, b)
+                                        })
+                                        .collect(),
+                                },
+                                TextureOptions {
+                                    magnification: egui::TextureFilter::Nearest,
+                                    ..Default::default()
+                                },
+                            );
+                            let texture = SizedTexture::from_handle(&handle);
+                            on_image_load(&i.image);
+
+                            let source = ImageSource::Texture(texture);
+                            let x = i.image.adjust.width() as usize;
+                            let y = i.image.adjust.height() as usize;
+
+                            ImageState::Loaded(ImageStateLoaded {
+                                id: i.id,
+                                image: i.image,
+                                texture: (handle, source),
+                                masks: MaskImage::new([x, y], i.masks.clone(), Default::default()),
+                            })
+                        }
+                        Err(e) => ImageState::Error(format!("Error: {e}")),
+                    }
+                }
+            }
+            ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
+                masks.handle_events(ctx);
+            }
+            ImageState::Error(_error) => {}
+        }
+    }
 }
 
 struct ImageStateLoaded {
@@ -93,66 +154,12 @@ impl ImageViewerApp {
 
     fn handle_image_transition(&mut self, ctx: &egui::Context) {
         if let Some((image_id, _, _)) = self.selector.current() {
-            match &mut self.image_state {
-                ImageState::NotLoaded => {
-                    self.image_state = ImageState::LoadingImageData(AsyncTask::new(
-                        self.storage.load_image(image_id),
-                    ))
-                }
-                ImageState::LoadingImageData(t) => {
-                    if let Some(image_data_result) = t.data() {
-                        self.image_state = match image_data_result {
-                            Ok(i) => {
-                                let handle = ctx.load_texture(
-                                    "Overlays",
-                                    ColorImage {
-                                        size: [
-                                            i.image.adjust.width() as _,
-                                            i.image.adjust.height() as _,
-                                        ],
-                                        pixels: i
-                                            .image
-                                            .adjust
-                                            .pixels()
-                                            .map(|(_, _, image::Rgba([r, g, b, _]))| {
-                                                Color32::from_rgb(r, g, b)
-                                            })
-                                            .collect(),
-                                    },
-                                    TextureOptions {
-                                        magnification: egui::TextureFilter::Nearest,
-                                        ..Default::default()
-                                    },
-                                );
-                                let texture = SizedTexture::from_handle(&handle);
-                                self.viewer.reset();
-                                let source = ImageSource::Texture(texture);
-
-                                self.tools.load_tool(&i.image);
-
-                                let x = i.image.adjust.width() as usize;
-                                let y = i.image.adjust.height() as usize;
-
-                                ImageState::Loaded(ImageStateLoaded {
-                                    id: i.id,
-                                    image: i.image,
-                                    texture: (handle, source),
-                                    masks: MaskImage::new(
-                                        [x, y],
-                                        i.masks.clone(),
-                                        Default::default(),
-                                    ),
-                                })
-                            }
-                            Err(e) => ImageState::Error(format!("Error: {e}")),
-                        }
-                    }
-                }
-                ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
-                    masks.handle_events(ctx);
-                }
-                ImageState::Error(_error) => {}
-            }
+            let on_image_load = |i: &ImageLoadOk| {
+                self.viewer.reset();
+                self.tools.load_tool(&i);
+            };
+            self.image_state
+                .update(ctx, on_image_load, image_id, self.storage.as_ref());
         }
     }
 }
