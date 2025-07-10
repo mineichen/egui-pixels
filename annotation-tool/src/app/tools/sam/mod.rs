@@ -6,7 +6,10 @@ use image::DynamicImage;
 use log::warn;
 
 use crate::{
-    app::{ImageState, ImageStateLoaded, ImageViewerApp},
+    app::{
+        ImageViewerApp,
+        image_state::{ImageState, ImageStateLoaded},
+    },
     async_task::AsyncRefTask,
 };
 use inference::{InferenceError, SamEmbeddings};

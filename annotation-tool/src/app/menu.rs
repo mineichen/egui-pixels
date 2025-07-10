@@ -3,7 +3,7 @@ use egui::Key;
 use futures::FutureExt;
 use log::info;
 
-use super::{ImageState, ImageStateLoaded};
+use super::image_state::{ImageState, ImageStateLoaded};
 
 // const ICON_SAM: &str = "\u{2728}";
 const ICON_SAVE: &str = "\u{1F4BE}";

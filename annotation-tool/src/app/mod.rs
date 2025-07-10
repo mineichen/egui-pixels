@@ -1,22 +1,18 @@
-use std::io;
-
 use crate::{
+    app::image_state::ImageState,
     async_task::{AsyncRefTask, AsyncTask},
     image_utils::ImageLoadOk,
-    storage::{ImageData, ImageId, Storage},
+    storage::Storage,
 };
-use egui::{
-    self, Color32, ColorImage, ImageSource, InnerResponse, Sense, TextureHandle, TextureOptions,
-    UiBuilder, load::SizedTexture,
-};
+use egui::{self, InnerResponse, Sense, UiBuilder};
 
-use egui_pixels::{ImageViewer, ImageViewerInteraction, MaskImage};
-use image::GenericImageView;
+use egui_pixels::{ImageViewer, ImageViewerInteraction};
 use image_selector::ImageSelector;
 use tools::Tools;
 
 mod config;
 mod image_selector;
+mod image_state;
 mod mask_generator;
 mod menu;
 #[cfg(not(target_arch = "wasm32"))]
@@ -40,97 +36,6 @@ pub(crate) struct ImageViewerApp {
     tools: Tools,
     save_job: AsyncRefTask<std::io::Result<()>>,
     mask_generator: MaskGenerator,
-}
-
-#[allow(clippy::large_enum_variant)]
-enum ImageState {
-    NotLoaded,
-    LoadingImageData(AsyncTask<io::Result<ImageData>>),
-    Loaded(ImageStateLoaded),
-    Error(String),
-}
-
-impl ImageState {
-    fn sources(&mut self, ctx: &egui::Context) -> impl Iterator<Item = ImageSource<'static>> + '_ {
-        match self {
-            ImageState::Loaded(x) => itertools::Either::Left(
-                std::iter::once(x.texture.1.clone()).chain(x.masks.sources(ctx)),
-            ),
-            _ => itertools::Either::Right(std::iter::empty()),
-        }
-    }
-
-    pub fn update(
-        &mut self,
-        ctx: &egui::Context,
-        mut on_image_load: impl FnMut(&ImageLoadOk),
-        image_id: &mut ImageId,
-        storage: &dyn Storage,
-    ) {
-        match self {
-            ImageState::NotLoaded => {
-                *self = ImageState::LoadingImageData(AsyncTask::new(storage.load_image(image_id)))
-            }
-            ImageState::LoadingImageData(t) => {
-                if let Some(image_data_result) = t.data() {
-                    *self = match image_data_result {
-                        Ok(i) => {
-                            let handle = ctx.load_texture(
-                                "Overlays",
-                                ColorImage {
-                                    size: [
-                                        i.image.adjust.width() as _,
-                                        i.image.adjust.height() as _,
-                                    ],
-                                    pixels: i
-                                        .image
-                                        .adjust
-                                        .pixels()
-                                        .map(|(_, _, image::Rgba([r, g, b, _]))| {
-                                            Color32::from_rgb(r, g, b)
-                                        })
-                                        .collect(),
-                                },
-                                TextureOptions {
-                                    magnification: egui::TextureFilter::Nearest,
-                                    ..Default::default()
-                                },
-                            );
-                            let texture = SizedTexture::from_handle(&handle);
-                            on_image_load(&i.image);
-
-                            let source = ImageSource::Texture(texture);
-                            let x = i.image.adjust.width() as usize;
-                            let y = i.image.adjust.height() as usize;
-
-                            ImageState::Loaded(ImageStateLoaded {
-                                id: i.id,
-                                image: i.image,
-                                texture: (handle, source),
-                                masks: MaskImage::new([x, y], i.masks.clone(), Default::default()),
-                            })
-                        }
-                        Err(e) => ImageState::Error(format!("Error: {e}")),
-                    }
-                }
-            }
-            ImageState::Loaded(ImageStateLoaded { masks, .. }) => {
-                masks.handle_events(ctx);
-            }
-            ImageState::Error(_error) => {}
-        }
-    }
-}
-
-struct ImageStateLoaded {
-    id: ImageId,
-    #[allow(
-        dead_code,
-        reason = "Acts as Strong reference for SizedTexture. SizedTexture would not render a image if TextureHandle is dropped"
-    )]
-    texture: (TextureHandle, ImageSource<'static>),
-    image: ImageLoadOk,
-    masks: MaskImage,
 }
 
 impl ImageViewerApp {

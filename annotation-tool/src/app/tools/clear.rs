@@ -1,4 +1,7 @@
-use crate::app::{ImageState, ImageStateLoaded, tools::Tool};
+use crate::app::{
+    image_state::{ImageState, ImageStateLoaded},
+    tools::Tool,
+};
 
 #[derive(Default)]
 #[non_exhaustive]
