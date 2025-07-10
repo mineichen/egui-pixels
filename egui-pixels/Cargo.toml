@@ -2,7 +2,7 @@
 name = "egui-pixels"
 version.workspace = true
 edition.workspace = true
-description = "Image viewer with zoom, pan and label tools"
+description = "Image viewer with zoom, pan and pixel selection tools"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -51,10 +51,10 @@ enum ImageState {
 }
 
 impl ImageState {
-    fn sources(&self) -> impl Iterator<Item = ImageSource<'static>> + '_ {
+    fn sources(&mut self, ctx: &egui::Context) -> impl Iterator<Item = ImageSource<'static>> + '_ {
         match self {
             ImageState::Loaded(x) => itertools::Either::Left(
-                std::iter::once(x.texture.1.clone()).chain(x.masks.sources()),
+                std::iter::once(x.texture.1.clone()).chain(x.masks.sources(ctx)),
             ),
             _ => itertools::Either::Right(std::iter::empty()),
         }
@@ -173,7 +173,7 @@ impl eframe::App for ImageViewerApp {
                 response,
             } = ui.reserve_bottom_space(80., |ui| {
                 self.viewer
-                    .ui_meta(ui, self.image_state.sources(), Some(Sense::click()))
+                    .ui_meta(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()))
             }) {
                 if let Some(cursor_image_pos) = cursor_image_pos {
                     self.handle_interaction(response, cursor_image_pos, ui.ctx());

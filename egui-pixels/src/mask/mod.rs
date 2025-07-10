@@ -20,6 +20,8 @@ pub struct MaskImage {
     annotations: Annotations,
     history: History,
     texture_handle: Option<(bool, TextureHandle, ImageSource<'static>)>,
+    // Cannot remove handle immediately, as it might be used already previously in this epoch.
+    texture_handle_dirty: bool,
 }
 
 impl MaskImage {
@@ -29,10 +31,45 @@ impl MaskImage {
             annotations: Annotations(annotations),
             history,
             texture_handle: None,
+            texture_handle_dirty: false,
         }
     }
 
-    pub fn sources(&self) -> impl Iterator<Item = ImageSource<'static>> + '_ {
+    pub fn sources(
+        &mut self,
+        ctx: &egui::Context,
+    ) -> impl Iterator<Item = ImageSource<'static>> + '_ {
+        if self.texture_handle.is_none() || self.texture_handle_dirty {
+            self.texture_handle_dirty = false;
+            println!("Loading mask texture");
+            let texture_options = TextureOptions {
+                magnification: egui::TextureFilter::Nearest,
+                ..Default::default()
+            };
+
+            let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
+
+            for (group_id, subgroups) in self.subgroups().into_iter().enumerate() {
+                let [r, g, b] = generate_rgb_color(group_id as u16);
+                let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
+                for subgroup in subgroups {
+                    pixels[subgroup.as_range()].fill(group_color);
+                }
+            }
+
+            let handle = ctx.load_texture(
+                "Overlays",
+                ColorImage {
+                    size: self.size,
+                    pixels,
+                },
+                texture_options,
+            );
+            let source = ImageSource::Texture(SizedTexture::from_handle(&handle));
+
+            self.texture_handle = Some((true, handle, source));
+        }
+
         match &self.texture_handle {
             Some((visibility, _, source)) if *visibility => Some(source.clone()).into_iter(),
             _ => None.into_iter(),
@@ -49,7 +86,7 @@ impl MaskImage {
 
     pub fn reset(&mut self) {
         self.history.push(HistoryAction::Reset);
-        self.texture_handle = None;
+        self.texture_handle_dirty = true;
     }
 
     pub fn clear_region(&mut self, [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2]) {
@@ -83,7 +120,7 @@ impl MaskImage {
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
         self.history.push(action);
-        self.texture_handle = None;
+        self.texture_handle_dirty = true;
     }
 
     pub fn handle_events(&mut self, ctx: &egui::Context) {
@@ -104,44 +141,12 @@ impl MaskImage {
                 self.history.undo().is_some()
             };
             if require_redraw {
-                self.texture_handle = None;
+                self.texture_handle_dirty = true;
             };
         }
-
-        match &mut self.texture_handle {
-            Some((visible, _, _)) => {
-                if cmd_d_pressed {
-                    *visible = !*visible;
-                }
-            }
-            None => {
-                println!("Loading mask texture");
-                let texture_options = TextureOptions {
-                    magnification: egui::TextureFilter::Nearest,
-                    ..Default::default()
-                };
-
-                let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
-
-                for (group_id, subgroups) in self.subgroups().into_iter().enumerate() {
-                    let [r, g, b] = generate_rgb_color(group_id as u16);
-                    let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
-                    for subgroup in subgroups {
-                        pixels[subgroup.as_range()].fill(group_color);
-                    }
-                }
-
-                let handle = ctx.load_texture(
-                    "Overlays",
-                    ColorImage {
-                        size: self.size,
-                        pixels,
-                    },
-                    texture_options,
-                );
-                let source = ImageSource::Texture(SizedTexture::from_handle(&handle));
-
-                self.texture_handle = Some((true, handle, source));
+        if let Some((visible, _, _)) = &mut self.texture_handle {
+            if cmd_d_pressed {
+                *visible = !*visible;
             }
         }
     }
@@ -224,18 +229,17 @@ mod tests {
             SubGroup::new_total(39, NonZeroU16::try_from(1).unwrap()),
             SubGroup::new_total(42, NonZeroU16::try_from(7).unwrap()),
         ]));
-        let x = MaskImage {
-            size: [10, 10],
-            annotations: Annotations(vec![
+        let x = MaskImage::new(
+            [10, 10],
+            vec![
                 vec![
                     SubGroup::new_total(2, NonZeroU16::try_from(5).unwrap()),
                     SubGroup::new_total(12, NonZeroU16::try_from(5).unwrap()),
                 ],
                 vec![SubGroup::new_total(32, NonZeroU16::try_from(5).unwrap())],
-            ]),
+            ],
             history,
-            texture_handle: None,
-        };
+        );
         let group_sequence: Vec<_> = x
             .subgroups_ordered()
             .map(|(group_id, _)| group_id)
