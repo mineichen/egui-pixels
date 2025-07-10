@@ -1,4 +1,4 @@
-use crate::{app::tools::Tools, config::Config, ImageCallbackMap};
+use crate::{ImageCallbackMap, app::tools::Tools, config::Config};
 
 pub fn run_web(mappers: ImageCallbackMap) {
     use eframe::wasm_bindgen::JsCast as _;
@@ -28,7 +28,7 @@ pub fn run_web(mappers: ImageCallbackMap) {
                 Box::new(|cc| {
                     Ok(Box::new(crate::app::ImageViewerApp::new(
                         cc,
-                        Box::new(crate::InMemoryStorage::new()),
+                        Box::new(crate::InMemoryStorage::default()),
                         Tools::from(&Config::default()),
                         super::MaskGenerator::new(mappers),
                     )))
