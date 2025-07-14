@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use egui_pixels::{ImageData, ImageId, load_image};
+use egui_pixels::{ImageData, ImageId, ImageListTaskItem, load_image};
 use futures::{FutureExt, future::BoxFuture};
 use itertools::Itertools;
 use log::info;
@@ -22,7 +22,7 @@ impl FileStorage {
         Self { base: base.into() }
     }
 
-    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<(ImageId, String, bool)>> {
+    fn list_images_blocking(path: PathBuf) -> std::io::Result<Vec<ImageListTaskItem>> {
         Ok(visit_directory_files(path)
             .filter_map(|x| {
                 let x = x.ok()?;
@@ -51,8 +51,16 @@ impl FileStorage {
                         unreachable!("Cannot have multiple file_stem.mask")
                     }
                     // Takeing any image is fine, ignore the rest
-                    (Kind::Mask, Some((name, Kind::Image, id))) => Some((id, name, true)),
-                    (Kind::Image, _) => Some((id, name, false)),
+                    (Kind::Mask, Some((name, Kind::Image, id))) => Some(ImageListTaskItem {
+                        id,
+                        name,
+                        has_masks: true,
+                    }),
+                    (Kind::Image, _) => Some(ImageListTaskItem {
+                        id,
+                        name,
+                        has_masks: false,
+                    }),
                 }
             })
             .collect::<Vec<_>>())
@@ -78,7 +86,7 @@ impl FileStorage {
 
 impl Storage for FileStorage {
     // uri -> Display
-    fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String, bool)>>> {
+    fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<ImageListTaskItem>>> {
         let (tx, rx) = futures::channel::oneshot::channel();
         let image_path = self.get_image_path();
 

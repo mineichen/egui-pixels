@@ -37,3 +37,10 @@ pub struct ImageData {
     pub image: ImageLoadOk,
     pub masks: Vec<SubGroups>,
 }
+
+#[derive(Debug)]
+pub struct ImageListTaskItem {
+    pub id: ImageId,
+    pub name: String,
+    pub has_masks: bool,
+}

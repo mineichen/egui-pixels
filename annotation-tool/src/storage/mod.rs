@@ -1,4 +1,4 @@
-use egui_pixels::{ImageData, ImageId};
+use egui_pixels::{ImageData, ImageId, ImageListTaskItem};
 use futures::future::BoxFuture;
 use std::{
     io::{self},
@@ -15,7 +15,7 @@ const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
 const VERSION: u16 = 1;
 
 pub trait Storage {
-    fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String, bool)>>>;
+    fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<ImageListTaskItem>>>;
     fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>>;
     fn store_masks(&self, id: ImageId, masks: Vec<SubGroups>)
     -> BoxFuture<'static, io::Result<()>>;

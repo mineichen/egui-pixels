@@ -1,4 +1,4 @@
-use egui_pixels::ImageLoadOk;
+use egui_pixels::{ImageListTaskItem, ImageLoadOk};
 use futures::{FutureExt, future::BoxFuture};
 use std::{
     collections::HashMap,
@@ -15,11 +15,19 @@ pub struct InMemoryStorage {
 }
 
 impl Storage for InMemoryStorage {
-    fn list_images(&self) -> BoxFuture<'static, io::Result<Vec<(ImageId, String, bool)>>> {
+    fn list_images(&self) -> BoxFuture<'static, io::Result<Vec<ImageListTaskItem>>> {
         async move {
             Ok(vec![
-                ("image1".into(), "Image2".into(), true),
-                ("image2".into(), "Image2".into(), true),
+                ImageListTaskItem {
+                    id: "image1".into(),
+                    name: "Image2".into(),
+                    has_masks: false,
+                },
+                ImageListTaskItem {
+                    id: "image2".into(),
+                    name: "Image2".into(),
+                    has_masks: false,
+                },
             ])
         }
         .boxed()

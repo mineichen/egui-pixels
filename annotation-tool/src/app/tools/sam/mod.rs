@@ -57,8 +57,8 @@ impl super::Tool for SamTool {
 
                 masks.add_subgroups(new_mask);
 
-                if let Some((_, _, has_masks)) = app.selector.current() {
-                    *has_masks = true;
+                if let Some(x) = app.selector.current() {
+                    x.has_masks = true;
                 } else {
                     warn!("Couldn't mark URL as containing masks")
                 }

@@ -2,7 +2,7 @@ use std::io;
 
 use crate::storage::Storage;
 use egui::{self, ComboBox, Key};
-use egui_pixels::{AsyncTask, ImageId};
+use egui_pixels::{AsyncTask, ImageListTaskItem};
 use log::info;
 
 const ICON_RELOAD: &str = "\u{21BB}";
@@ -13,11 +13,11 @@ const ICON_NEXT: &str = "\u{23F5}";
 
 pub(crate) struct ImageSelector {
     idx: usize,
-    values: io::Result<Vec<(ImageId, String, bool)>>,
+    values: io::Result<Vec<ImageListTaskItem>>,
     loader: Option<ImageListTask>,
 }
 
-type ImageListTask = AsyncTask<io::Result<Vec<(ImageId, String, bool)>>>;
+type ImageListTask = AsyncTask<io::Result<Vec<ImageListTaskItem>>>;
 
 impl ImageSelector {
     pub fn new(loader: Option<ImageListTask>) -> Self {
@@ -28,7 +28,7 @@ impl ImageSelector {
         }
     }
 
-    pub fn current(&mut self) -> Option<&mut (ImageId, String, bool)> {
+    pub fn current(&mut self) -> Option<&mut ImageListTaskItem> {
         if let Some(loader) = self.loader.as_mut() {
             if let Some(values) = loader.data() {
                 info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));
@@ -61,7 +61,7 @@ impl ImageSelector {
                             let next_idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
                             self.idx = next_idx;
 
-                            if urls.get(next_idx).map(|x| x.2).unwrap_or_default()
+                            if urls.get(next_idx).map(|x| x.has_masks).unwrap_or_default()
                                 || self.idx == start_idx
                             {
                                 break;
@@ -85,7 +85,7 @@ impl ImageSelector {
 
                 if ComboBox::from_id_salt("url_selector")
                     .show_index(ui, &mut self.idx, urls.len(), |x| {
-                        urls.get(x).map(|x| x.1.as_str()).unwrap_or("")
+                        urls.get(x).map(|x| x.name.as_str()).unwrap_or("")
                     })
                     .changed()
                 {
@@ -123,7 +123,7 @@ impl ImageSelector {
                             let next_idx = (self.idx + 1) % urls.len();
                             self.idx = next_idx;
 
-                            if urls.get(next_idx).map(|x| x.2).unwrap_or_default()
+                            if urls.get(next_idx).map(|x| x.has_masks).unwrap_or_default()
                                 || self.idx == start_idx
                             {
                                 break;

@@ -49,14 +49,14 @@ impl ImageViewerApp {
     }
 
     fn handle_image_transition(&mut self, ctx: &egui::Context) {
-        if let Some((image_id, _, _)) = self.selector.current() {
+        if let Some(x) = self.selector.current() {
             self.image_state.update(
                 ctx,
                 |i: &ImageLoadOk| {
                     self.viewer.reset();
                     self.tools.load_tool(&i);
                 },
-                image_id,
+                &x.id,
                 &|id| self.storage.load_image(id),
             );
         }
