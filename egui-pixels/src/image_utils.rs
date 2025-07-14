@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use image::{DynamicImage, ImageBuffer, Luma};
 
+#[derive(Clone)]
 pub struct ImageLoadOk {
     pub original: Arc<DynamicImage>,
     pub adjust: Arc<DynamicImage>,

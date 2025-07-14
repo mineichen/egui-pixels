@@ -34,6 +34,7 @@ impl std::ops::Deref for ImageId {
     }
 }
 
+#[derive(Clone)]
 pub struct ImageData {
     pub id: ImageId,
     pub image: ImageLoadOk,

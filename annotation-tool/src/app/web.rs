@@ -27,7 +27,7 @@ pub fn run_web(mappers: ImageCallbackMap) {
                 web_options,
                 Box::new(|_cc| {
                     Ok(Box::new(crate::app::ImageViewerApp::new(
-                        Box::new(crate::InMemoryStorage::default()),
+                        Box::new(crate::InMemoryStorage::chessboard()),
                         Tools::from(&Config::default()),
                         super::MaskGenerator::new(mappers),
                     )))
