@@ -30,7 +30,7 @@ pub(crate) struct ImageViewerApp {
     viewer: ImageViewer,
     image_state: ImageState,
     tools: Tools,
-    save_job: AsyncRefTask<std::io::Result<()>>,
+    save_job: AsyncRefTask<Result<(), String>>,
     mask_generator: MaskGenerator,
 }
 

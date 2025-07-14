@@ -14,58 +14,48 @@ pub struct InMemoryStorage {
 }
 
 impl InMemoryStorage {
-    pub fn chessboard() -> Self {
+    pub fn new(x: impl IntoIterator<Item = ImageData>) -> Self {
         Self {
             data: Arc::new(Mutex::new(
-                (0..2)
-                    .map(|i| {
-                        let id = ImageId::from(format!("image{}", i + 1).as_str());
-                        (
-                            id.clone(),
-                            ImageData {
-                                id,
-                                masks: vec![],
-                                image: {
-                                    let width = 400;
-                                    let height = 400;
-                                    let square_size = width / 8;
-                                    let mut image_data = vec![0u8; width * height * 3];
-                                    let (color_1, color_2) =
-                                        if i == 0 { (0, 255) } else { (255, 0) };
-
-                                    for y in 0..height {
-                                        for x in 0..width {
-                                            let square_x = x / square_size;
-                                            let square_y = y / square_size;
-                                            let is_white = (square_x + square_y) % 2 == 0;
-
-                                            let idx = (y * width + x) * 3;
-                                            let color = if is_white { color_1 } else { color_2 };
-
-                                            image_data[idx] = color;
-                                            image_data[idx + 1] = color;
-                                            image_data[idx + 2] = color;
-                                        }
-                                    }
-                                    let rgb_image = image::RgbImage::from_raw(
-                                        width as _,
-                                        height as _,
-                                        image_data,
-                                    )
-                                    .unwrap();
-                                    let dyn_img =
-                                        Arc::new(image::DynamicImage::ImageRgb8(rgb_image));
-                                    ImageLoadOk {
-                                        adjust: dyn_img.clone(),
-                                        original: dyn_img,
-                                    }
-                                },
-                            },
-                        )
-                    })
-                    .collect(),
+                x.into_iter().map(|x| (x.id.clone(), x)).collect(),
             )),
         }
+    }
+
+    pub fn chessboard() -> Self {
+        Self::new((0..2).map(|i| ImageData {
+            id: ImageId::from(format!("image{}", i + 1).as_str()),
+            masks: vec![],
+            image: {
+                let width = 400;
+                let height = 400;
+                let square_size = width / 8;
+                let mut image_data = vec![0u8; width * height * 3];
+                let (color_1, color_2) = if i == 0 { (0, 255) } else { (255, 0) };
+
+                for y in 0..height {
+                    for x in 0..width {
+                        let square_x = x / square_size;
+                        let square_y = y / square_size;
+                        let is_white = (square_x + square_y) % 2 == 0;
+
+                        let idx = (y * width + x) * 3;
+                        let color = if is_white { color_1 } else { color_2 };
+
+                        image_data[idx] = color;
+                        image_data[idx + 1] = color;
+                        image_data[idx + 2] = color;
+                    }
+                }
+                let rgb_image =
+                    image::RgbImage::from_raw(width as _, height as _, image_data).unwrap();
+                let dyn_img = Arc::new(image::DynamicImage::ImageRgb8(rgb_image));
+                ImageLoadOk {
+                    adjust: dyn_img.clone(),
+                    original: dyn_img,
+                }
+            },
+        }))
     }
 }
 

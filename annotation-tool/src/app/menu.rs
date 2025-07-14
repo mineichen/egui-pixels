@@ -35,7 +35,7 @@ impl crate::app::ImageViewerApp {
             ) = (self.save_job.data(), &mut self.image_state)
             {
                 if let Err(e) = last_save {
-                    ui.label(format!("Error during save: {e}"));
+                    ui.label(e.as_str());
                 }
                 ui.scope(|ui| {
                     if !is_image_dirty {
@@ -53,6 +53,7 @@ impl crate::app::ImageViewerApp {
                         self.save_job = AsyncRefTask::new(
                             self.storage
                                 .store_masks(id.clone(), masks.subgroups())
+                                .map(|x| x.map_err(|e| format!("Error during save: {e}")))
                                 .boxed(),
                         );
                     }
