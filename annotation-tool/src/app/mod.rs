@@ -1,12 +1,7 @@
-use crate::{
-    app::image_state::ImageState,
-    async_task::{AsyncRefTask, AsyncTask},
-    image_utils::ImageLoadOk,
-    storage::Storage,
-};
+use crate::{app::image_state::ImageState, image_utils::ImageLoadOk, storage::Storage};
 use egui::{self, InnerResponse, Sense, UiBuilder};
+use egui_pixels::{AsyncRefTask, AsyncTask, ImageViewer, ImageViewerInteraction};
 
-use egui_pixels::{ImageViewer, ImageViewerInteraction};
 use image_selector::ImageSelector;
 use tools::Tools;
 

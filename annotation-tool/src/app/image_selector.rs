@@ -1,10 +1,8 @@
 use std::io;
 
-use crate::{
-    async_task::AsyncTask,
-    storage::{ImageId, Storage},
-};
+use crate::storage::{ImageId, Storage};
 use egui::{self, ComboBox, Key};
+use egui_pixels::AsyncTask;
 use log::info;
 
 const ICON_RELOAD: &str = "\u{21BB}";

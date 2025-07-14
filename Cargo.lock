@@ -657,6 +657,7 @@ name = "egui-pixels"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "futures-task",
  "itertools",
  "log",
 ]

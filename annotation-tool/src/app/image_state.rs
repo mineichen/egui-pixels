@@ -1,15 +1,13 @@
 use std::io;
 
 use crate::{
-    async_task::AsyncTask,
     image_utils::ImageLoadOk,
     storage::{ImageData, ImageId, Storage},
 };
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-
-use egui_pixels::MaskImage;
+use egui_pixels::{AsyncTask, MaskImage};
 use image::GenericImageView;
 
 #[allow(clippy::large_enum_variant)]

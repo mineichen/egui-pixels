@@ -11,5 +11,7 @@ edition = "2024"
 
 [workspace.dependencies]
 egui = "0.31"
+futures-core = "0.3"
+futures-task = "0.3"
 itertools = "0.14.0"
 log = "0.4.22"

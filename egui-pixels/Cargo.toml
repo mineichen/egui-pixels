@@ -9,5 +9,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 egui.workspace = true
+futures-task.workspace = true
 itertools.workspace = true
 log.workspace = true
+
+[features]
+ffi = []
