@@ -1,6 +1,6 @@
 use std::{pin::Pin, task::Context};
 
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+use crate::BoxFuture;
 
 pub enum AsyncRefTask<T> {
     Pending(BoxFuture<'static, T>),

@@ -89,7 +89,7 @@ impl MaskImage {
         self.texture_handle_dirty = true;
     }
 
-    pub fn clear_region(&mut self, [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2]) {
+    pub fn clear_rect(&mut self, [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2]) {
         let x_left = x_top as u32;
         let x_right = x_bottom as u32;
         let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();

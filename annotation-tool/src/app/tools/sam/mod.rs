@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use egui;
-use egui_pixels::{AsyncRefTask, ImageState, ImageStateLoaded};
+use egui_pixels::AsyncRefTask;
 use futures::FutureExt;
 use image::DynamicImage;
 use log::warn;
 
-use crate::app::ImageViewerApp;
+use crate::app::tools::{RectSelection, ToolContext};
 use inference::{InferenceError, SamEmbeddings};
 
 mod inference;
@@ -14,55 +13,52 @@ mod native_ort;
 
 pub use native_ort::SamSession;
 
-pub struct SamTool(
-    AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
-    SamSession,
-);
+pub struct SamTool {
+    embeddings: AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
+    session: SamSession,
+    rect_selection: RectSelection,
+    // If selection starts, before embeddings are ready
+    last_pos: Option<[[usize; 2]; 2]>,
+}
 
 impl SamTool {
     pub fn new(session: SamSession, img: Arc<DynamicImage>) -> Self {
-        Self(
-            AsyncRefTask::new(session.get_image_embeddings(img).boxed()),
+        Self {
+            embeddings: AsyncRefTask::new(session.get_image_embeddings(img).boxed()),
             session,
-        )
+            rect_selection: RectSelection::default(),
+            last_pos: None,
+        }
     }
 }
 
 impl super::Tool for SamTool {
-    fn handle_interaction(
-        &mut self,
-        app: &mut ImageViewerApp,
-        response: egui::Response,
-        cursor_image_pos: (usize, usize),
-        ctx: &egui::Context,
-    ) {
-        if let (
-            ImageState::Loaded(ImageStateLoaded { masks, .. }),
-            Some([[top_x, top_y], [bottom_x, bottom_y]]),
-        ) = (
-            &mut app.image_state,
-            app.tools.drag_stopped(cursor_image_pos, &response, ctx),
-        ) {
-            if let Some(Ok(loaded_embeddings)) = self.0.data() {
-                let new_mask = self
-                    .1
-                    .decode_prompt(
-                        top_x as f32,
-                        top_y as f32,
-                        bottom_x as f32,
-                        bottom_y as f32,
-                        loaded_embeddings,
-                    )
-                    .unwrap();
+    fn handle_interaction(&mut self, mut ctx: ToolContext) {
+        if let Some(x) = self.rect_selection.drag_stopped(&mut ctx) {
+            self.last_pos = Some(x);
+        }
+        if let (Some([[top_x, top_y], [bottom_x, bottom_y]]), Some(Ok(loaded_embeddings))) =
+            (self.last_pos, self.embeddings.data())
+        {
+            let new_mask = self
+                .session
+                .decode_prompt(
+                    top_x as f32,
+                    top_y as f32,
+                    bottom_x as f32,
+                    bottom_y as f32,
+                    loaded_embeddings,
+                )
+                .unwrap();
 
-                masks.add_subgroups(new_mask);
+            ctx.image.masks.add_subgroups(new_mask);
+            self.last_pos = None;
 
-                if let Some(x) = app.selector.current() {
-                    x.has_masks = true;
-                } else {
-                    warn!("Couldn't mark URL as containing masks")
-                }
-            }
+            // if let Some(x) = ctx.app.selector.current() {
+            //     x.has_masks = true;
+            // } else {
+            //     warn!("Couldn't mark URL as containing masks")
+            // }
         }
     }
 }

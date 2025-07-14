@@ -1,4 +1,4 @@
-use egui_pixels::{AsyncRefTask, ImageLoadOk};
+use egui_pixels::{AsyncRefTask, ImageLoadOk, ImageState, ImageStateLoaded};
 use futures::{FutureExt, future::BoxFuture};
 
 mod clear;
@@ -6,10 +6,44 @@ mod clear;
 mod sam;
 
 pub struct Tools {
-    last_drag_start: Option<(usize, usize)>,
     active_tool_idx: usize,
     tool_factories: ToolFactories,
     tool: AsyncRefTask<Result<Box<dyn Tool + Send>, String>>,
+}
+
+#[derive(Default)]
+pub struct RectSelection {
+    last_drag_start: Option<(usize, usize)>,
+}
+
+impl RectSelection {
+    pub fn new() -> Self {
+        Self {
+            last_drag_start: None,
+        }
+    }
+
+    pub fn drag_stopped(&mut self, ctx: &mut ToolContext) -> Option<[[usize; 2]; 2]> {
+        let (start_x, start_y) = ctx.cursor_image_pos;
+        let result = if let (Some((cursor_x, cursor_y)), true) = (
+            self.last_drag_start,
+            ctx.response.drag_stopped()
+                && !ctx.egui.input(|i| i.modifiers.command || i.modifiers.ctrl),
+        ) {
+            self.last_drag_start = None;
+            Some([
+                [cursor_x.min(start_x), cursor_y.min(start_y)],
+                [cursor_x.max(start_x), cursor_y.max(start_y)],
+            ])
+        } else {
+            None
+        };
+
+        if ctx.egui.input(|i| !i.pointer.primary_down()) {
+            self.last_drag_start = Some(ctx.cursor_image_pos);
+        }
+        result
+    }
 }
 
 type ToolFactories = Vec<(
@@ -54,30 +88,9 @@ impl Tools {
 
     pub(super) fn new(tool_factories: ToolFactories) -> Self {
         Self {
-            last_drag_start: None,
             active_tool_idx: 0,
             tool: AsyncRefTask::new_ready(Ok(Box::new(NopTool))),
             tool_factories,
-        }
-    }
-
-    fn drag_stopped(
-        &mut self,
-        (start_x, start_y): (usize, usize),
-        response: &egui::Response,
-        ctx: &egui::Context,
-    ) -> Option<[[usize; 2]; 2]> {
-        if let (Some((cursor_x, cursor_y)), true) = (
-            self.last_drag_start,
-            response.drag_stopped() && !ctx.input(|i| i.modifiers.command || i.modifiers.ctrl),
-        ) {
-            self.last_drag_start = None;
-            Some([
-                [cursor_x.min(start_x), cursor_y.min(start_y)],
-                [cursor_x.max(start_x), cursor_y.max(start_y)],
-            ])
-        } else {
-            None
         }
     }
 
@@ -103,16 +116,20 @@ impl super::ImageViewerApp {
         cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
     ) {
-        let mut temp_tool: Box<dyn Tool + Send> = Box::new(NopTool);
-        if let Some(Ok(tool)) = &mut self.tools.tool.data() {
-            std::mem::swap(&mut temp_tool, tool);
-        }
+        if let ImageState::Loaded(image) = &mut self.image_state {
+            let mut temp_tool: Box<dyn Tool + Send> = Box::new(NopTool);
+            if let Some(Ok(tool)) = &mut self.tools.tool.data() {
+                std::mem::swap(&mut temp_tool, tool);
+            }
 
-        temp_tool.handle_interaction(self, response, cursor_image_pos, ctx);
-        self.tools.tool = AsyncRefTask::new_ready(Ok(temp_tool));
+            temp_tool.handle_interaction(ToolContext {
+                image,
+                response,
+                cursor_image_pos,
+                egui: ctx,
+            });
 
-        if ctx.input(|i| !i.pointer.primary_down()) {
-            self.tools.last_drag_start = Some(cursor_image_pos);
+            self.tools.tool = AsyncRefTask::new_ready(Ok(temp_tool));
         }
     }
 }
@@ -120,22 +137,18 @@ impl super::ImageViewerApp {
 /// Used to swap the tool in and out of the tools vector to borrow ImageViewerApp mutably
 struct NopTool;
 impl Tool for NopTool {
-    fn handle_interaction(
-        &mut self,
-        _app: &mut super::ImageViewerApp,
-        _response: egui::Response,
-        _cursor_image_pos: (usize, usize),
-        _ctx: &egui::Context,
-    ) {
+    fn handle_interaction(&mut self, _ctx: ToolContext) {
         log::warn!("NopTool should not be called");
     }
 }
+
+pub struct ToolContext<'a> {
+    pub image: &'a mut ImageStateLoaded,
+    pub response: egui::Response,
+    pub cursor_image_pos: (usize, usize),
+    pub egui: &'a egui::Context,
+}
+
 pub trait Tool {
-    fn handle_interaction(
-        &mut self,
-        app: &mut super::ImageViewerApp,
-        response: egui::Response,
-        cursor_image_pos: (usize, usize),
-        ctx: &egui::Context,
-    );
+    fn handle_interaction(&mut self, ctx: ToolContext);
 }
