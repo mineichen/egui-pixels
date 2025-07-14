@@ -116,20 +116,15 @@ impl super::ImageViewerApp {
         cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
     ) {
-        if let ImageState::Loaded(image) = &mut self.image_state {
-            let mut temp_tool: Box<dyn Tool + Send> = Box::new(NopTool);
-            if let Some(Ok(tool)) = &mut self.tools.tool.data() {
-                std::mem::swap(&mut temp_tool, tool);
-            }
-
-            temp_tool.handle_interaction(ToolContext {
+        if let (ImageState::Loaded(image), Some(Ok(tool))) =
+            (&mut self.image_state, self.tools.tool.data())
+        {
+            tool.handle_interaction(ToolContext {
                 image,
                 response,
                 cursor_image_pos,
                 egui: ctx,
             });
-
-            self.tools.tool = AsyncRefTask::new_ready(Ok(temp_tool));
         }
     }
 }
