@@ -1,12 +1,12 @@
+use egui_pixels::ImageLoadOk;
+use futures::future::BoxFuture;
 use std::{
     io::{self},
     str::FromStr,
     sync::Arc,
 };
 
-use futures::future::BoxFuture;
-
-use crate::{image_utils::ImageLoadOk, SubGroups};
+use crate::SubGroups;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;
@@ -28,7 +28,7 @@ pub trait Storage {
     fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<(ImageId, String, bool)>>>;
     fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>>;
     fn store_masks(&self, id: ImageId, masks: Vec<SubGroups>)
-        -> BoxFuture<'static, io::Result<()>>;
+    -> BoxFuture<'static, io::Result<()>>;
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]

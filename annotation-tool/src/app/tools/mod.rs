@@ -1,7 +1,5 @@
-use egui_pixels::AsyncRefTask;
+use egui_pixels::{AsyncRefTask, ImageLoadOk};
 use futures::{FutureExt, future::BoxFuture};
-
-use crate::image_utils::ImageLoadOk;
 
 mod clear;
 #[cfg(feature = "sam")]

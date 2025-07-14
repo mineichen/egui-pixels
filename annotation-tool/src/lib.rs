@@ -3,7 +3,6 @@ use image::DynamicImage;
 
 mod app;
 mod config;
-mod image_utils;
 mod storage;
 
 #[cfg(not(target_arch = "wasm32"))]

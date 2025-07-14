@@ -1,3 +1,4 @@
+use egui_pixels::ImageLoadOk;
 use futures::{FutureExt, future::BoxFuture};
 use std::{
     collections::HashMap,
@@ -6,7 +7,7 @@ use std::{
 };
 
 use super::{ImageData, ImageId, Storage};
-use crate::{SubGroups, image_utils::ImageLoadOk};
+use crate::SubGroups;
 
 #[derive(Default)]
 pub struct InMemoryStorage {

@@ -107,7 +107,6 @@ dependencies = [
  "js-sys",
  "log",
  "ndarray",
- "num-traits",
  "ort",
  "rolling-stats",
  "serde",
@@ -658,8 +657,10 @@ version = "0.1.0"
 dependencies = [
  "egui",
  "futures-task",
+ "image",
  "itertools",
  "log",
+ "num-traits",
 ]
 
 [[package]]

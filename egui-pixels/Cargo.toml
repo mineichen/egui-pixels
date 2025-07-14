@@ -10,8 +10,11 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 egui.workspace = true
 futures-task.workspace = true
+image = { workspace = true }
 itertools.workspace = true
 log.workspace = true
+num-traits = "0.2.19"
+
 
 [features]
 ffi = []

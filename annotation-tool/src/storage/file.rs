@@ -7,11 +7,12 @@ use std::{
     str::FromStr,
 };
 
-use futures::{future::BoxFuture, FutureExt};
+use egui_pixels::load_image;
+use futures::{FutureExt, future::BoxFuture};
 use itertools::Itertools;
 use log::info;
 
-use super::{ImageData, ImageId, Kind, MaybeOneOrMany, Storage, PREAMBLE, VERSION};
+use super::{ImageData, ImageId, Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
 use crate::{SubGroup, SubGroups};
 
 pub struct FileStorage {
@@ -100,7 +101,7 @@ impl Storage for FileStorage {
             let image_bytes = std::fs::read(id.0.deref())?;
             let mask_path = Self::get_mask_path(&id)?;
 
-            let image_load_ok = crate::image_utils::load_image(&image_bytes)?;
+            let image_load_ok = load_image(&image_bytes)?;
             let masks = match std::fs::File::open(mask_path) {
                 Ok(mut f) => {
                     let mut preamble = [0; PREAMBLE.len()];
