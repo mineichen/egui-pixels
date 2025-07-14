@@ -1,7 +1,6 @@
-use crate::app::{
-    image_state::{ImageState, ImageStateLoaded},
-    tools::Tool,
-};
+use egui_pixels::{ImageState, ImageStateLoaded};
+
+use crate::app::tools::Tool;
 
 #[derive(Default)]
 #[non_exhaustive]

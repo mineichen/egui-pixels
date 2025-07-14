@@ -18,8 +18,8 @@ impl Storage for InMemoryStorage {
     fn list_images(&self) -> BoxFuture<'static, io::Result<Vec<(ImageId, String, bool)>>> {
         async move {
             Ok(vec![
-                (ImageId("image1".into()), "Image2".into(), true),
-                (ImageId("image2".into()), "Image2".into(), true),
+                ("image1".into(), "Image2".into(), true),
+                ("image2".into(), "Image2".into(), true),
             ])
         }
         .boxed()
@@ -39,11 +39,7 @@ impl Storage for InMemoryStorage {
             let height = 400;
             let square_size = width / 8;
             let mut image_data = vec![0u8; width * height * 3];
-            let (color_1, color_2) = if &*id.0 == "image1" {
-                (0, 255)
-            } else {
-                (255, 0)
-            };
+            let (color_1, color_2) = if &*id == "image1" { (0, 255) } else { (255, 0) };
 
             for y in 0..height {
                 for x in 0..width {

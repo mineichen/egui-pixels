@@ -3,7 +3,7 @@ use egui_pixels::AsyncRefTask;
 use futures::FutureExt;
 use log::info;
 
-use super::image_state::{ImageState, ImageStateLoaded};
+use egui_pixels::{ImageState, ImageStateLoaded};
 
 // const ICON_SAM: &str = "\u{2728}";
 const ICON_SAVE: &str = "\u{1F4BE}";

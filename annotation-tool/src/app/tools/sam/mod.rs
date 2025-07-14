@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
 use egui;
-use egui_pixels::AsyncRefTask;
+use egui_pixels::{AsyncRefTask, ImageState, ImageStateLoaded};
 use futures::FutureExt;
 use image::DynamicImage;
 use log::warn;
 
-use crate::app::{
-    ImageViewerApp,
-    image_state::{ImageState, ImageStateLoaded},
-};
+use crate::app::ImageViewerApp;
 use inference::{InferenceError, SamEmbeddings};
 
 mod inference;

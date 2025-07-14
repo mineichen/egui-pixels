@@ -1,14 +1,14 @@
 use std::io;
 
-use crate::storage::{ImageData, ImageId, Storage};
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use egui_pixels::{AsyncTask, ImageLoadOk, MaskImage};
 use image::GenericImageView;
 
+use crate::{AsyncTask, BoxFuture, ImageData, ImageId, ImageLoadOk, MaskImage};
+
 #[allow(clippy::large_enum_variant)]
-pub(super) enum ImageState {
+pub enum ImageState {
     NotLoaded,
     LoadingImageData(AsyncTask<io::Result<ImageData>>),
     Loaded(ImageStateLoaded),
@@ -33,11 +33,11 @@ impl ImageState {
         ctx: &egui::Context,
         mut on_image_load: impl FnMut(&ImageLoadOk),
         image_id: &mut ImageId,
-        storage: &dyn Storage,
+        image_loader: &dyn Fn(&ImageId) -> BoxFuture<'static, io::Result<ImageData>>,
     ) {
         match self {
             ImageState::NotLoaded => {
-                *self = ImageState::LoadingImageData(AsyncTask::new(storage.load_image(image_id)))
+                *self = ImageState::LoadingImageData(AsyncTask::new(image_loader(image_id)))
             }
             ImageState::LoadingImageData(t) => {
                 if let Some(image_data_result) = t.data() {
@@ -90,7 +90,7 @@ impl ImageState {
     }
 }
 
-pub(super) struct ImageStateLoaded {
+pub struct ImageStateLoaded {
     pub id: ImageId,
     #[allow(
         dead_code,

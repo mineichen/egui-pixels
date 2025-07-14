@@ -1,13 +1,14 @@
-use crate::{app::image_state::ImageState, storage::Storage};
+use crate::storage::Storage;
 use egui::{self, InnerResponse, Sense, UiBuilder};
-use egui_pixels::{AsyncRefTask, AsyncTask, ImageLoadOk, ImageViewer, ImageViewerInteraction};
+use egui_pixels::{
+    AsyncRefTask, AsyncTask, ImageLoadOk, ImageState, ImageViewer, ImageViewerInteraction,
+};
 
 use image_selector::ImageSelector;
 use tools::Tools;
 
 mod config;
 mod image_selector;
-mod image_state;
 mod mask_generator;
 mod menu;
 #[cfg(not(target_arch = "wasm32"))]
@@ -59,7 +60,9 @@ impl ImageViewerApp {
                 self.tools.load_tool(&i);
             };
             self.image_state
-                .update(ctx, on_image_load, image_id, self.storage.as_ref());
+                .update(ctx, on_image_load, image_id, &|id| {
+                    self.storage.load_image(id)
+                });
         }
     }
 }

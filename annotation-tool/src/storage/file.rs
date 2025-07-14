@@ -2,17 +2,16 @@ use std::{
     fs::DirEntry,
     io::{self, ErrorKind, Read, Write},
     num::NonZeroU16,
-    ops::Deref,
     path::PathBuf,
     str::FromStr,
 };
 
-use egui_pixels::load_image;
+use egui_pixels::{ImageData, ImageId, load_image};
 use futures::{FutureExt, future::BoxFuture};
 use itertools::Itertools;
 use log::info;
 
-use super::{ImageData, ImageId, Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
+use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
 use crate::{SubGroup, SubGroups};
 
 pub struct FileStorage {
@@ -38,7 +37,7 @@ impl FileStorage {
                         .to_string_lossy()
                         .to_string(),
                     kind,
-                    ImageId(path.to_str()?.into()),
+                    path.to_str()?.into(),
                 ))
             })
             .sorted_unstable()
@@ -63,7 +62,7 @@ impl FileStorage {
     }
 
     fn get_mask_path(id: &ImageId) -> std::io::Result<PathBuf> {
-        let file_path = std::path::Path::new(id.0.deref());
+        let file_path = std::path::Path::new(&**id);
 
         let filename = file_path
             .file_stem()
@@ -98,7 +97,7 @@ impl Storage for FileStorage {
     fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>> {
         let id = id.clone();
         async move {
-            let image_bytes = std::fs::read(id.0.deref())?;
+            let image_bytes = std::fs::read(&*id)?;
             let mask_path = Self::get_mask_path(&id)?;
 
             let image_load_ok = load_image(&image_bytes)?;

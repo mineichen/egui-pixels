@@ -1,9 +1,8 @@
-use egui_pixels::ImageLoadOk;
+use egui_pixels::{ImageData, ImageId};
 use futures::future::BoxFuture;
 use std::{
     io::{self},
     str::FromStr,
-    sync::Arc,
 };
 
 use crate::SubGroups;
@@ -11,15 +10,6 @@ use crate::SubGroups;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;
 pub mod in_memory;
-
-#[derive(PartialEq, Clone, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct ImageId(Arc<str>);
-
-pub struct ImageData {
-    pub id: ImageId,
-    pub image: ImageLoadOk,
-    pub masks: Vec<SubGroups>,
-}
 
 const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
 const VERSION: u16 = 1;
