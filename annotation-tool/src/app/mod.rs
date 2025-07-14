@@ -35,12 +35,7 @@ pub(crate) struct ImageViewerApp {
 }
 
 impl ImageViewerApp {
-    pub fn new(
-        _cc: &eframe::CreationContext<'_>,
-        storage: Box<dyn Storage>,
-        tools: Tools,
-        mask_generator: MaskGenerator,
-    ) -> Self {
+    pub fn new(storage: Box<dyn Storage>, tools: Tools, mask_generator: MaskGenerator) -> Self {
         let url_loader = Some(AsyncTask::new(storage.list_images()));
         Self {
             storage,
@@ -55,14 +50,15 @@ impl ImageViewerApp {
 
     fn handle_image_transition(&mut self, ctx: &egui::Context) {
         if let Some((image_id, _, _)) = self.selector.current() {
-            let on_image_load = |i: &ImageLoadOk| {
-                self.viewer.reset();
-                self.tools.load_tool(&i);
-            };
-            self.image_state
-                .update(ctx, on_image_load, image_id, &|id| {
-                    self.storage.load_image(id)
-                });
+            self.image_state.update(
+                ctx,
+                |i: &ImageLoadOk| {
+                    self.viewer.reset();
+                    self.tools.load_tool(&i);
+                },
+                image_id,
+                &|id| self.storage.load_image(id),
+            );
         }
     }
 }

@@ -25,9 +25,8 @@ pub fn run_web(mappers: ImageCallbackMap) {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| {
+                Box::new(|_cc| {
                     Ok(Box::new(crate::app::ImageViewerApp::new(
-                        cc,
                         Box::new(crate::InMemoryStorage::default()),
                         Tools::from(&Config::default()),
                         super::MaskGenerator::new(mappers),

@@ -31,9 +31,8 @@ pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
     eframe::run_native(
         "Image Viewer",
         options,
-        Box::new(|cc| {
+        Box::new(|_cc| {
             Ok(Box::new(ImageViewerApp::new(
-                cc,
                 Box::new(crate::FileStorage::new(image_dir)),
                 Tools::from(&config),
                 super::MaskGenerator::new(mappers),

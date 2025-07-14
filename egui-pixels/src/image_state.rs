@@ -32,7 +32,7 @@ impl ImageState {
         &mut self,
         ctx: &egui::Context,
         mut on_image_load: impl FnMut(&ImageLoadOk),
-        image_id: &mut ImageId,
+        image_id: &ImageId,
         image_loader: &dyn Fn(&ImageId) -> BoxFuture<'static, io::Result<ImageData>>,
     ) {
         match self {
