@@ -5,6 +5,7 @@ mod image_state;
 mod image_utils;
 mod mask;
 mod sub_group;
+mod tool;
 mod viewer;
 
 pub use async_task::*;
@@ -12,6 +13,7 @@ pub use image_state::*;
 pub use image_utils::*;
 pub use mask::*;
 pub use sub_group::*;
+pub use tool::*;
 pub use viewer::*;
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

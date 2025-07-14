@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use egui_pixels::AsyncRefTask;
+use egui_pixels::{AsyncRefTask, RectSelection, ToolContext};
 use futures::FutureExt;
 use image::DynamicImage;
-use log::warn;
 
-use crate::app::tools::{RectSelection, ToolContext};
 use inference::{InferenceError, SamEmbeddings};
 
 mod inference;

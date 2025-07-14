@@ -1,4 +1,4 @@
-use crate::app::tools::{RectSelection, Tool, ToolContext};
+use crate::{RectSelection, Tool, ToolContext};
 
 #[derive(Default)]
 #[non_exhaustive]
