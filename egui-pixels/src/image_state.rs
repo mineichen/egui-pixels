@@ -57,7 +57,7 @@ impl ImageState {
 }
 
 impl ImageStateLoaded {
-    pub(super) fn from_image_data(i: ImageData, ctx: &egui::Context) -> Self {
+    pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Self {
         let handle = ctx.load_texture(
             "Overlays",
             ColorImage {
