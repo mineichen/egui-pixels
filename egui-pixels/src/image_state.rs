@@ -21,9 +21,7 @@ impl ImageState {
         ctx: &egui::Context,
     ) -> impl Iterator<Item = ImageSource<'static>> + '_ {
         match self {
-            ImageState::Loaded(x) => itertools::Either::Left(
-                std::iter::once(x.texture.1.clone()).chain(x.masks.sources(ctx)),
-            ),
+            ImageState::Loaded(x) => itertools::Either::Left(x.sources(ctx)),
             _ => itertools::Either::Right(std::iter::empty()),
         }
     }
@@ -32,51 +30,19 @@ impl ImageState {
         &mut self,
         ctx: &egui::Context,
         mut on_image_load: impl FnMut(&ImageLoadOk),
-        image_id: &ImageId,
-        image_loader: &dyn Fn(&ImageId) -> BoxFuture<'static, io::Result<ImageData>>,
+        image_loader: &dyn Fn() -> BoxFuture<'static, io::Result<ImageData>>,
     ) {
         match self {
             ImageState::NotLoaded => {
-                *self = ImageState::LoadingImageData(AsyncTask::new(image_loader(image_id)))
+                *self = ImageState::LoadingImageData(AsyncTask::new(image_loader()))
             }
             ImageState::LoadingImageData(t) => {
                 if let Some(image_data_result) = t.data() {
                     *self = match image_data_result {
                         Ok(i) => {
-                            let handle = ctx.load_texture(
-                                "Overlays",
-                                ColorImage {
-                                    size: [
-                                        i.image.adjust.width() as _,
-                                        i.image.adjust.height() as _,
-                                    ],
-                                    pixels: i
-                                        .image
-                                        .adjust
-                                        .pixels()
-                                        .map(|(_, _, image::Rgba([r, g, b, _]))| {
-                                            Color32::from_rgb(r, g, b)
-                                        })
-                                        .collect(),
-                                },
-                                TextureOptions {
-                                    magnification: egui::TextureFilter::Nearest,
-                                    ..Default::default()
-                                },
-                            );
-                            let texture = SizedTexture::from_handle(&handle);
-                            on_image_load(&i.image);
-
-                            let source = ImageSource::Texture(texture);
-                            let x = i.image.adjust.width() as usize;
-                            let y = i.image.adjust.height() as usize;
-
-                            ImageState::Loaded(ImageStateLoaded {
-                                id: i.id,
-                                image: i.image,
-                                texture: (handle, source),
-                                masks: MaskImage::new([x, y], i.masks.clone(), Default::default()),
-                            })
+                            let loaded = ImageStateLoaded::from_image_data(i, ctx);
+                            on_image_load(&loaded.image);
+                            ImageState::Loaded(loaded)
                         }
                         Err(e) => ImageState::Error(format!("Error: {e}")),
                     }
@@ -90,6 +56,38 @@ impl ImageState {
     }
 }
 
+impl ImageStateLoaded {
+    pub(super) fn from_image_data(i: ImageData, ctx: &egui::Context) -> Self {
+        let handle = ctx.load_texture(
+            "Overlays",
+            ColorImage {
+                size: [i.image.adjust.width() as _, i.image.adjust.height() as _],
+                pixels: i
+                    .image
+                    .adjust
+                    .pixels()
+                    .map(|(_, _, image::Rgba([r, g, b, _]))| Color32::from_rgb(r, g, b))
+                    .collect(),
+            },
+            TextureOptions {
+                magnification: egui::TextureFilter::Nearest,
+                ..Default::default()
+            },
+        );
+        let texture = SizedTexture::from_handle(&handle);
+
+        let source = ImageSource::Texture(texture);
+        let x = i.image.adjust.width() as usize;
+        let y = i.image.adjust.height() as usize;
+        ImageStateLoaded {
+            id: i.id,
+            image: i.image,
+            texture: (handle, source),
+            masks: MaskImage::new([x, y], i.masks.clone(), Default::default()),
+        }
+    }
+}
+
 pub struct ImageStateLoaded {
     pub id: ImageId,
     #[allow(
@@ -99,4 +97,13 @@ pub struct ImageStateLoaded {
     pub texture: (TextureHandle, ImageSource<'static>),
     pub image: ImageLoadOk,
     pub masks: MaskImage,
+}
+
+impl ImageStateLoaded {
+    pub fn sources(
+        &mut self,
+        ctx: &egui::Context,
+    ) -> impl Iterator<Item = ImageSource<'static>> + '_ {
+        std::iter::once(self.texture.1.clone()).chain(self.masks.sources(ctx))
+    }
 }

@@ -56,8 +56,7 @@ impl ImageViewerApp {
                     self.viewer.reset();
                     self.tools.load_tool(&i);
                 },
-                &x.id,
-                &|id| self.storage.load_image(id),
+                &|| self.storage.load_image(&x.id),
             );
         }
     }

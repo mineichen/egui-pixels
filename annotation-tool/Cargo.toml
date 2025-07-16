@@ -11,12 +11,9 @@ name = "annotation-tool-app"
 path = "src/main.rs"
 
 [dependencies]
+eframe.workspace = true
 egui-pixels = { path = "../egui-pixels" }
 egui.workspace = true
-eframe = { version = "0.31", default-features = false, features = [
-    "wgpu",
-    "default_fonts",
-] }
 emath = { version = "0.31.0", features = ["serde"] }
 env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",

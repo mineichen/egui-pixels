@@ -24,7 +24,9 @@ impl<T> AsyncRefTask<T> {
                 match Pin::new(x).poll(&mut cx) {
                     std::task::Poll::Ready(r) => {
                         *self = Self::Ready(r);
-                        let Self::Ready(x) = self else { unreachable!() };
+                        let Self::Ready(x) = self else {
+                            panic!("Should never be called")
+                        };
                         Some(x)
                     }
                     std::task::Poll::Pending => None,

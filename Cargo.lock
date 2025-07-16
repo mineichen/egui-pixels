@@ -655,12 +655,20 @@ dependencies = [
 name = "egui-pixels"
 version = "0.1.0"
 dependencies = [
+ "console_error_panic_hook",
+ "eframe",
  "egui",
  "futures-task",
+ "getrandom 0.3.3",
  "image",
  "itertools",
+ "js-sys",
  "log",
  "num-traits",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
 ]
 
 [[package]]

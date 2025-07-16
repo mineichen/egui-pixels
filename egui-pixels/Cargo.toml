@@ -15,6 +15,19 @@ itertools.workspace = true
 log.workspace = true
 num-traits = "0.2.19"
 
+eframe = { workspace = true, optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Window",
+    "Element",
+    "HtmlCanvasElement",
+], optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
+wgpu = { version = "24", default-features = true, features = ["webgl"], optional = true }
 
 [features]
-ffi = []
+ffi = ["eframe", "js-sys", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "getrandom", "wgpu", "console_error_panic_hook"]
