@@ -80,7 +80,7 @@ impl ImageViewer {
 
             let interaction = ImageViewerInteraction {
                 original_image_size,
-                cursor_image_pos: if let Some(hover) = response.hover_pos() {
+                cursor_image_pos: response.hover_pos().map(|hover| {
                     let mut viewport_pos_percentual = hover - draw_rect.min.to_vec2();
                     viewport_pos_percentual.x /= draw_rect.width();
                     viewport_pos_percentual.y /= draw_rect.height();
@@ -94,14 +94,11 @@ impl ImageViewer {
                             - self.zoom * viewport_pos_percentual.to_vec2())
                         .clamp(Vec2::ZERO, Vec2::splat(1. - self.zoom));
                     }
-                    Some({
-                        let p = (self.pan_offset + viewport_pos_percentual.to_vec2() * self.zoom)
-                            * original_image_size;
-                        (p.x as _, p.y as _)
-                    })
-                } else {
-                    None
-                },
+
+                    let p = (self.pan_offset + viewport_pos_percentual.to_vec2() * self.zoom)
+                        * original_image_size;
+                    (p.x as _, p.y as _)
+                }),
             };
 
             Some((response, interaction))
