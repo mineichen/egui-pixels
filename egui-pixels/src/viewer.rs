@@ -15,7 +15,11 @@ impl ImageViewer {
         self.pan_offset = Vec2::default();
     }
 
-    pub fn ui_meta(
+    pub fn modify_zoom(&mut self, zoom: impl Fn(f32) -> f32) {
+        self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
+    }
+
+    pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
         sources: impl Iterator<Item = ImageSource<'static>>,
@@ -47,18 +51,13 @@ impl ImageViewer {
             let (first_texture, size) = iter.next()?;
             let original_image_size = first_texture.size;
             let my_sense = Sense::hover().union(Sense::drag());
-            let (response, p) = ui.allocate_painter(
-                size,
-                match sense {
-                    Some(x) => x.union(my_sense),
-                    None => my_sense,
-                },
-            );
+            let (response, p) =
+                ui.allocate_painter(size, sense.map(|s| s.union(my_sense)).unwrap_or(my_sense));
             let draw_rect = response.rect;
-
+            let percent_image_size = Vec2::splat(self.zoom);
             let uv = Rect::from_min_max(
                 self.pan_offset.to_pos2(),
-                self.pan_offset.to_pos2() + Vec2::splat(self.zoom),
+                self.pan_offset.to_pos2() + percent_image_size,
             );
             p.image(first_texture.id, draw_rect, uv, egui::Color32::WHITE);
             for (texture, _) in iter {
@@ -85,7 +84,7 @@ impl ImageViewer {
                     if delta != 1.0 {
                         let locked_image_pixel =
                             self.pan_offset + self.zoom * viewport_pos_percentual.to_vec2();
-                        self.zoom = (self.zoom / delta).clamp(0.05, 1.0);
+                        self.modify_zoom(|x| x / delta);
                         self.pan_offset = (locked_image_pixel
                             - self.zoom * viewport_pos_percentual.to_vec2())
                         .clamp(Vec2::ZERO, Vec2::splat(1. - self.zoom));

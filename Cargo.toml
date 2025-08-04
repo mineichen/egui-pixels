@@ -11,10 +11,9 @@ edition = "2024"
 
 [workspace.dependencies]
 eframe = { version = "0.32", default-features = false, features = [
-    "glow",
     "default_fonts",
 ] }
-egui = "0.32"
+egui = { version = "0.32", default-features = false }
 futures-core = "0.3"
 futures-task = "0.3"
 image = { version = "0.25", default-features = false }

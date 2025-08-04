@@ -78,7 +78,7 @@ impl eframe::App for ImageViewerApp {
                 response,
             } = ui.reserve_bottom_space(80., |ui| {
                 self.viewer
-                    .ui_meta(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()))
+                    .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()))
             }) {
                 if let Some(cursor_image_pos) = cursor_image_pos {
                     self.handle_tool_interaction(response, cursor_image_pos, ui.ctx());

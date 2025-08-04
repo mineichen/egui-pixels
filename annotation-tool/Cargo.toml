@@ -11,7 +11,7 @@ name = "annotation-tool-app"
 path = "src/main.rs"
 
 [dependencies]
-eframe.workspace = true
+eframe = { workspace = true, features = ["glow"] }
 egui-pixels = { path = "../egui-pixels" }
 egui.workspace = true
 emath = { version = "0.32.0", features = ["serde"] }
