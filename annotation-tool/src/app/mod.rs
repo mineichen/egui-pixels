@@ -106,7 +106,7 @@ impl UiExt for egui::Ui {
         let mut available = self.available_rect_before_wrap();
         available.max.y = (available.max.y - size).max(0.);
 
-        let r = self.allocate_new_ui(UiBuilder::new().max_rect(available), inner);
+        let r = self.scope_builder(UiBuilder::new().max_rect(available), inner);
 
         let InnerResponse { inner, .. } = r;
         inner

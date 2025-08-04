@@ -59,10 +59,7 @@ impl MaskImage {
 
             let handle = ctx.load_texture(
                 "Overlays",
-                ColorImage {
-                    size: self.size,
-                    pixels,
-                },
+                ColorImage::new(self.size, pixels),
                 texture_options,
             );
             let source = ImageSource::Texture(SizedTexture::from_handle(&handle));

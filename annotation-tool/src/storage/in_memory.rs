@@ -1,4 +1,4 @@
-use egui_pixels::{ImageListTaskItem, ImageLoadOk};
+use egui_pixels::ImageListTaskItem;
 use futures::{FutureExt, future::BoxFuture};
 use std::{
     collections::HashMap,

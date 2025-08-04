@@ -60,15 +60,14 @@ impl ImageStateLoaded {
     pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Self {
         let handle = ctx.load_texture(
             "Overlays",
-            ColorImage {
-                size: [i.image.adjust.width() as _, i.image.adjust.height() as _],
-                pixels: i
-                    .image
+            ColorImage::new(
+                [i.image.adjust.width() as _, i.image.adjust.height() as _],
+                i.image
                     .adjust
                     .pixels()
                     .map(|(_, _, image::Rgba([r, g, b, _]))| Color32::from_rgb(r, g, b))
                     .collect(),
-            },
+            ),
             TextureOptions {
                 magnification: egui::TextureFilter::Nearest,
                 ..Default::default()
