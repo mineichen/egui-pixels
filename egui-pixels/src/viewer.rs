@@ -1,5 +1,6 @@
 use egui::{
-    self, ImageSource, InnerResponse, Rect, Sense, TextureOptions, Vec2, load::TexturePoll,
+    self, ImageSource, InnerResponse, Rect, Sense, TextureOptions, Vec2,
+    load::{SizedTexture, TexturePoll},
 };
 
 pub struct ImageViewer {
@@ -26,29 +27,33 @@ impl ImageViewer {
         sense: Option<Sense>,
     ) -> InnerResponse<Option<ImageViewerInteraction>> {
         let centered = ui.vertical_centered(|ui| {
-            let mut iter = sources
-                .filter_map(|i| {
-                    let image = egui::Image::new(i)
-                        .maintain_aspect_ratio(true)
-                        // Important for Texture-ImageSources
-                        .fit_to_exact_size(ui.available_size())
-                        .texture_options(TextureOptions {
-                            magnification: egui::TextureFilter::Nearest,
-                            ..Default::default()
-                        });
+            let available_size = ui.available_size();
+            let mut iter = sources.map(|i| {
+                egui::Image::new(i)
+                    .maintain_aspect_ratio(true)
+                    // Important for Texture-ImageSources
+                    .fit_to_exact_size(available_size)
+                    .texture_options(TextureOptions {
+                        magnification: egui::TextureFilter::Nearest,
+                        ..Default::default()
+                    })
+            });
+            fn next_loaded(
+                iter: impl Iterator<Item = egui::Image<'static>>,
+                ui: &mut egui::Ui,
+            ) -> Option<(SizedTexture, egui::Image<'static>)> {
+                iter.filter_map(|image| {
                     let tlr = image.load_for_size(ui.ctx(), ui.available_size());
                     match tlr {
-                        Ok(TexturePoll::Ready { texture }) => Some((
-                            texture,
-                            image.calc_size(ui.available_size(), Some(texture.size)),
-                        )),
+                        Ok(TexturePoll::Ready { texture }) => Some((texture, image)),
                         _ => None,
                     }
                 })
-                .collect::<Vec<_>>()
-                .into_iter();
+                .next()
+            }
 
-            let (first_texture, size) = iter.next()?;
+            let (first_texture, image) = next_loaded(&mut iter, ui)?;
+            let size = image.calc_size(ui.available_size(), Some(first_texture.size));
             let original_image_size = first_texture.size;
             let my_sense = Sense::hover().union(Sense::drag());
             let (response, p) =
@@ -60,7 +65,7 @@ impl ImageViewer {
                 self.pan_offset.to_pos2() + percent_image_size,
             );
             p.image(first_texture.id, draw_rect, uv, egui::Color32::WHITE);
-            for (texture, _) in iter {
+            while let Some((texture, _)) = next_loaded(&mut iter, ui) {
                 p.image(texture.id, draw_rect, uv, egui::Color32::WHITE);
             }
             let drag_delta = response.drag_delta();
