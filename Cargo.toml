@@ -11,7 +11,7 @@ edition = "2024"
 
 [workspace.dependencies]
 eframe = { version = "0.32", default-features = false, features = [
-    "wgpu",
+    "glow",
     "default_fonts",
 ] }
 egui = "0.32"
