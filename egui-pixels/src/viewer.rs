@@ -21,6 +21,41 @@ impl ImageViewer {
         self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
     }
 
+    fn update_pan_axis<F>(
+        &mut self,
+        mut tentative_pan: Vec2,
+        mut image_size_px: Vec2,
+        mut viewport_size: Vec2,
+        mut prev_pixel_offset: Vec2,
+        axis: F,
+    ) where
+        F: Fn(&mut Vec2) -> &mut f32,
+    {
+        let mut pixel_offset_after_vec = (image_size_px) * -(tentative_pan);
+
+        let after_component_offset = *axis(&mut pixel_offset_after_vec);
+        let prev_component_offset = *axis(&mut prev_pixel_offset);
+        let image_component = *axis(&mut image_size_px);
+        let viewport_component = *axis(&mut viewport_size);
+
+        let prev_blank_start = prev_component_offset.max(0.0);
+        let prev_blank_end =
+            (viewport_component - (prev_component_offset + image_component)).max(0.0);
+        let after_blank_start = after_component_offset.max(0.0);
+        let after_blank_end =
+            (viewport_component - (after_component_offset + image_component)).max(0.0);
+
+        let prev_sum_blank = prev_blank_start + prev_blank_end;
+        let after_sum_blank = after_blank_start + after_blank_end;
+
+        if after_sum_blank < prev_sum_blank || after_sum_blank <= f32::EPSILON {
+            *axis(&mut self.pan_offset) = -(after_component_offset / image_component);
+        } else if prev_sum_blank <= f32::EPSILON {
+            let clamped = after_component_offset.clamp(viewport_component - image_component, 0.0);
+            *axis(&mut self.pan_offset) = -(clamped / image_component);
+        }
+    }
+
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -93,34 +128,23 @@ impl ImageViewer {
                 // Pan offset is expressed in fractions of the rendered image size
                 // Apply raw pan delta, but constrain per-axis to only allow reducing existing blank space
                 let prev_pixel_offset = image_size_px * -self.pan_offset;
-                let prev_blank_left = prev_pixel_offset.x.max(0.0);
-                let prev_blank_right =
-                    (viewport_size.x - (prev_pixel_offset.x + image_size_px.x)).max(0.0);
-                let prev_blank_top = prev_pixel_offset.y.max(0.0);
-                let prev_blank_bottom =
-                    (viewport_size.y - (prev_pixel_offset.y + image_size_px.y)).max(0.0);
+                let tentative_pan = self.pan_offset - (drag_delta / image_size_px);
 
-                let pan_delta = drag_delta / image_size_px;
-                let tentative_pan = self.pan_offset - pan_delta;
-                let mut pixel_offset_after = image_size_px * -tentative_pan;
+                self.update_pan_axis(
+                    tentative_pan,
+                    image_size_px,
+                    viewport_size,
+                    prev_pixel_offset,
+                    |v| &mut v.x,
+                );
 
-                let after_blank_left = pixel_offset_after.x.max(0.0);
-                let after_blank_right =
-                    (viewport_size.x - (pixel_offset_after.x + image_size_px.x)).max(0.0);
-                let prev_sum_blank = prev_blank_left + prev_blank_right;
-                let after_sum_blank = after_blank_left + after_blank_right;
-                if after_sum_blank < prev_sum_blank || after_sum_blank <= f32::EPSILON {
-                    self.pan_offset.x = -(pixel_offset_after.x / image_size_px.x);
-                }
-
-                let after_blank_top = pixel_offset_after.y.max(0.0);
-                let after_blank_bottom =
-                    (viewport_size.y - (pixel_offset_after.y + image_size_px.y)).max(0.0);
-                let prev_sum_blank = prev_blank_top + prev_blank_bottom;
-                let after_sum_blank = after_blank_top + after_blank_bottom;
-                if after_sum_blank < prev_sum_blank || after_sum_blank <= f32::EPSILON {
-                    self.pan_offset.y = -(pixel_offset_after.y / image_size_px.y);
-                }
+                self.update_pan_axis(
+                    tentative_pan,
+                    image_size_px,
+                    viewport_size,
+                    prev_pixel_offset,
+                    |v| &mut v.y,
+                );
             }
 
             let is_zoomed_out = (self.zoom - 1.0).abs() <= f32::EPSILON;
