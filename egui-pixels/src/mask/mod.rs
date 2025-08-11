@@ -41,7 +41,7 @@ impl MaskImage {
     ) -> impl Iterator<Item = ImageSource<'static>> + '_ {
         if self.texture_handle.is_none() || self.texture_handle_dirty {
             self.texture_handle_dirty = false;
-            println!("Loading mask texture");
+
             let texture_options = TextureOptions {
                 magnification: egui::TextureFilter::Nearest,
                 ..Default::default()

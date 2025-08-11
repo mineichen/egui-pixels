@@ -18,7 +18,7 @@ impl ImageViewer {
     }
 
     pub fn modify_zoom(&mut self, zoom: impl Fn(f32) -> f32) {
-        self.zoom = zoom(self.zoom).clamp(0.05, 10.0);
+        self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
     }
 
     pub fn ui(
@@ -76,37 +76,76 @@ impl ImageViewer {
         // );
 
         let uv = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0));
-        let pixel_offset = original_image_size * -self.pan_offset / self.zoom;
-        let image_rect_unclipped =
-            Rect::from_min_size(viewport_rect.min, original_image_size / self.zoom)
-                .translate(pixel_offset);
 
-        p.image(
-            first_texture.id,
-            image_rect_unclipped,
-            uv,
-            egui::Color32::WHITE,
-        );
-        while let Some((texture, _)) = next_loaded(&mut iter, ui) {
-            p.image(texture.id, image_rect_unclipped, uv, egui::Color32::WHITE);
-        }
-        let drag_delta = response.drag_delta();
-        if drag_delta != Vec2::default() && ui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
-            let pan_delta = drag_delta / image_rect_unclipped.size();
-            self.pan_offset -= pan_delta;
-        }
+        // Compute scale so that at zoom=1.0 the whole image fits the viewport (letterboxed/pillarboxed)
+        let viewport_size = viewport_rect.size();
+        let fit_scale =
+            (viewport_size.x / original_image_size.x).min(viewport_size.y / original_image_size.y);
 
-        let interaction = ImageViewerInteraction {
-            original_image_size,
-            cursor_image_pos: response.hover_pos().map(|hover| {
-                let hover_relative_px = (hover - viewport_rect.min.to_vec2()).to_vec2();
-                let p = hover_relative_px * self.zoom - (original_image_size * -self.pan_offset);
+        let cursor_image_pos = {
+            let render_scale = fit_scale / self.zoom;
+            let image_size_px = original_image_size * render_scale;
+
+            let drag_delta = response.drag_delta();
+            if drag_delta != Vec2::default()
+                && ui.input(|i| i.modifiers.command || i.modifiers.ctrl)
+            {
+                // Pan offset is expressed in fractions of the rendered image size
+                // Apply raw pan delta, but constrain per-axis to only allow reducing existing blank space
+                let prev_pixel_offset = image_size_px * -self.pan_offset;
+                let prev_blank_left = prev_pixel_offset.x.max(0.0);
+                let prev_blank_right =
+                    (viewport_size.x - (prev_pixel_offset.x + image_size_px.x)).max(0.0);
+                let prev_blank_top = prev_pixel_offset.y.max(0.0);
+                let prev_blank_bottom =
+                    (viewport_size.y - (prev_pixel_offset.y + image_size_px.y)).max(0.0);
+
+                let pan_delta = drag_delta / image_size_px;
+                let tentative_pan = self.pan_offset - pan_delta;
+                let mut pixel_offset_after = image_size_px * -tentative_pan;
+
+                let after_blank_left = pixel_offset_after.x.max(0.0);
+                let after_blank_right =
+                    (viewport_size.x - (pixel_offset_after.x + image_size_px.x)).max(0.0);
+                let prev_sum_blank = prev_blank_left + prev_blank_right;
+                let after_sum_blank = after_blank_left + after_blank_right;
+                if after_sum_blank < prev_sum_blank || after_sum_blank <= f32::EPSILON {
+                    self.pan_offset.x = -(pixel_offset_after.x / image_size_px.x);
+                }
+
+                let after_blank_top = pixel_offset_after.y.max(0.0);
+                let after_blank_bottom =
+                    (viewport_size.y - (pixel_offset_after.y + image_size_px.y)).max(0.0);
+                let prev_sum_blank = prev_blank_top + prev_blank_bottom;
+                let after_sum_blank = after_blank_top + after_blank_bottom;
+                if after_sum_blank < prev_sum_blank || after_sum_blank <= f32::EPSILON {
+                    self.pan_offset.y = -(pixel_offset_after.y / image_size_px.y);
+                }
+            }
+
+            let is_zoomed_out = (self.zoom - 1.0).abs() <= f32::EPSILON;
+            if is_zoomed_out {
+                let s_new = fit_scale / self.zoom;
+                let image_size_px_new = original_image_size * s_new;
+                let center_x = ((viewport_size.x - image_size_px_new.x) * 0.5).max(0.0);
+                let center_y = ((viewport_size.y - image_size_px_new.y) * 0.5).max(0.0);
+                self.pan_offset.x = -(center_x / image_size_px_new.x);
+                self.pan_offset.y = -(center_y / image_size_px_new.y);
+            }
+
+            response.hover_pos().map(|hover| {
+                let pixel_offset = image_size_px * -self.pan_offset;
+                let screen_rel = (hover - viewport_rect.min.to_vec2()).to_vec2();
+
+                // Use zoom relative to fit, so p stays constant in original image space
+                let rel_zoom = self.zoom / fit_scale;
+                let p = (screen_rel - pixel_offset) * rel_zoom;
 
                 let delta = ui.input(|i| i.zoom_delta());
                 if delta != 1.0 {
                     self.modify_zoom(|x| x / delta);
-                    self.pan_offset = (-(hover_relative_px * self.zoom - p) / original_image_size);
-                    //.clamp(Vec2::ZERO, Vec2::splat(1. - self.zoom));
+                    let rel_zoom_new = self.zoom / fit_scale;
+                    self.pan_offset = (p - screen_rel * rel_zoom_new) / original_image_size;
                 }
 
                 log::info!(
@@ -117,7 +156,29 @@ impl ImageViewer {
                     pixel_offset,
                 );
                 (p.x as _, p.y as _)
-            }),
+            })
+        };
+
+        let render_scale = fit_scale / self.zoom;
+        let image_size_px = original_image_size * render_scale;
+        let pixel_offset = image_size_px * -self.pan_offset;
+
+        let image_rect_unclipped =
+            Rect::from_min_size(viewport_rect.min + pixel_offset, image_size_px);
+
+        p.image(
+            first_texture.id,
+            image_rect_unclipped,
+            uv,
+            egui::Color32::WHITE,
+        );
+        while let Some((texture, _)) = next_loaded(&mut iter, ui) {
+            p.image(texture.id, image_rect_unclipped, uv, egui::Color32::WHITE);
+        }
+
+        let interaction = ImageViewerInteraction {
+            original_image_size,
+            cursor_image_pos,
         };
 
         InnerResponse {
