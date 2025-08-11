@@ -1,10 +1,11 @@
 use egui::{
-    self, ImageSource, InnerResponse, Rect, Sense, TextureOptions, Vec2,
+    self, ImageSource, InnerResponse, Pos2, Rect, Sense, TextureOptions, Vec2,
     load::{SizedTexture, TexturePoll},
 };
 
 pub struct ImageViewer {
-    // Zoom level
+    // Zoom level (0.05..1.0)
+    // 1.0 means, that image width or height fits the viewport and the other dimension is smaller than the viewport
     zoom: f32,
     // Offset of the top left-corner (in percent)
     pub pan_offset: Vec2,
@@ -17,7 +18,7 @@ impl ImageViewer {
     }
 
     pub fn modify_zoom(&mut self, zoom: impl Fn(f32) -> f32) {
-        self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
+        self.zoom = zoom(self.zoom).clamp(0.05, 10.0);
     }
 
     pub fn ui(
@@ -26,98 +27,102 @@ impl ImageViewer {
         sources: impl Iterator<Item = ImageSource<'static>>,
         sense: Option<Sense>,
     ) -> InnerResponse<Option<ImageViewerInteraction>> {
-        let centered = ui.vertical_centered(|ui| {
-            let available_size = ui.available_size();
-            let mut iter = sources.map(|i| {
-                egui::Image::new(i)
-                    .maintain_aspect_ratio(true)
-                    // Important for Texture-ImageSources
-                    .fit_to_exact_size(available_size)
-                    .texture_options(TextureOptions {
-                        magnification: egui::TextureFilter::Nearest,
-                        ..Default::default()
-                    })
-            });
-            fn next_loaded(
-                iter: impl Iterator<Item = egui::Image<'static>>,
-                ui: &mut egui::Ui,
-            ) -> Option<(SizedTexture, egui::Image<'static>)> {
-                iter.filter_map(|image| {
-                    let tlr = image.load_for_size(ui.ctx(), ui.available_size());
-                    match tlr {
-                        Ok(TexturePoll::Ready { texture }) => Some((texture, image)),
-                        _ => None,
-                    }
+        let available_size = ui.available_size();
+        let viewport_rect = ui.available_rect_before_wrap();
+
+        let mut iter = sources.map(|i| {
+            egui::Image::new(i)
+                .maintain_aspect_ratio(true)
+                // Important for Texture-ImageSources
+                .fit_to_exact_size(available_size)
+                .texture_options(TextureOptions {
+                    magnification: egui::TextureFilter::Nearest,
+                    ..Default::default()
                 })
-                .next()
-            }
-
-            let (first_texture, image) = next_loaded(&mut iter, ui)?;
-            let size = image.calc_size(ui.available_size(), Some(first_texture.size));
-            let original_image_size = first_texture.size;
-            let my_sense = Sense::hover().union(Sense::drag());
-            let (response, p) =
-                ui.allocate_painter(size, sense.map(|s| s.union(my_sense)).unwrap_or(my_sense));
-            let draw_rect = response.rect;
-            let percent_image_size = Vec2::splat(self.zoom);
-            let uv = Rect::from_min_max(
-                self.pan_offset.to_pos2(),
-                self.pan_offset.to_pos2() + percent_image_size,
-            );
-            p.image(first_texture.id, draw_rect, uv, egui::Color32::WHITE);
-            while let Some((texture, _)) = next_loaded(&mut iter, ui) {
-                p.image(texture.id, draw_rect, uv, egui::Color32::WHITE);
-            }
-            let drag_delta = response.drag_delta();
-
-            if drag_delta != Vec2::default()
-                && ui.input(|i| i.modifiers.command || i.modifiers.ctrl)
-            {
-                let pan_delta = drag_delta / draw_rect.size() * Vec2::splat(self.zoom);
-                self.pan_offset =
-                    (self.pan_offset - pan_delta).clamp(Vec2::ZERO, Vec2::splat(1. - self.zoom));
-            }
-
-            let interaction = ImageViewerInteraction {
-                original_image_size,
-                cursor_image_pos: response.hover_pos().map(|hover| {
-                    let mut viewport_pos_percentual = hover - draw_rect.min.to_vec2();
-                    viewport_pos_percentual.x /= draw_rect.width();
-                    viewport_pos_percentual.y /= draw_rect.height();
-
-                    let delta = ui.input(|i| i.zoom_delta());
-                    if delta != 1.0 {
-                        let locked_image_pixel =
-                            self.pan_offset + self.zoom * viewport_pos_percentual.to_vec2();
-                        self.modify_zoom(|x| x / delta);
-                        self.pan_offset = (locked_image_pixel
-                            - self.zoom * viewport_pos_percentual.to_vec2())
-                        .clamp(Vec2::ZERO, Vec2::splat(1. - self.zoom));
-                    }
-
-                    let p = (self.pan_offset + viewport_pos_percentual.to_vec2() * self.zoom)
-                        * original_image_size;
-                    (p.x as _, p.y as _)
-                }),
-            };
-
-            Some((response, interaction))
         });
-        match centered {
-            InnerResponse {
-                inner: Some((response, x)),
-                response: outer_response,
-            } => InnerResponse {
-                inner: Some(x),
-                response: response.union(outer_response),
-            },
-            InnerResponse {
+        fn next_loaded(
+            iter: impl Iterator<Item = egui::Image<'static>>,
+            ui: &egui::Ui,
+        ) -> Option<(SizedTexture, egui::Image<'static>)> {
+            iter.filter_map(|image| {
+                let tlr = image.load_for_size(ui.ctx(), ui.available_size());
+                match tlr {
+                    Ok(TexturePoll::Ready { texture }) => Some((texture, image)),
+                    _ => None,
+                }
+            })
+            .next()
+        }
+
+        let Some((first_texture, _image)) = next_loaded(&mut iter, ui) else {
+            return InnerResponse {
                 inner: None,
-                response,
-            } => InnerResponse {
-                inner: None,
-                response,
-            },
+                response: ui.response(),
+            };
+        };
+
+        let original_image_size = first_texture.size;
+        let my_sense = Sense::hover().union(Sense::drag());
+        let combined_sense = sense.map(|s| s.union(my_sense)).unwrap_or(my_sense);
+
+        let response = ui.allocate_rect(viewport_rect, combined_sense);
+        let p = ui.painter().with_clip_rect(viewport_rect);
+        // p.rect(
+        //     viewport_rect,
+        //     10.0,
+        //     egui::Color32::WHITE,
+        //     egui::Stroke::NONE,
+        //     egui::StrokeKind::Inside,
+        // );
+
+        let uv = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0));
+        let pixel_offset = original_image_size * -self.pan_offset / self.zoom;
+        let image_rect_unclipped =
+            Rect::from_min_size(viewport_rect.min, original_image_size / self.zoom)
+                .translate(pixel_offset);
+
+        p.image(
+            first_texture.id,
+            image_rect_unclipped,
+            uv,
+            egui::Color32::WHITE,
+        );
+        while let Some((texture, _)) = next_loaded(&mut iter, ui) {
+            p.image(texture.id, image_rect_unclipped, uv, egui::Color32::WHITE);
+        }
+        let drag_delta = response.drag_delta();
+        if drag_delta != Vec2::default() && ui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
+            let pan_delta = drag_delta / image_rect_unclipped.size();
+            self.pan_offset -= pan_delta;
+        }
+
+        let interaction = ImageViewerInteraction {
+            original_image_size,
+            cursor_image_pos: response.hover_pos().map(|hover| {
+                let hover_relative_px = (hover - viewport_rect.min.to_vec2()).to_vec2();
+                let p = hover_relative_px * self.zoom - (original_image_size * -self.pan_offset);
+
+                let delta = ui.input(|i| i.zoom_delta());
+                if delta != 1.0 {
+                    self.modify_zoom(|x| x / delta);
+                    self.pan_offset = (-(hover_relative_px * self.zoom - p) / original_image_size);
+                    //.clamp(Vec2::ZERO, Vec2::splat(1. - self.zoom));
+                }
+
+                log::info!(
+                    "Hover: {:?}, pan_offset: {:?}, zoom: {:?}, pixel_offset: {:?}",
+                    (p.x, p.y),
+                    (self.pan_offset.x, self.pan_offset.y),
+                    self.zoom,
+                    pixel_offset,
+                );
+                (p.x as _, p.y as _)
+            }),
+        };
+
+        InnerResponse {
+            inner: Some(interaction),
+            response: response,
         }
     }
 }
