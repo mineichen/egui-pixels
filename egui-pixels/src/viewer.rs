@@ -23,7 +23,7 @@ impl ImageViewer {
 
     fn update_pan_axis<F>(
         &mut self,
-        mut tentative_pan: Vec2,
+        tentative_pan: Vec2,
         mut image_size_px: Vec2,
         mut viewport_size: Vec2,
         mut prev_pixel_offset: Vec2,

@@ -6,14 +6,14 @@ use egui::{
 use log::{debug, info};
 
 use crate::{SubGroup, SubGroups};
-use history::{History, HistoryAction};
 
 mod flat_map_inplace;
 mod history;
 
 pub(crate) use flat_map_inplace::*;
+pub use history::*;
 
-struct Annotations(Vec<SubGroups>);
+pub struct Annotations(Vec<SubGroups>);
 
 pub struct MaskImage {
     size: [usize; 2],
