@@ -7,7 +7,7 @@ use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
-use crate::{SubGroup, Annotation};
+use crate::PixelRange;
 
 impl From<TryFromIntError> for InferenceError {
     fn from(value: TryFromIntError) -> Self {
@@ -110,10 +110,10 @@ pub(super) fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, In
     })
 }
 
-pub(super) fn extract_subgroups(
+pub(super) fn extract_pixel_ranges(
     iter: impl Iterator<Item = f32>,
     width: NonZeroU32,
-) -> Vec<SubGroup> {
+) -> Vec<PixelRange> {
     let mut result = vec![];
     iter.enumerate()
         .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u32))
@@ -121,7 +121,7 @@ pub(super) fn extract_subgroups(
         .into_iter()
         .for_each(|(_, mut b)| {
             let first = b.next().expect("Doesn't yield if group is empty");
-            result.push(SubGroup::new_total(first, NonZeroU16::MIN));
+            result.push(PixelRange::new_total(first, NonZeroU16::MIN));
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
@@ -130,7 +130,7 @@ pub(super) fn extract_subgroups(
                         .checked_add(1)
                         .expect("image.width is never > u16::MAX");
                 } else {
-                    result.push(SubGroup::new_total(x, NonZeroU16::MIN));
+                    result.push(PixelRange::new_total(x, NonZeroU16::MIN));
                 }
                 x
             });
@@ -164,10 +164,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extract_subgroups_summarizes_pixels() {
+    fn extract_pixel_ranges_summarizes_pixels() {
         assert_eq!(
-            vec![SubGroup::new_total(0, 3.try_into().unwrap())],
-            extract_subgroups([1., 1., 1.].iter().copied(), 3.try_into().unwrap())
+            vec![PixelRange::new_total(0, 3.try_into().unwrap())],
+            extract_pixel_ranges([1., 1., 1.].iter().copied(), 3.try_into().unwrap())
         );
     }
 }

@@ -5,8 +5,8 @@ use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
-use super::{InferenceError, SamEmbeddings, inference::extract_subgroups};
-use crate::SubGroup;
+use super::{InferenceError, SamEmbeddings, inference::extract_pixel_ranges};
+use crate::PixelRange;
 
 #[derive(Clone)]
 pub struct SamSession {
@@ -81,7 +81,7 @@ impl SamSession {
         x2: f32,
         y2: f32,
         embeddings: &SamEmbeddings,
-    ) -> Result<Vec<SubGroup>, InferenceError> {
+    ) -> Result<Vec<PixelRange>, InferenceError> {
         // Prepare input for decoder
 
         // Get embeddings, image sizes and ONNX model instances from Web Application state
@@ -159,7 +159,7 @@ impl SamSession {
             .map_err(|e| InferenceError::UnexpectedOutput(format!("Output of type f32: {e:?}")))?;
         let pixel_view = pixels.view();
 
-        Ok(extract_subgroups(
+        Ok(extract_pixel_ranges(
             pixel_view.iter().copied(),
             embeddings.original_width,
         ))

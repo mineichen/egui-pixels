@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use egui_pixels::{AsyncRefTask, RectSelection, Annotation, ToolContext};
+use egui_pixels::{AsyncRefTask, PixelArea, RectSelection, ToolContext};
 use futures::FutureExt;
 use image::DynamicImage;
 
@@ -49,7 +49,7 @@ impl super::Tool for SamTool {
                 )
                 .unwrap();
 
-            ctx.image.masks.add_subgroups(Annotation::with_random_color(
+            ctx.image.masks.add_area(PixelArea::with_random_color(
                 new_mask,
                 ctx.image.masks.random_seed(),
             ));

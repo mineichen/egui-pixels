@@ -2,17 +2,17 @@
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
 
-use crate::{SubGroup, Annotation};
+use crate::{PixelArea, PixelRange};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
-    Add(Annotation),
+    Add(PixelArea),
     Reset,
-    Clear(Vec<SubGroup>),
+    Clear(Vec<PixelRange>),
 }
 
 impl HistoryAction {
-    pub fn apply(&self, mut rest: Vec<Annotation>) -> Vec<Annotation> {
+    pub fn apply(&self, mut rest: Vec<PixelArea>) -> Vec<PixelArea> {
         match self {
             HistoryAction::Add(s) => rest.push(s.clone()),
             HistoryAction::Reset => rest.clear(),
@@ -101,7 +101,7 @@ impl History {
 mod tests {
     use std::num::NonZeroU16;
 
-    use crate::SubGroup;
+    use crate::PixelRange;
 
     use super::*;
 
@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(Annotation::with_black_color(vec![SubGroup::new_total(
+        let item = HistoryAction::Add(PixelArea::with_black_color(vec![PixelRange::new_total(
             0,
             NonZeroU16::MIN,
         )]));
@@ -127,11 +127,11 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(Annotation::with_black_color(vec![SubGroup::new_total(
+        let item = HistoryAction::Add(PixelArea::with_black_color(vec![PixelRange::new_total(
             0,
             NonZeroU16::MIN,
         )]));
-        let item2 = HistoryAction::Add(Annotation::with_black_color(vec![SubGroup::new_total(
+        let item2 = HistoryAction::Add(PixelArea::with_black_color(vec![PixelRange::new_total(
             10,
             NonZeroU16::MIN,
         )]));

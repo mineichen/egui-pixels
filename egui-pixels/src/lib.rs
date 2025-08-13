@@ -6,7 +6,7 @@ mod ffi;
 mod image_state;
 mod image_utils;
 mod mask;
-mod sub_group;
+mod pixel_range;
 mod tool;
 mod viewer;
 
@@ -16,7 +16,7 @@ pub use ffi::*;
 pub use image_state::*;
 pub use image_utils::*;
 pub use mask::*;
-pub use sub_group::*;
+pub use pixel_range::*;
 pub use tool::*;
 pub use viewer::*;
 
@@ -42,7 +42,7 @@ impl std::ops::Deref for ImageId {
 pub struct ImageData {
     pub id: ImageId,
     pub image: ImageLoadOk,
-    pub masks: Vec<Annotation>,
+    pub masks: Vec<PixelArea>,
 }
 
 impl ImageData {

@@ -5,7 +5,7 @@ use egui::{
 };
 use log::{debug, info};
 
-use crate::{Annotation, SubGroup};
+use crate::{PixelArea, PixelRange};
 
 mod flat_map_inplace;
 mod history;
@@ -13,7 +13,7 @@ mod history;
 pub(crate) use flat_map_inplace::*;
 pub use history::*;
 
-pub struct Annotations(Vec<Annotation>);
+pub struct Annotations(Vec<PixelArea>);
 
 pub struct MaskImage {
     size: [usize; 2],
@@ -25,7 +25,7 @@ pub struct MaskImage {
 }
 
 impl MaskImage {
-    pub fn new(size: [usize; 2], annotations: Vec<Annotation>, history: History) -> Self {
+    pub fn new(size: [usize; 2], annotations: Vec<PixelArea>, history: History) -> Self {
         Self {
             size,
             annotations: Annotations(annotations),
@@ -101,13 +101,13 @@ impl MaskImage {
         assert!(image_width > 0, "Todo: Move Constraint to MaskImage.size");
 
         let region = y_range
-            .map(|y| SubGroup::new_total(y * image_width + x_left, x_width))
+            .map(|y| PixelRange::new_total(y * image_width + x_left, x_width))
             .collect();
 
         self.add_history_action(HistoryAction::Clear(region))
     }
 
-    pub fn add_subgroups(&mut self, mut subgroups: Annotation) {
+    pub fn add_area(&mut self, mut subgroups: PixelArea) {
         crate::remove_overlaps(&mut subgroups, self.subgroups_ordered().map(|(_, g)| g));
         if subgroups.is_empty() {
             debug!("All Pixels are in a other subgroup already");
@@ -152,13 +152,13 @@ impl MaskImage {
         }
     }
 
-    pub fn subgroups(&self) -> Vec<Annotation> {
+    pub fn subgroups(&self) -> Vec<PixelArea> {
         let base = self.annotations.0.clone();
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
-    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, SubGroup)> + '_ {
-        struct HeapItem<T>(SubGroup, usize, T);
+    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, PixelRange)> + '_ {
+        struct HeapItem<T>(PixelRange, usize, T);
 
         impl<T> Eq for HeapItem<T> {}
         impl<T> PartialEq for HeapItem<T> {
@@ -177,7 +177,7 @@ impl MaskImage {
             }
         }
 
-        struct GroupIterator(BinaryHeap<HeapItem<std::vec::IntoIter<SubGroup>>>);
+        struct GroupIterator(BinaryHeap<HeapItem<std::vec::IntoIter<PixelRange>>>);
 
         let x: BinaryHeap<_> = self
             .subgroups()
@@ -194,7 +194,7 @@ impl MaskImage {
             .collect();
 
         impl Iterator for GroupIterator {
-            type Item = (usize, SubGroup);
+            type Item = (usize, PixelRange);
 
             fn next(&mut self) -> Option<Self::Item> {
                 if let Some(HeapItem(subgroup, group_id, mut rest)) = self.0.pop() {
@@ -218,19 +218,19 @@ mod tests {
     #[test]
     fn iter_sorted() {
         let mut history = History::default();
-        history.push(HistoryAction::Add(Annotation::with_black_color(vec![
-            SubGroup::new_total(22, NonZeroU16::try_from(7).unwrap()),
-            SubGroup::new_total(39, NonZeroU16::try_from(1).unwrap()),
-            SubGroup::new_total(42, NonZeroU16::try_from(7).unwrap()),
+        history.push(HistoryAction::Add(PixelArea::with_black_color(vec![
+            PixelRange::new_total(22, NonZeroU16::try_from(7).unwrap()),
+            PixelRange::new_total(39, NonZeroU16::try_from(1).unwrap()),
+            PixelRange::new_total(42, NonZeroU16::try_from(7).unwrap()),
         ])));
         let x = MaskImage::new(
             [10, 10],
             vec![
-                Annotation::with_black_color(vec![
-                    SubGroup::new_total(2, NonZeroU16::try_from(5).unwrap()),
-                    SubGroup::new_total(12, NonZeroU16::try_from(5).unwrap()),
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(2, NonZeroU16::try_from(5).unwrap()),
+                    PixelRange::new_total(12, NonZeroU16::try_from(5).unwrap()),
                 ]),
-                Annotation::with_black_color(vec![SubGroup::new_total(
+                PixelArea::with_black_color(vec![PixelRange::new_total(
                     32,
                     NonZeroU16::try_from(5).unwrap(),
                 )]),

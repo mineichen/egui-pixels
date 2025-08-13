@@ -12,7 +12,7 @@ use itertools::Itertools;
 use log::info;
 
 use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
-use crate::{SubGroup, Annotation};
+use crate::{PixelArea, PixelRange};
 
 pub struct FileStorage {
     base: String,
@@ -124,24 +124,24 @@ impl Storage for FileStorage {
                     assert_eq!(VERSION, u16::from_le_bytes(version_bytes));
 
                     let mut f = brotli::Decompressor::new(f, 4096);
-                    let mut sub_groups_bytes = [0; 2];
+                    let mut pixel_range_bytes = [0; 2];
                     let mut all = Vec::new();
                     let mut starts = Vec::new();
                     let mut lens = Vec::new();
 
-                    while f.read_exact(&mut sub_groups_bytes).is_ok() {
-                        let sub_len = u16::from_le_bytes(sub_groups_bytes) as usize;
+                    while f.read_exact(&mut pixel_range_bytes).is_ok() {
+                        let pixel_range_len = u16::from_le_bytes(pixel_range_bytes) as usize;
 
-                        starts.resize(sub_len, 0);
-                        lens.resize(sub_len, 0);
+                        starts.resize(pixel_range_len, 0);
+                        lens.resize(pixel_range_len, 0);
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
-                        all.push(Annotation::with_random_color(
+                        all.push(PixelArea::with_random_color(
                             starts
                                 .iter()
                                 .zip(lens.iter())
                                 .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                    Ok(l) => Ok(SubGroup::new_total(*start, l)),
+                                    Ok(l) => Ok(PixelRange::new_total(*start, l)),
                                     Err(e) => Err(std::io::Error::new(
                                         ErrorKind::InvalidData,
                                         format!("position {start},{len}: {e:?}"),
@@ -170,7 +170,7 @@ impl Storage for FileStorage {
     fn store_masks(
         &self,
         id: ImageId,
-        masks: Vec<Annotation>,
+        masks: Vec<PixelArea>,
     ) -> BoxFuture<'static, io::Result<()>> {
         let path = Self::get_mask_path(&id);
 
@@ -190,17 +190,17 @@ impl Storage for FileStorage {
 
                 let mut f = brotli::CompressorWriter::new(f, 4096, 11, 22);
                 for sub in masks {
-                    if sub.sub_group_len() > u16::MAX as _ {
+                    if sub.range_len() > u16::MAX as _ {
                         return Err(std::io::Error::new(
                             ErrorKind::InvalidData,
                             format!(
                                 "Version1 allows for MAX {} subgroups, got {}",
                                 u16::MAX,
-                                sub.sub_group_len()
+                                sub.range_len()
                             ),
                         ));
                     }
-                    let sub_len = sub.sub_group_len() as u16;
+                    let sub_len = sub.range_len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
                     for subgroup in sub.pixels.iter() {

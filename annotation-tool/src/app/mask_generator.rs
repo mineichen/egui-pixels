@@ -1,7 +1,7 @@
 use egui::ComboBox;
 use image::DynamicImage;
 
-use crate::{ImageCallbackMap, Annotation};
+use crate::{ImageCallbackMap, PixelArea};
 
 pub(crate) struct MaskGenerator {
     pos: usize,
@@ -13,7 +13,7 @@ impl MaskGenerator {
         Self { map, pos: 0 }
     }
 
-    pub(super) fn ui(&mut self, image: &DynamicImage, ui: &mut egui::Ui) -> Option<Vec<Annotation>> {
+    pub(super) fn ui(&mut self, image: &DynamicImage, ui: &mut egui::Ui) -> Option<Vec<PixelArea>> {
         if !self.map.is_empty() {
             ComboBox::from_id_salt("algo_selector")
                 .show_index(ui, &mut self.pos, self.map.len(), |x| {
