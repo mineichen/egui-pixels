@@ -48,7 +48,36 @@ impl SubGroup {
     }
 }
 
-pub type SubGroups = Vec<SubGroup>;
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct SubGroups {
+    pub pixels: Vec<SubGroup>,
+    pub color: Option<[u8; 3]>,
+}
+
+impl SubGroups {
+    pub fn new(pixels: Vec<SubGroup>, color: [u8; 3]) -> Self {
+        Self {
+            pixels,
+            color: Some(color),
+        }
+    }
+
+    pub fn without_color(pixels: Vec<SubGroup>) -> Self {
+        Self {
+            pixels,
+            color: None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pixels.is_empty()
+    }
+
+    pub fn sub_group_len(&self) -> usize {
+        self.pixels.len()
+    }
+}
 
 pub(crate) fn remove_overlaps(
     annotations: &mut SubGroups,
@@ -58,7 +87,7 @@ pub(crate) fn remove_overlaps(
         .map(|subgroup| (subgroup.position, subgroup.end_position()))
         .peekable();
 
-    annotations.flat_map_inplace(|subgroup, i| {
+    annotations.pixels.flat_map_inplace(|subgroup, i| {
         let mut new_pos = subgroup.position;
         let mut new_len = subgroup.length;
         let new_end = new_pos + new_len.get() as u32;
@@ -107,23 +136,25 @@ mod tests {
 
     #[test]
     fn overlapping_before() {
-        let mut annotation = vec![SubGroup::new_total(2, 4.try_into().unwrap())];
+        let mut annotation =
+            SubGroups::without_color(vec![SubGroup::new_total(2, 4.try_into().unwrap())]);
         let existing = vec![SubGroup::new_total(0, 3.try_into().unwrap())];
         remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(
-            annotation,
+            annotation.pixels,
             vec![SubGroup::new_total(3, 3.try_into().unwrap())]
         )
     }
 
     #[test]
     fn existing_within_new() {
-        let mut annotation = vec![SubGroup::new_total(0, 6.try_into().unwrap())];
+        let mut annotation =
+            SubGroups::without_color(vec![SubGroup::new_total(0, 6.try_into().unwrap())]);
         let existing = vec![SubGroup::new_total(1, 4.try_into().unwrap())];
 
         remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(
-            annotation,
+            annotation.pixels,
             vec![
                 SubGroup::new_total(0, 1.try_into().unwrap()),
                 SubGroup::new_total(5, 1.try_into().unwrap())
@@ -133,49 +164,56 @@ mod tests {
 
     #[test]
     fn overlapping_both() {
-        let mut annotation = vec![SubGroup::new_total(2, 4.try_into().unwrap())];
+        let mut annotation =
+            SubGroups::without_color(vec![SubGroup::new_total(2, 4.try_into().unwrap())]);
         let existing = vec![SubGroup::new_total(0, 6.try_into().unwrap())];
         remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![])
+        assert_eq!(annotation.pixels, vec![])
     }
 
     #[test]
     fn overlapping_twice() {
-        let mut annotation = vec![
+        let mut annotation = SubGroups::without_color(vec![
             SubGroup::new_total(2, 1.try_into().unwrap()),
             SubGroup::new_total(4, 1.try_into().unwrap()),
-        ];
+        ]);
         let existing = vec![SubGroup::new_total(0, 6.try_into().unwrap())];
         remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![]);
+        assert_eq!(annotation.pixels, vec![]);
     }
 
     #[test]
     fn overlapping_end() {
-        let mut annotation = vec![SubGroup::new_total(1, 4.try_into().unwrap())];
+        let mut annotation =
+            SubGroups::without_color(vec![SubGroup::new_total(1, 4.try_into().unwrap())]);
         let existing = vec![SubGroup::new_total(2, 6.try_into().unwrap())];
         remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![SubGroup::new_total(1, NonZeroU16::MIN)])
+        assert_eq!(
+            annotation.pixels,
+            vec![SubGroup::new_total(1, NonZeroU16::MIN)]
+        )
     }
 
     #[test]
     fn overlapping_between() {
-        let mut annotation = vec![SubGroup::new_total(2, 4.try_into().unwrap())];
+        let mut annotation =
+            SubGroups::without_color(vec![SubGroup::new_total(2, 4.try_into().unwrap())]);
         let existing = vec![
             SubGroup::new_total(0, 3.try_into().unwrap()),
             SubGroup::new_total(0, 8.try_into().unwrap()),
         ];
         remove_overlaps(&mut annotation, existing.into_iter());
-        assert_eq!(annotation, vec![])
+        assert_eq!(annotation.pixels, vec![])
     }
 
     #[test]
     fn no_overlap_before() {
-        let mut annotation = vec![SubGroup::new_total(2, 4.try_into().unwrap())];
+        let mut annotation =
+            SubGroups::without_color(vec![SubGroup::new_total(2, 4.try_into().unwrap())]);
         let existing = vec![SubGroup::new_total(0, 2.try_into().unwrap())];
         remove_overlaps(&mut annotation, existing.into_iter());
         assert_eq!(
-            annotation,
+            annotation.pixels,
             vec![SubGroup::new_total(2, 4.try_into().unwrap())]
         )
     }

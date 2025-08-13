@@ -52,7 +52,7 @@ impl MaskImage {
             for (group_id, subgroups) in self.subgroups().into_iter().enumerate() {
                 let [r, g, b] = generate_rgb_color(group_id as u16);
                 let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
-                for subgroup in subgroups {
+                for subgroup in subgroups.pixels {
                     pixels[subgroup.as_range()].fill(group_color);
                 }
             }
@@ -180,7 +180,7 @@ impl MaskImage {
             .into_iter()
             .enumerate()
             .map(|(group_id, x)| {
-                let mut iter = x.into_iter();
+                let mut iter = x.pixels.into_iter();
                 HeapItem(
                     iter.next().expect("No empty groups available"),
                     group_id,
@@ -221,19 +221,22 @@ mod tests {
     #[test]
     fn iter_sorted() {
         let mut history = History::default();
-        history.push(HistoryAction::Add(vec![
+        history.push(HistoryAction::Add(SubGroups::without_color(vec![
             SubGroup::new_total(22, NonZeroU16::try_from(7).unwrap()),
             SubGroup::new_total(39, NonZeroU16::try_from(1).unwrap()),
             SubGroup::new_total(42, NonZeroU16::try_from(7).unwrap()),
-        ]));
+        ])));
         let x = MaskImage::new(
             [10, 10],
             vec![
-                vec![
+                SubGroups::without_color(vec![
                     SubGroup::new_total(2, NonZeroU16::try_from(5).unwrap()),
                     SubGroup::new_total(12, NonZeroU16::try_from(5).unwrap()),
-                ],
-                vec![SubGroup::new_total(32, NonZeroU16::try_from(5).unwrap())],
+                ]),
+                SubGroups::without_color(vec![SubGroup::new_total(
+                    32,
+                    NonZeroU16::try_from(5).unwrap(),
+                )]),
             ],
             history,
         );

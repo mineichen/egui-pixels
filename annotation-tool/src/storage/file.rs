@@ -136,7 +136,7 @@ impl Storage for FileStorage {
                         lens.resize(sub_len, 0);
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
-                        all.push(
+                        all.push(SubGroups::without_color(
                             starts
                                 .iter()
                                 .zip(lens.iter())
@@ -148,7 +148,7 @@ impl Storage for FileStorage {
                                     )),
                                 })
                                 .collect::<Result<Vec<_>, _>>()?,
-                        );
+                        ));
                     }
 
                     all
@@ -189,23 +189,23 @@ impl Storage for FileStorage {
 
                 let mut f = brotli::CompressorWriter::new(f, 4096, 11, 22);
                 for sub in masks {
-                    if sub.len() > u16::MAX as _ {
+                    if sub.sub_group_len() > u16::MAX as _ {
                         return Err(std::io::Error::new(
                             ErrorKind::InvalidData,
                             format!(
                                 "Version1 allows for MAX {} subgroups, got {}",
                                 u16::MAX,
-                                sub.len()
+                                sub.sub_group_len()
                             ),
                         ));
                     }
-                    let sub_len = sub.len() as u16;
+                    let sub_len = sub.sub_group_len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
-                    for subgroup in sub.iter() {
+                    for subgroup in sub.pixels.iter() {
                         f.write_all(&subgroup.position.to_le_bytes())?;
                     }
-                    for subgroup in sub {
+                    for subgroup in sub.pixels {
                         f.write_all(&subgroup.length.get().to_le_bytes())?;
                     }
                 }

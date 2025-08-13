@@ -2,13 +2,13 @@
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
 
-use crate::SubGroups;
+use crate::{SubGroup, SubGroups};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
     Add(SubGroups),
     Reset,
-    Clear(SubGroups),
+    Clear(Vec<SubGroup>),
 }
 
 impl HistoryAction {
@@ -109,7 +109,10 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(vec![SubGroup::new_total(0, NonZeroU16::MIN)]);
+        let item = HistoryAction::Add(SubGroups::without_color(vec![SubGroup::new_total(
+            0,
+            NonZeroU16::MIN,
+        )]));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -119,8 +122,14 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(vec![SubGroup::new_total(0, NonZeroU16::MIN)]);
-        let item2 = HistoryAction::Add(vec![SubGroup::new_total(10, NonZeroU16::MIN)]);
+        let item = HistoryAction::Add(SubGroups::without_color(vec![SubGroup::new_total(
+            0,
+            NonZeroU16::MIN,
+        )]));
+        let item2 = HistoryAction::Add(SubGroups::without_color(vec![SubGroup::new_total(
+            10,
+            NonZeroU16::MIN,
+        )]));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
