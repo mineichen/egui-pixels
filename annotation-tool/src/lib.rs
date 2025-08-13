@@ -1,4 +1,4 @@
-use egui_pixels::{SubGroup, SubGroups};
+use egui_pixels::{SubGroup, Annotation};
 use image::DynamicImage;
 
 mod app;
@@ -15,4 +15,4 @@ pub use storage::file::FileStorage;
 #[cfg(target_arch = "wasm32")]
 pub use storage::in_memory::InMemoryStorage;
 
-type ImageCallbackMap = Vec<(String, Box<dyn Fn(&DynamicImage) -> Vec<SubGroups>>)>;
+type ImageCallbackMap = Vec<(String, Box<dyn Fn(&DynamicImage) -> Vec<Annotation>>)>;

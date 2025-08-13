@@ -12,7 +12,7 @@ use itertools::Itertools;
 use log::info;
 
 use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
-use crate::{SubGroup, SubGroups};
+use crate::{SubGroup, Annotation};
 
 pub struct FileStorage {
     base: String,
@@ -136,7 +136,7 @@ impl Storage for FileStorage {
                         lens.resize(sub_len, 0);
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
-                        all.push(SubGroups::without_color(
+                        all.push(Annotation::with_random_color(
                             starts
                                 .iter()
                                 .zip(lens.iter())
@@ -148,6 +148,7 @@ impl Storage for FileStorage {
                                     )),
                                 })
                                 .collect::<Result<Vec<_>, _>>()?,
+                            all.len() as u16,
                         ));
                     }
 
@@ -169,7 +170,7 @@ impl Storage for FileStorage {
     fn store_masks(
         &self,
         id: ImageId,
-        masks: Vec<SubGroups>,
+        masks: Vec<Annotation>,
     ) -> BoxFuture<'static, io::Result<()>> {
         let path = Self::get_mask_path(&id);
 

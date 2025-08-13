@@ -42,7 +42,7 @@ impl std::ops::Deref for ImageId {
 pub struct ImageData {
     pub id: ImageId,
     pub image: ImageLoadOk,
-    pub masks: Vec<SubGroups>,
+    pub masks: Vec<Annotation>,
 }
 
 impl ImageData {

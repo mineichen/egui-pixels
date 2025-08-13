@@ -6,7 +6,7 @@ use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
 use super::{InferenceError, SamEmbeddings, inference::extract_subgroups};
-use crate::SubGroups;
+use crate::SubGroup;
 
 #[derive(Clone)]
 pub struct SamSession {
@@ -81,7 +81,7 @@ impl SamSession {
         x2: f32,
         y2: f32,
         embeddings: &SamEmbeddings,
-    ) -> Result<SubGroups, InferenceError> {
+    ) -> Result<Vec<SubGroup>, InferenceError> {
         // Prepare input for decoder
 
         // Get embeddings, image sizes and ONNX model instances from Web Application state

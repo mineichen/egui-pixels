@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::SubGroups;
+use crate::Annotation;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;
@@ -17,7 +17,7 @@ const VERSION: u16 = 1;
 pub trait Storage {
     fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<ImageListTaskItem>>>;
     fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>>;
-    fn store_masks(&self, id: ImageId, masks: Vec<SubGroups>)
+    fn store_masks(&self, id: ImageId, masks: Vec<Annotation>)
     -> BoxFuture<'static, io::Result<()>>;
 }
 

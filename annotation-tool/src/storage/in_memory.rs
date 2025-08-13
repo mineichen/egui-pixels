@@ -7,7 +7,7 @@ use std::{
 };
 
 use super::{ImageData, ImageId, Storage};
-use crate::SubGroups;
+use crate::Annotation;
 
 pub struct InMemoryStorage {
     data: Arc<Mutex<HashMap<ImageId, ImageData>>>,
@@ -63,7 +63,7 @@ impl Storage for InMemoryStorage {
     fn store_masks(
         &self,
         id: ImageId,
-        masks: Vec<SubGroups>,
+        masks: Vec<Annotation>,
     ) -> BoxFuture<'static, io::Result<()>> {
         if let Some(x) = self.data.lock().unwrap().get_mut(&id) {
             x.masks = masks;

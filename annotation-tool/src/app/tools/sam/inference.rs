@@ -3,11 +3,11 @@ use std::{
     sync::Arc,
 };
 
-use image::{imageops::FilterType, DynamicImage, GenericImageView, Rgba};
+use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
-use crate::{SubGroup, SubGroups};
+use crate::{SubGroup, Annotation};
 
 impl From<TryFromIntError> for InferenceError {
     fn from(value: TryFromIntError) -> Self {
@@ -110,7 +110,10 @@ pub(super) fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, In
     })
 }
 
-pub(super) fn extract_subgroups(iter: impl Iterator<Item = f32>, width: NonZeroU32) -> SubGroups {
+pub(super) fn extract_subgroups(
+    iter: impl Iterator<Item = f32>,
+    width: NonZeroU32,
+) -> Vec<SubGroup> {
     let mut result = vec![];
     iter.enumerate()
         .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u32))
