@@ -51,7 +51,7 @@ console_error_panic_hook = "0.1"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
-default = ["wayland", "sam"]
+default = ["wayland"]
 wayland = ["eframe/wayland"]
 x11 = ["eframe/x11"]
 sam = ["ort", "ndarray"]
