@@ -7,54 +7,21 @@ pub struct ImageViewer {
     // Zoom level (0.05..1.0)
     // 1.0 means, that image width or height fits the viewport and the other dimension is smaller than the viewport
     zoom: f32,
-    // Pan per axis in [0, 1]:
-    // 0.0 = image aligned to viewport's left/top edge
-    // 0.5 = image centered
-    // 1.0 = image aligned to viewport's right/bottom edge
+    // Normalized image coordinate of the viewport center per axis in [0, 1]:
+    // 0.0 = left/top image edge is at the viewport center
+    // 0.5 = image center is at the viewport center (fully centered)
+    // 1.0 = right/bottom image edge is at the viewport center
     pub pan_offset: Vec2,
 }
 
 impl ImageViewer {
     pub fn reset(&mut self) {
         self.zoom = 1.0;
-        self.pan_offset = Vec2::default();
+        self.pan_offset = Vec2::splat(0.5);
     }
 
     pub fn modify_zoom(&mut self, zoom: impl Fn(f32) -> f32) {
         self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
-    }
-
-    fn update_pan_axis<F>(
-        &mut self,
-        tentative_pan: Vec2,
-        mut image_size_px: Vec2,
-        mut viewport_size: Vec2,
-        mut prev_pixel_offset: Vec2,
-        axis: F,
-    ) where
-        F: Fn(&mut Vec2) -> &mut f32,
-    {
-        // With pan in [0,1], pixel_offset = (viewport - image) * pan
-        let mut pixel_offset_after_vec = (viewport_size - image_size_px) * tentative_pan;
-
-        let after_component_offset = *axis(&mut pixel_offset_after_vec);
-        let prev_component_offset = *axis(&mut prev_pixel_offset);
-        let image_component = *axis(&mut image_size_px);
-        let viewport_component = *axis(&mut viewport_size);
-
-        let prev_blank_start = prev_component_offset.max(0.0);
-        let prev_blank_end =
-            (viewport_component - (prev_component_offset + image_component)).max(0.0);
-        let after_blank_start = after_component_offset.max(0.0);
-        let after_blank_end =
-            (viewport_component - (after_component_offset + image_component)).max(0.0);
-
-        let prev_sum_blank = prev_blank_start + prev_blank_end;
-        let after_sum_blank = after_blank_start + after_blank_end;
-
-        let denom = viewport_component - image_component;
-
-        *axis(&mut self.pan_offset) = (after_component_offset / denom);
     }
 
     pub fn ui(
@@ -120,57 +87,25 @@ impl ImageViewer {
 
         let cursor_image_pos = {
             let render_scale = fit_scale / self.zoom;
-            let image_size_px = original_image_size * render_scale;
 
             let drag_delta = response.drag_delta();
             if drag_delta != Vec2::default()
                 && ui.input(|i| i.modifiers.command || i.modifiers.ctrl)
             {
-                // Pan offset is expressed in fractions of the rendered image size
-                // Apply raw pan delta, but constrain per-axis to only allow reducing existing blank space
-                let denom = viewport_size - image_size_px;
-                let prev_pixel_offset = denom * self.pan_offset;
-                let tentative_pan = egui::vec2(
-                    self.pan_offset.x
-                        + if denom.x.abs() > f32::EPSILON {
-                            drag_delta.x / denom.x
-                        } else {
-                            0.0
-                        },
-                    self.pan_offset.y
-                        + if denom.y.abs() > f32::EPSILON {
-                            drag_delta.y / denom.y
-                        } else {
-                            0.0
-                        },
-                );
-
-                self.update_pan_axis(
-                    tentative_pan,
-                    image_size_px,
-                    viewport_size,
-                    prev_pixel_offset,
-                    |v| &mut v.x,
-                );
-
-                self.update_pan_axis(
-                    tentative_pan,
-                    image_size_px,
-                    viewport_size,
-                    prev_pixel_offset,
-                    |v| &mut v.y,
-                );
+                let delta_norm = drag_delta / (render_scale * original_image_size);
+                self.pan_offset -= delta_norm;
             }
 
             let is_zoomed_out = (self.zoom - 1.0).abs() <= f32::EPSILON;
             if is_zoomed_out {
-                // Center when at base zoom
-                self.pan_offset.x = 0.5;
-                self.pan_offset.y = 0.5;
+                self.pan_offset = Vec2::splat(0.5);
             }
 
             response.hover_pos().map(|hover| {
-                let pixel_offset = (viewport_size - image_size_px) * self.pan_offset;
+                // Where to place the image so that the image point at `pan_offset`
+                // (normalized) appears at the viewport center.
+                let center_img_px = self.pan_offset * original_image_size;
+                let pixel_offset = viewport_size * 0.5 - center_img_px * render_scale;
                 let screen_rel = (hover - viewport_rect.min.to_vec2()).to_vec2();
 
                 // Use zoom relative to fit, so p stays constant in original image space
@@ -181,20 +116,13 @@ impl ImageViewer {
                 if delta != 1.0 {
                     self.modify_zoom(|x| x / delta);
                     let rel_zoom_new = self.zoom / fit_scale;
-                    let image_size_px_new = original_image_size * (fit_scale / self.zoom);
-                    let denom = viewport_size - image_size_px_new;
+                    let render_scale_new = fit_scale / self.zoom;
                     let desired_pixel_offset = screen_rel - (p / rel_zoom_new);
 
-                    self.pan_offset.x = if denom.x.abs() > f32::EPSILON {
-                        desired_pixel_offset.x / denom.x
-                    } else {
-                        0.5
-                    };
-                    self.pan_offset.y = if denom.y.abs() > f32::EPSILON {
-                        desired_pixel_offset.y / denom.y
-                    } else {
-                        0.5
-                    };
+                    let pan = (viewport_size * 0.5 - desired_pixel_offset)
+                        / (original_image_size * render_scale_new);
+
+                    self.pan_offset = pan;
                 }
 
                 log::info!(
@@ -210,7 +138,7 @@ impl ImageViewer {
 
         let render_scale = fit_scale / self.zoom;
         let image_size_px = original_image_size * render_scale;
-        let pixel_offset = (viewport_size - image_size_px) * self.pan_offset;
+        let pixel_offset = viewport_size * 0.5 - self.pan_offset * image_size_px;
 
         let image_rect_unclipped =
             Rect::from_min_size(viewport_rect.min + pixel_offset, image_size_px);
@@ -241,7 +169,7 @@ impl Default for ImageViewer {
     fn default() -> Self {
         Self {
             zoom: 1.0,
-            pan_offset: Vec2::ZERO,
+            pan_offset: Vec2::splat(0.5),
         }
     }
 }
