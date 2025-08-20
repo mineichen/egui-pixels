@@ -24,6 +24,21 @@ impl ImageViewer {
         self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
     }
 
+    pub fn pan_bounds(
+        &self,
+        original_image_size: Vec2,
+        viewport_size_px: Vec2,
+        render_scale: f32,
+    ) -> (Vec2, Vec2) {
+        // Half viewport size measured in original image pixels
+        let half_viewport_in_image = viewport_size_px / (2.0 * render_scale);
+
+        let min_pan = (half_viewport_in_image / original_image_size)
+            .clamp(Vec2::splat(0.0), Vec2::splat(0.5));
+
+        (min_pan, Vec2::splat(1.0) - min_pan)
+    }
+
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -93,7 +108,31 @@ impl ImageViewer {
                 && ui.input(|i| i.modifiers.command || i.modifiers.ctrl)
             {
                 let delta_norm = drag_delta / (render_scale * original_image_size);
-                self.pan_offset -= delta_norm;
+                let mut new_offset = self.pan_offset - delta_norm;
+
+                let (min_pan, max_pan) =
+                    self.pan_bounds(original_image_size, viewport_size, render_scale);
+
+                let move_left = self.pan_offset.x < new_offset.x;
+                let move_top = self.pan_offset.y < new_offset.y;
+
+                if !move_left && new_offset.x < min_pan.x {
+                    new_offset.x = self.pan_offset.x.min(min_pan.x);
+                }
+
+                if move_left && new_offset.x > max_pan.x {
+                    new_offset.x = self.pan_offset.x.max(max_pan.x);
+                }
+
+                if !move_top && new_offset.y < min_pan.y {
+                    new_offset.y = self.pan_offset.y.min(min_pan.y);
+                }
+
+                if move_top && new_offset.y > max_pan.y {
+                    new_offset.y = self.pan_offset.y.max(max_pan.y);
+                }
+
+                self.pan_offset = new_offset;
             }
 
             let is_zoomed_out = (self.zoom - 1.0).abs() <= f32::EPSILON;
