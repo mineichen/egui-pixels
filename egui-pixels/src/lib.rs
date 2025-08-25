@@ -1,6 +1,7 @@
 use std::{pin::Pin, sync::Arc};
 
 mod async_task;
+mod cursor_image;
 #[cfg(all(feature = "ffi", target_arch = "wasm32"))]
 mod ffi;
 mod image_state;
@@ -11,6 +12,7 @@ mod tool;
 mod viewer;
 
 pub use async_task::*;
+pub use cursor_image::*;
 #[cfg(all(feature = "ffi", target_arch = "wasm32"))]
 pub use ffi::*;
 pub use image_state::*;

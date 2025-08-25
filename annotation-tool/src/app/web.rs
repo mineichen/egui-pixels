@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{ImageCallbackMap, app::tools::Tools, config::Config};
 
 pub fn run_web(mappers: ImageCallbackMap) {
@@ -23,14 +25,30 @@ pub fn run_web(mappers: ImageCallbackMap) {
         log::info!("About to start eframe");
         let start_result = eframe::WebRunner::new()
             .start(
-                canvas,
+                canvas.clone(),
                 web_options,
                 Box::new(|_cc| {
-                    Ok(Box::new(crate::app::ImageViewerApp::new(
+                    let mut app = crate::app::ImageViewerApp::new(
                         Box::new(crate::InMemoryStorage::chessboard()),
                         Tools::from(&Config::default()),
                         super::MaskGenerator::new(mappers),
-                    )))
+                    );
+                    app.cursor_image = (move |x: Option<&super::CursorImage>| {
+                        if let Some(i) = x {
+                            info!("Add ImageCursor: {i:?}");
+                            let str = format!(
+                                "cursor: url(data:image/png;base64,{}) {} {}, auto;",
+                                i.bytes, i.offset_x, i.offset_y
+                            );
+                            canvas.set_attribute("style", &str)
+                        } else {
+                            info!("Remove ImageCursor");
+                            canvas.remove_attribute("style")
+                        }
+                        .ok();
+                    })
+                    .into();
+                    Ok(Box::new(app))
                 }),
             )
             .await;

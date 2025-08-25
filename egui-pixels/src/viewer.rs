@@ -140,7 +140,7 @@ impl ImageViewer {
                 self.pan_offset = Vec2::splat(0.5);
             }
 
-            response.hover_pos().map(|hover| {
+            response.hover_pos().and_then(|hover| {
                 // Where to place the image so that the image point at `pan_offset`
                 // (normalized) appears at the viewport center.
                 let center_img_px = self.pan_offset * original_image_size;
@@ -164,14 +164,23 @@ impl ImageViewer {
                     self.pan_offset = pan;
                 }
 
-                log::info!(
-                    "Hover: {:?}, pan_offset: {:?}, zoom: {:?}, pixel_offset: {:?}",
-                    (p.x, p.y),
-                    (self.pan_offset.x, self.pan_offset.y),
-                    self.zoom,
-                    pixel_offset,
-                );
-                (p.x as _, p.y as _)
+                // log::info!(
+                //     "Hover: {:?}, pan_offset: {:?}, zoom: {:?}, pixel_offset: {:?}, rel: {:?}",
+                //     (p.x, p.y),
+                //     (self.pan_offset.x, self.pan_offset.y),
+                //     self.zoom,
+                //     pixel_offset,
+                //     screen_rel,
+                // );
+                if p.x < 0.0
+                    || p.y < 0.0
+                    || p.x > original_image_size.x
+                    || p.y > original_image_size.y
+                {
+                    None
+                } else {
+                    Some((p.x as _, p.y as _))
+                }
             })
         };
 
