@@ -15,6 +15,22 @@ pub use history::*;
 
 pub struct Annotations(Vec<PixelArea>);
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(default)]
+pub struct MaskSettings {
+    default_opacity: u8,
+    default_opacity_hover: u8,
+}
+
+impl Default for MaskSettings {
+    fn default() -> Self {
+        Self {
+            default_opacity: 128,
+            default_opacity_hover: 192,
+        }
+    }
+}
+
 pub struct MaskImage {
     size: [usize; 2],
     annotations: Annotations,
@@ -22,17 +38,31 @@ pub struct MaskImage {
     texture_handle: Option<(bool, TextureHandle, ImageSource<'static>)>,
     // Cannot remove handle immediately, as it might be used already previously in this epoch.
     texture_handle_dirty: bool,
+    settings: MaskSettings,
+    default_opacity_lut: [u8; 256],
 }
 
 impl MaskImage {
     pub fn new(size: [usize; 2], annotations: Vec<PixelArea>, history: History) -> Self {
+        let settings = MaskSettings::default();
         Self {
             size,
             annotations: Annotations(annotations),
             history,
             texture_handle: None,
             texture_handle_dirty: false,
+            default_opacity_lut: Self::build_opacity_lut(settings.default_opacity),
+            settings: MaskSettings::default(),
         }
+    }
+
+    pub fn set_settings(&mut self, settings: MaskSettings) {
+        self.default_opacity_lut = Self::build_opacity_lut(settings.default_opacity);
+        self.settings = settings;
+    }
+
+    fn build_opacity_lut(opacity: u8) -> [u8; 256] {
+        std::array::from_fn(|i| ((i as f32 / 255.0) * (opacity as f32 / 255.0) * 255.0) as u8)
     }
 
     pub fn random_seed(&self) -> u16 {
@@ -55,8 +85,9 @@ impl MaskImage {
 
             for subgroups in self.subgroups().into_iter() {
                 let [r, g, b] = subgroups.color;
-                let group_color = Color32::from_rgba_premultiplied(r, g, b, 64);
                 for subgroup in subgroups.pixels {
+                    let a = self.default_opacity_lut[subgroup.confidence() as usize];
+                    let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
                     pixels[subgroup.as_range()].fill(group_color);
                 }
             }
