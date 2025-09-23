@@ -1,9 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ 
-    "annotation-tool",
-    "egui-pixels",
-]
+members = ["annotation-tool", "egui-pixels"]
 
 [workspace.package]
 version = "0.1.0"
@@ -15,7 +12,6 @@ eframe = { version = "0.32", default-features = false, features = [
 ] }
 egui = { version = "0.32", default-features = false }
 futures-core = "0.3"
-futures-task = "0.3"
 image = { version = "0.25", default-features = false }
 itertools = "0.14.0"
 log = "0.4.22"

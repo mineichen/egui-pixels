@@ -19,7 +19,7 @@ impl<T> AsyncRefTask<T> {
     pub fn data(&mut self) -> Option<&mut T> {
         match self {
             AsyncRefTask::Pending(x) => {
-                let waker = futures_task::noop_waker();
+                let waker = std::task::Waker::noop();
                 let mut cx = Context::from_waker(&waker);
                 match Pin::new(x).poll(&mut cx) {
                     std::task::Poll::Ready(r) => {
@@ -44,7 +44,7 @@ impl<T> AsyncTask<T> {
     }
 
     pub fn data(&mut self) -> Option<T> {
-        let waker = futures_task::noop_waker();
+        let waker = std::task::Waker::noop();
         let mut cx = Context::from_waker(&waker);
         match Pin::new(&mut self.0).poll(&mut cx) {
             std::task::Poll::Ready(r) => {
