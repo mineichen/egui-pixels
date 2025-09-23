@@ -109,6 +109,7 @@ impl<'de> ::serde::Deserialize<'de> for PixelRange {
 }
 
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct FromStartEndPixelRange(PixelRange);
 
 impl FromStartEndPixelRange {
