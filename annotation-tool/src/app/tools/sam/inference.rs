@@ -125,10 +125,7 @@ pub(super) fn extract_pixel_ranges(
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
-                    item.length = item
-                        .length
-                        .checked_add(1)
-                        .expect("image.width is never > u16::MAX");
+                    item.increment_length();
                 } else {
                     result.push(PixelRange::new_total(x, NonZeroU16::MIN));
                 }

@@ -6,8 +6,9 @@ use crate::NextInPlaceExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelRange {
-    pub position: u32,
-    pub length: NonZeroU16,
+    start: u32,
+    // Is always between 1..u16::MAX after start
+    end: u32,
     pub confidence: u8,
 }
 
@@ -20,13 +21,13 @@ impl serde::Serialize for PixelRange {
         use serde::ser::SerializeTuple;
         if self.confidence == 255 {
             let mut tuple = serializer.serialize_tuple(2)?;
-            tuple.serialize_element(&self.position)?;
-            tuple.serialize_element(&self.length.get())?;
+            tuple.serialize_element(&self.start)?;
+            tuple.serialize_element(&self.length().get())?;
             tuple.end()
         } else {
             let mut tuple = serializer.serialize_tuple(3)?;
-            tuple.serialize_element(&self.position)?;
-            tuple.serialize_element(&self.length.get())?;
+            tuple.serialize_element(&self.start)?;
+            tuple.serialize_element(&self.length().get())?;
             tuple.serialize_element(&self.confidence)?;
             tuple.end()
         }
@@ -120,25 +121,21 @@ impl<'de> serde::Deserialize<'de> for PixelRange {
 }
 
 impl PixelRange {
-    pub fn new(position: u32, length: NonZeroU16, confidence: u8) -> Self {
+    pub fn new(start: u32, length: NonZeroU16, confidence: u8) -> Self {
         Self {
-            position,
-            length,
+            start,
+            end: start + length.get() as u32,
             confidence,
         }
     }
 
-    pub fn new_total(position: u32, length: NonZeroU16) -> Self {
-        Self {
-            position,
-            length,
-            confidence: 255,
-        }
+    pub fn new_total(start: u32, length: NonZeroU16) -> Self {
+        Self::new(start, length, 255)
     }
 
     pub fn as_range(&self) -> std::ops::Range<usize> {
-        let start = self.position as usize;
-        let end = start + self.length.get() as usize;
+        let start = self.start as usize;
+        let end = self.end as usize;
         start..end
     }
 
@@ -146,12 +143,29 @@ impl PixelRange {
         self.confidence
     }
 
-    pub fn start_position(&self) -> u32 {
-        self.position
+    pub fn start(&self) -> u32 {
+        self.start
     }
 
-    pub fn end_position(&self) -> u32 {
-        self.position + self.length.get() as u32
+    pub fn length(&self) -> NonZeroU16 {
+        let unchecked = self.end - self.start;
+        debug_assert!(
+            u16::try_from(unchecked).is_ok(),
+            "length is never > u16::MAX"
+        );
+        NonZeroU16::new(unchecked as u16).expect("length is never > u16::MAX")
+    }
+
+    pub fn increment_length(&mut self) {
+        self.end = self.end.checked_add(1).expect("length is never > u16::MAX");
+        debug_assert!(
+            u16::try_from(self.end - self.start).is_ok(),
+            "length is never > u16::MAX"
+        );
+    }
+
+    pub fn end(&self) -> u32 {
+        self.end
     }
 }
 
@@ -225,12 +239,12 @@ pub(crate) fn remove_overlaps(
     ordered_existing: impl Iterator<Item = PixelRange>,
 ) {
     let mut peekable_ordered_existing = ordered_existing
-        .map(|subgroup| (subgroup.position, subgroup.end_position()))
+        .map(|subgroup| (subgroup.start, subgroup.end()))
         .peekable();
 
     annotations.pixels.flat_map_inplace(|subgroup, i| {
-        let mut new_pos = subgroup.position;
-        let mut new_len = subgroup.length;
+        let mut new_pos = subgroup.start;
+        let mut new_len = subgroup.length();
         let new_end = new_pos + new_len.get() as u32;
 
         // Overlap start or within new

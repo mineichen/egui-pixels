@@ -173,7 +173,7 @@ impl MaskImage {
         }
         impl<T> Ord for HeapItem<T> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                self.0.position.cmp(&other.0.position).reverse()
+                self.0.start().cmp(&other.0.start()).reverse()
             }
         }
 

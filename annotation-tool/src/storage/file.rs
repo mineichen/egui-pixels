@@ -204,10 +204,10 @@ impl Storage for FileStorage {
 
                     f.write_all(&sub_len.to_le_bytes())?;
                     for subgroup in sub.pixels.iter() {
-                        f.write_all(&subgroup.position.to_le_bytes())?;
+                        f.write_all(&subgroup.start().to_le_bytes())?;
                     }
                     for subgroup in sub.pixels {
-                        f.write_all(&subgroup.length.get().to_le_bytes())?;
+                        f.write_all(&subgroup.length().get().to_le_bytes())?;
                     }
                 }
 
