@@ -5,6 +5,7 @@ use itertools::Itertools;
 use crate::NextInPlaceExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PixelRange {
     pub position: u32,
     pub length: NonZeroU16,
@@ -49,6 +50,7 @@ impl PixelRange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub struct PixelArea {
     pub pixels: Vec<PixelRange>,

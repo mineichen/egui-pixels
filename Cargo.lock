@@ -642,6 +642,7 @@ dependencies = [
  "js-sys",
  "log",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
