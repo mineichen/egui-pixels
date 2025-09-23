@@ -7,6 +7,8 @@ use crate::NextInPlaceExt;
 #[cfg(feature = "serde")]
 mod serde;
 
+pub use serde::FromStartEndPixelRange;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelRange {
     start: u32,
