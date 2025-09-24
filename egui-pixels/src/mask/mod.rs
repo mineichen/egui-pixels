@@ -17,16 +17,15 @@ pub struct Annotations(Vec<PixelArea>);
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct MaskSettings {
     default_opacity: u8,
-    default_opacity_hover: u8,
 }
 
 impl Default for MaskSettings {
     fn default() -> Self {
         Self {
             default_opacity: 128,
-            default_opacity_hover: 192,
         }
     }
 }
