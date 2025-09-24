@@ -15,7 +15,7 @@ pub use history::*;
 
 pub struct Annotations(Vec<PixelArea>);
 
-#[cfg_attr(feature = "serde", derive(Debug, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(Debug, serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 #[non_exhaustive]
 pub struct MaskSettings {
