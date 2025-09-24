@@ -15,8 +15,8 @@ pub use history::*;
 
 pub struct Annotations(Vec<PixelArea>);
 
-#[derive(Debug, serde::Deserialize)]
-#[serde(default)]
+#[cfg_attr(feature = "serde", derive(Debug, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 #[non_exhaustive]
 pub struct MaskSettings {
     default_opacity: u8,

@@ -29,7 +29,7 @@ web-sys = { version = "0.3", features = [
 getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
 
 [features]
-default = ["serde"]
+default = []
 ffi = [
     "eframe",
     "js-sys",

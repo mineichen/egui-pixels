@@ -7,6 +7,7 @@ use crate::NextInPlaceExt;
 #[cfg(feature = "serde")]
 mod serde;
 
+#[cfg(feature = "serde")]
 pub use serde::FromStartEndPixelRange;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
