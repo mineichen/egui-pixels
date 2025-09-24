@@ -83,6 +83,7 @@ checksum = "fc7eb209b1518d6bb87b283c20095f5228ecda460da70b44f0802523dea6da04"
 name = "annotation-tool"
 version = "0.1.0"
 dependencies = [
+ "annotation-tool",
  "brotli",
  "bytemuck",
  "console_error_panic_hook",
@@ -636,6 +637,7 @@ dependencies = [
  "console_error_panic_hook",
  "eframe",
  "egui",
+ "egui-pixels",
  "getrandom 0.3.3",
  "image",
  "itertools",

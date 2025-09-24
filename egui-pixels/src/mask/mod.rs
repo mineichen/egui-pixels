@@ -14,12 +14,12 @@ pub(crate) use flat_map_inplace::*;
 pub use history::*;
 
 pub struct Annotations(Vec<PixelArea>);
-
-#[cfg_attr(feature = "serde", derive(Debug, serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(default))]
+#[derive(Debug, Eq, PartialEq)]
 #[non_exhaustive]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 pub struct MaskSettings {
-    default_opacity: u8,
+    pub default_opacity: u8,
 }
 
 impl Default for MaskSettings {

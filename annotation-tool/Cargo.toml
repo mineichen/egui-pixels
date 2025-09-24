@@ -50,6 +50,9 @@ js-sys = "0.3"
 console_error_panic_hook = "0.1"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
+[dev-dependencies]
+annotation-tool = { path = "." }
+
 [features]
 default = ["wayland"]
 wayland = ["eframe/wayland"]

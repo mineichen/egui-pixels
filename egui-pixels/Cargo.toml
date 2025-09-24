@@ -42,3 +42,4 @@ ffi = [
 
 [dev-dependencies]
 serde_json = "1.0.145"
+egui-pixels = { path = ".", features = ["serde"] }
