@@ -65,3 +65,17 @@ where
     )
     .unwrap()
 }
+
+#[cfg(test)]
+mod tests {
+    use image::ImageBuffer;
+
+    use crate::image_utils::fix_image_contrast;
+
+    #[test]
+    fn fix_image_contrast_all_pixels_same() {
+        let image = ImageBuffer::from_raw(5, 5, vec![255.into(); 25]).unwrap();
+        let fixed = fix_image_contrast::<u8>(&image);
+        assert_eq!(fixed, image);
+    }
+}
