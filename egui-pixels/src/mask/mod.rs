@@ -321,6 +321,34 @@ mod tests {
     }
 
     #[test]
+    fn clear_should_remove_multiple_overlapping_areas() {
+        let history = History::default();
+        let mut mask_image = MaskImage::new([10, 10], vec![], history);
+        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
+            1,
+            NonZeroU16::try_from(8).unwrap(),
+        )]));
+        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
+            2,
+            NonZeroU16::try_from(6).unwrap(),
+        )]));
+        mask_image.clear_rect([[4, 0], [5, 1]]);
+        assert_eq!(
+            mask_image.subgroups(),
+            vec![
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(1, NonZeroU16::try_from(3).unwrap(),),
+                    PixelRange::new_total(6, NonZeroU16::try_from(3).unwrap(),)
+                ]),
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(2, NonZeroU16::try_from(2).unwrap(),),
+                    PixelRange::new_total(6, NonZeroU16::try_from(2).unwrap(),)
+                ]),
+            ]
+        );
+    }
+
+    #[test]
     fn iter_sorted() {
         let mut history = History::default();
         history.push(HistoryAction::Add(PixelArea::with_black_color(vec![
