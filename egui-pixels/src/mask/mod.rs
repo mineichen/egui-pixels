@@ -321,7 +321,59 @@ mod tests {
     }
 
     #[test]
-    fn clear_should_remove_multiple_overlapping_areas() {
+    fn clear_should_remove_multiple_overlapping_areas_start() {
+        let history = History::default();
+        let mut mask_image = MaskImage::new([10, 10], vec![], history);
+        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
+            1,
+            NonZeroU16::try_from(8).unwrap(),
+        )]));
+        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
+            2,
+            NonZeroU16::try_from(6).unwrap(),
+        )]));
+        mask_image.clear_rect([[0, 0], [4, 1]]);
+        assert_eq!(
+            mask_image.subgroups(),
+            vec![
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(5, NonZeroU16::try_from(4).unwrap(),)
+                ]),
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(5, NonZeroU16::try_from(3).unwrap(),)
+                ]),
+            ]
+        );
+    }
+
+    #[test]
+    fn clear_should_remove_multiple_overlapping_areas_end() {
+        let history = History::default();
+        let mut mask_image = MaskImage::new([10, 10], vec![], history);
+        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
+            1,
+            NonZeroU16::try_from(8).unwrap(),
+        )]));
+        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
+            2,
+            NonZeroU16::try_from(6).unwrap(),
+        )]));
+        mask_image.clear_rect([[5, 0], [10, 1]]);
+        assert_eq!(
+            mask_image.subgroups(),
+            vec![
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(1, NonZeroU16::try_from(4).unwrap(),)
+                ]),
+                PixelArea::with_black_color(vec![
+                    PixelRange::new_total(2, NonZeroU16::try_from(3).unwrap(),)
+                ]),
+            ]
+        );
+    }
+
+    #[test]
+    fn clear_should_remove_multiple_overlapping_areas_within() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
         mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
