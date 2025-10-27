@@ -137,12 +137,16 @@ impl MaskImage {
         self.add_history_action(HistoryAction::Clear(region))
     }
 
-    pub fn add_area(&mut self, mut subgroups: PixelArea) {
+    pub fn add_area_non_overlapping_parts(&mut self, mut subgroups: PixelArea) {
         crate::remove_overlaps(&mut subgroups, self.subgroups_ordered().map(|(_, g)| g));
         if subgroups.is_empty() {
             debug!("All Pixels are in a other subgroup already");
             return;
         }
+        self.add_area_overlapping(subgroups)
+    }
+
+    pub fn add_area_overlapping(&mut self, subgroups: PixelArea) {
         if let Some((visibility @ false, _, _)) = &mut self.texture_handle {
             *visibility = true;
         }
