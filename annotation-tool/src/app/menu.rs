@@ -66,7 +66,7 @@ impl crate::app::ImageViewerApp {
                 if let Some(x) = self.mask_generator.ui(&image.original, ui) {
                     info!("Add {} groups", x.len());
                     for group in x {
-                        masks.add_area(group);
+                        masks.add_area_non_overlapping_parts(group);
                     }
                 }
             }
