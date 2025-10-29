@@ -46,7 +46,9 @@ where
     let upper: f32 = (*pixels[five_percent_pos * 19]).into();
     let max_pixel_value: f32 = T::DEFAULT_MAX_VALUE.into();
     let range = max_pixel_value / (upper - lower);
-
+    if lower == upper {
+        return i.clone();
+    }
     ImageBuffer::from_raw(
         i.width(),
         i.height(),
@@ -62,4 +64,18 @@ where
             .collect(),
     )
     .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use image::ImageBuffer;
+
+    use crate::image_utils::fix_image_contrast;
+
+    #[test]
+    fn fix_image_contrast_all_pixels_same() {
+        let image = ImageBuffer::from_raw(5, 5, vec![255.into(); 25]).unwrap();
+        let fixed = fix_image_contrast::<u8>(&image);
+        assert_eq!(fixed, image);
+    }
 }
