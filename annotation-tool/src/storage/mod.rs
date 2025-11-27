@@ -1,11 +1,10 @@
-use egui_pixels::{ImageData, ImageId, ImageListTaskItem};
-use futures::future::BoxFuture;
 use std::{
     io::{self},
     str::FromStr,
 };
 
-use crate::PixelArea;
+use egui_pixels::{ImageData, ImageId, ImageListTaskItem, PixelArea};
+use futures::future::BoxFuture;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;

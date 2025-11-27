@@ -1,13 +1,13 @@
-use egui_pixels::ImageListTaskItem;
-use futures::{FutureExt, future::BoxFuture};
 use std::{
     collections::HashMap,
     io,
     sync::{Arc, Mutex},
 };
 
+use egui_pixels::{ImageListTaskItem, PixelArea};
+use futures::{FutureExt, future::BoxFuture};
+
 use super::{ImageData, ImageId, Storage};
-use crate::PixelArea;
 
 pub struct InMemoryStorage {
     data: Arc<Mutex<HashMap<ImageId, ImageData>>>,

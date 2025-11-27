@@ -1,7 +1,8 @@
 use egui::ComboBox;
+use egui_pixels::PixelArea;
 use image::DynamicImage;
 
-use crate::{ImageCallbackMap, PixelArea};
+use crate::ImageCallbackMap;
 
 pub(crate) struct MaskGenerator {
     pos: usize,

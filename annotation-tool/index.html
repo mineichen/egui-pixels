@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8" />
     <title>Image Viewer</title>
-    <link data-trunk rel="rust" data-wasm-opt="2" data-target-name="annotation-tool-app"  />
+    <link data-trunk rel="rust" data-wasm-opt="2" data-bin="annotation-tool-app" />
     <link data-trunk rel="css" href="styles.css" />
     <base data-trunk-public-url />
 </head>
+
 <body>
     <canvas id="image_viewer"></canvas>
-    <script>
-        // Initialize the Rust/Wasm app when the page loads
-        window.addEventListener('load', async () => {
-            const { run_web } = await import('./pkg/egui_pixels.js');
-            run_web("image_viewer").catch(console.error);
-        });
+    <script type="module">
+        // Import the wasm module - wasm_bindgen(start) will automatically run main()
+        await import('./pkg/annotation-tool-app.js');
     </script>
 </body>
-</html> 
+
+</html>

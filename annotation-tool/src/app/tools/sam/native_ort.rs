@@ -1,12 +1,12 @@
 use std::{future::Future, path::Path, sync::Arc};
 
+use egui_pixels::PixelRange;
 use image::DynamicImage;
 use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
 use super::{InferenceError, SamEmbeddings, inference::extract_pixel_ranges};
-use crate::PixelRange;
 
 #[derive(Clone)]
 pub struct SamSession {

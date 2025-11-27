@@ -6,13 +6,12 @@ use std::{
     str::FromStr,
 };
 
-use egui_pixels::{ImageData, ImageId, ImageListTaskItem, load_image};
+use egui_pixels::{ImageData, ImageId, ImageListTaskItem, PixelArea, PixelRange, load_image};
 use futures::{FutureExt, future::BoxFuture};
 use itertools::Itertools;
 use log::info;
 
 use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
-use crate::{PixelArea, PixelRange};
 
 pub struct FileStorage {
     base: String,

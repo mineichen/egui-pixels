@@ -8,6 +8,6 @@ public_url = "/"
 watch = ["src", "index.html", "styles.css"]
 
 [serve]
-address = "127.0.0.1"
+addresses = ["127.0.0.1"]
 port = 8085
 open = false 

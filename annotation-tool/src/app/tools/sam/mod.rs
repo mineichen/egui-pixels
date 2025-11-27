@@ -49,10 +49,12 @@ impl super::Tool for SamTool {
                 )
                 .unwrap();
 
-            ctx.image.masks.add_area(PixelArea::with_random_color(
-                new_mask,
-                ctx.image.masks.random_seed(),
-            ));
+            ctx.image
+                .masks
+                .add_area_non_overlapping_parts(PixelArea::with_random_color(
+                    new_mask,
+                    ctx.image.masks.random_seed(),
+                ));
             self.last_pos = None;
 
             // if let Some(x) = ctx.app.selector.current() {

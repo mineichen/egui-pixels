@@ -3,11 +3,10 @@ use std::{
     sync::Arc,
 };
 
+use egui_pixels::PixelRange;
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
-
-use crate::PixelRange;
 
 impl From<TryFromIntError> for InferenceError {
     fn from(value: TryFromIntError) -> Self {

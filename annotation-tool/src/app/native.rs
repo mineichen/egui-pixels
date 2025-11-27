@@ -28,6 +28,7 @@ pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
     });
 
     info!("Run with config: {config:?}");
+    info!("Image directory: {}", image_dir);
     eframe::run_native(
         "Image Viewer",
         options,
