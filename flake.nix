@@ -113,7 +113,7 @@
             fi
             
             # Build if needed
-            nix develop "$PROJECT_ROOT" --command bash -c "cargo build --release --bin annotation-tool-app"
+            nix develop "$PROJECT_ROOT" --command bash -c "cargo build --release --features sam --bin annotation-tool-app"
             
             # Run with arguments passed through
             exec nix develop "$PROJECT_ROOT" --command bash -c "
@@ -121,6 +121,7 @@
                 pkgs.libGL
                 pkgs.mesa
                 onnxruntime_1_16
+                pkgs.stdenv.cc.cc.lib
               ]}:\$LD_LIBRARY_PATH
               exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" \"\$@\"
             " _ "$@"
