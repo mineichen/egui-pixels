@@ -218,7 +218,7 @@ mod tests {
         match dyn_img {
             DynamicImage::ImageLuma8(img) => {
                 assert_eq!(img.dimensions(), (10, 10));
-                let converted_pixels: Vec<u8> = img.pixels().map(|p| p.0[0]).collect();
+                let converted_pixels: Vec<u8> = img.pixels().map(|&image::Luma([p])| p).collect();
                 assert_eq!(converted_pixels, pixels);
             }
             _ => panic!("Expected ImageLuma8, got {:?}", dyn_img),
@@ -238,7 +238,7 @@ mod tests {
         match dyn_img {
             DynamicImage::ImageLuma16(img) => {
                 assert_eq!(img.dimensions(), (10, 10));
-                let converted_pixels: Vec<u16> = img.pixels().map(|p| p.0[0]).collect();
+                let converted_pixels: Vec<u16> = img.pixels().map(|&image::Luma([p])| p).collect();
                 // Verify that pixels are preserved exactly
                 assert_eq!(converted_pixels, pixels);
             }
@@ -260,8 +260,7 @@ mod tests {
         match dyn_img {
             DynamicImage::ImageRgb8(img) => {
                 assert_eq!(img.dimensions(), (10, 10));
-                let converted_pixels: Vec<[u8; 3]> =
-                    img.pixels().map(|p| [p.0[0], p.0[1], p.0[2]]).collect();
+                let converted_pixels: Vec<[u8; 3]> = img.pixels().map(|&image::Rgb(x)| x).collect();
                 assert_eq!(converted_pixels, pixels);
             }
             _ => panic!("Expected ImageRgb8, got {:?}", dyn_img),
@@ -289,10 +288,8 @@ mod tests {
         match dyn_img {
             DynamicImage::ImageRgba8(img) => {
                 assert_eq!(img.dimensions(), (10, 10));
-                let converted_pixels: Vec<[u8; 4]> = img
-                    .pixels()
-                    .map(|p| [p.0[0], p.0[1], p.0[2], p.0[3]])
-                    .collect();
+                let converted_pixels: Vec<[u8; 4]> =
+                    img.pixels().map(|&image::Rgba(x)| x).collect();
                 assert_eq!(converted_pixels, pixels);
             }
             _ => panic!("Expected ImageRgba8, got {:?}", dyn_img),
@@ -312,7 +309,7 @@ mod tests {
         let dyn_img = original.to_dynamic_image();
         match dyn_img {
             DynamicImage::ImageLuma16(img) => {
-                let converted: Vec<u16> = img.pixels().map(|p| p.0[0]).collect();
+                let converted: Vec<u16> = img.pixels().map(|&image::Luma([p])| p).collect();
                 // Verify that all 16-bit values are preserved exactly
                 assert_eq!(converted, pixels);
                 assert_eq!(converted[0], 0);
