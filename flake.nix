@@ -123,7 +123,11 @@
                 onnxruntime_1_16
                 pkgs.stdenv.cc.cc.lib
               ]}:\$LD_LIBRARY_PATH
-              exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" \"\$@\"
+              if [ \$# -eq 0 ]; then
+                exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" ~/Downloads
+              else
+                exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" \"\$@\"
+              fi
             " _ "$@"
           ''}/bin/annotation-tool-app";
         };

@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use egui_pixels::{AsyncRefTask, PixelArea, RectSelection, ToolContext};
 use futures::FutureExt;
-use image::DynamicImage;
 
 use inference::{InferenceError, SamEmbeddings};
 
@@ -20,7 +17,7 @@ pub struct SamTool {
 }
 
 impl SamTool {
-    pub fn new(session: SamSession, img: Arc<DynamicImage>) -> Self {
+    pub fn new(session: SamSession, img: egui_pixels::RgbImageInterleaved<u8>) -> Self {
         Self {
             embeddings: AsyncRefTask::new(session.get_image_embeddings(img).boxed()),
             session,

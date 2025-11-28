@@ -1,4 +1,5 @@
-use std::{pin::Pin, sync::Arc};
+use std::num::NonZeroU32;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 mod async_task;
 mod cursor_image;
@@ -15,7 +16,9 @@ pub use async_task::*;
 pub use cursor_image::*;
 #[cfg(all(feature = "ffi", target_arch = "wasm32"))]
 pub use ffi::*;
+pub use image_buffer::{RgbImageInterleaved, RgbaImageInterleaved};
 pub use image_state::*;
+pub use image_utils::OriginalImage;
 pub use image_utils::*;
 pub use mask::*;
 pub use pixel_range::*;
@@ -53,14 +56,14 @@ impl ImageData {
             id: ImageId::from(format!("image{}", i + 1).as_str()),
             masks: vec![],
             image: {
-                let width = 400;
-                let height = 400;
-                let square_size = width / 8;
+                let width = const { NonZeroU32::new(400).unwrap() };
+                let height = const { NonZeroU32::new(400).unwrap() };
+                let square_size = width.get() / 8;
                 let (color_1, color_2) = if i == 0 { (0, 255) } else { (255, 0) };
 
-                let image_data = (0..height)
+                let image_data = (0..height.get())
                     .flat_map(|y| {
-                        (0..width).flat_map(move |x| {
+                        (0..width.get()).map(move |x| {
                             let square_x = x / square_size;
                             let square_y = y / square_size;
                             let is_white = (square_x + square_y) % 2 == 0;
@@ -68,13 +71,11 @@ impl ImageData {
                             [color, color, color]
                         })
                     })
-                    .collect::<Vec<_>>();
-                let rgb_image =
-                    image::RgbImage::from_raw(width as _, height as _, image_data).unwrap();
-                let dyn_img = Arc::new(image::DynamicImage::ImageRgb8(rgb_image));
+                    .collect();
+                let buffer = RgbImageInterleaved::new_arc(image_data, width, height);
                 ImageLoadOk {
-                    adjust: dyn_img.clone(),
-                    original: dyn_img,
+                    original: crate::image_utils::OriginalImage::Rgb8(buffer.clone()),
+                    adjust: buffer,
                 }
             },
         })

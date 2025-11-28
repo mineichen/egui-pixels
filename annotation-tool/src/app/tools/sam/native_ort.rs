@@ -1,7 +1,7 @@
 use std::{future::Future, path::Path, sync::Arc};
 
 use egui_pixels::PixelRange;
-use image::DynamicImage;
+use egui_pixels::RgbImageInterleaved;
 use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
@@ -29,12 +29,12 @@ impl SamSession {
 
     pub fn get_image_embeddings(
         &self,
-        img: Arc<DynamicImage>,
+        img: RgbImageInterleaved<u8>,
     ) -> impl Future<Output = Result<SamEmbeddings, InferenceError>> + Send + 'static {
         let (tx, rx) = futures::channel::oneshot::channel();
 
         let session = self.encoder.clone();
-        let handle = std::thread::spawn(|| {
+        let handle = std::thread::spawn(move || {
             let r = Self::get_image_embeddings_blocking(session, img);
             tx.send(r)
         });
@@ -49,7 +49,7 @@ impl SamSession {
     }
     pub fn get_image_embeddings_blocking(
         encoder: Arc<Session>,
-        img: Arc<DynamicImage>,
+        img: RgbImageInterleaved<u8>,
     ) -> Result<SamEmbeddings, InferenceError> {
         let image_input = super::inference::prepare_image_input(&img)?;
         // Prepare tensor for the SAM encoder model

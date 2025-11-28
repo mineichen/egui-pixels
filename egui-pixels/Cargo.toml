@@ -9,7 +9,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 egui.workspace = true
-image = { workspace = true }
+image = { workspace = true, optional = true }
+image-buffer.workspace = true
 itertools.workspace = true
 log.workspace = true
 num-traits = "0.2.19"
@@ -30,6 +31,7 @@ getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
 
 [features]
 default = []
+image = ["dep:image"]
 ffi = [
     "eframe",
     "js-sys",

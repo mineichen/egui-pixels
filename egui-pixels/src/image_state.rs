@@ -3,7 +3,6 @@ use std::io;
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use image::GenericImageView;
 
 use crate::{AsyncTask, BoxFuture, ImageData, ImageId, ImageLoadOk, MaskImage};
 
@@ -58,14 +57,14 @@ impl ImageState {
 
 impl ImageStateLoaded {
     pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Self {
+        let (width, height) = i.image.adjust.dimensions();
         let handle = ctx.load_texture(
             "Overlays",
             ColorImage::new(
-                [i.image.adjust.width() as _, i.image.adjust.height() as _],
+                [width.get() as _, height.get() as _],
                 i.image
-                    .adjust
-                    .pixels()
-                    .map(|(_, _, image::Rgba([r, g, b, _]))| Color32::from_rgb(r, g, b))
+                    .adjust_pixels()
+                    .map(|(_, _, [r, g, b])| Color32::from_rgb(r, g, b))
                     .collect(),
             ),
             TextureOptions {
@@ -76,13 +75,15 @@ impl ImageStateLoaded {
         let texture = SizedTexture::from_handle(&handle);
 
         let source = ImageSource::Texture(texture);
-        let x = i.image.adjust.width() as usize;
-        let y = i.image.adjust.height() as usize;
         ImageStateLoaded {
             id: i.id,
             image: i.image,
             texture: (handle, source),
-            masks: MaskImage::new([x, y], i.masks.clone(), Default::default()),
+            masks: MaskImage::new(
+                [width.get() as usize, height.get() as usize],
+                i.masks.clone(),
+                Default::default(),
+            ),
         }
     }
 }

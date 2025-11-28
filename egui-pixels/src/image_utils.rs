@@ -1,81 +1,62 @@
-use std::sync::Arc;
+use std::num::NonZeroU32;
 
-use image::{DynamicImage, ImageBuffer, Luma};
+use image_buffer::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
 
+#[cfg(feature = "image")]
+mod image;
+
+/// Different image formats supported for the original image
+#[derive(Clone)]
+pub enum OriginalImage {
+    Luma8(LumaImage<u8>),
+    Luma16(LumaImage<u16>),
+    Rgb8(RgbImageInterleaved<u8>),
+    Rgba8(RgbaImageInterleaved<u8>),
+}
+
+impl OriginalImage {
+    pub fn width(&self) -> NonZeroU32 {
+        match self {
+            OriginalImage::Luma8(img) => img.dimensions().0,
+            OriginalImage::Luma16(img) => img.dimensions().0,
+            OriginalImage::Rgb8(img) => img.dimensions().0,
+            OriginalImage::Rgba8(img) => img.dimensions().0,
+        }
+    }
+
+    pub fn height(&self) -> NonZeroU32 {
+        match self {
+            OriginalImage::Luma8(img) => img.dimensions().1,
+            OriginalImage::Luma16(img) => img.dimensions().1,
+            OriginalImage::Rgb8(img) => img.dimensions().1,
+            OriginalImage::Rgba8(img) => img.dimensions().1,
+        }
+    }
+}
+
+/// Represents a loaded image using image-buffer
 #[derive(Clone)]
 pub struct ImageLoadOk {
-    pub original: Arc<DynamicImage>,
-    pub adjust: Arc<DynamicImage>,
+    pub original: OriginalImage,
+    pub adjust: RgbImageInterleaved<u8>,
 }
 
-pub fn load_image(bytes: &[u8]) -> std::io::Result<ImageLoadOk> {
-    let original = image::load_from_memory(bytes)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-    Ok(match &original {
-        image::DynamicImage::ImageLuma16(i) => {
-            let adjust = Arc::new(image::DynamicImage::ImageLuma16(fix_image_contrast(i)));
-            let original = Arc::new(original);
-            ImageLoadOk { adjust, original }
-        }
-        image::DynamicImage::ImageLuma8(i) => {
-            let adjust = Arc::new(image::DynamicImage::ImageLuma8(fix_image_contrast(i)));
-            let original = Arc::new(original);
-            ImageLoadOk { adjust, original }
-        }
-        _ => {
-            let image = Arc::new(original);
-            ImageLoadOk {
-                adjust: image.clone(),
-                original: image.clone(),
-            }
-        }
-    })
-}
-
-fn fix_image_contrast<T: image::Primitive + Ord>(
-    i: &ImageBuffer<Luma<T>, Vec<T>>,
-) -> ImageBuffer<Luma<T>, Vec<T>>
-where
-    f32: From<T>,
-{
-    let mut pixels = i.pixels().map(|Luma([p])| p).collect::<Vec<_>>();
-    pixels.sort_unstable();
-    let five_percent_pos = pixels.len() / 20;
-    let lower: f32 = (*pixels[five_percent_pos]).into();
-    let upper: f32 = (*pixels[five_percent_pos * 19]).into();
-    let max_pixel_value: f32 = T::DEFAULT_MAX_VALUE.into();
-    let range = max_pixel_value / (upper - lower);
-    if lower == upper {
-        return i.clone();
-    }
-    ImageBuffer::from_raw(
-        i.width(),
-        i.height(),
-        i.pixels()
-            .map(|Luma([p])| {
-                let as_f: f32 = (*p).into();
-
-                num_traits::cast::NumCast::from(
-                    ((as_f - lower) * range).clamp(0.0, max_pixel_value),
-                )
-                .unwrap()
+impl ImageLoadOk {
+    pub fn adjust_pixels(&self) -> impl Iterator<Item = (u32, u32, [u8; 3])> + '_ {
+        let (width, _) = self.adjust.dimensions();
+        let width = width.get();
+        // flat_buffer() returns &[u8] for RgbImageInterleaved (flattened)
+        self.adjust
+            .flat_buffer()
+            .chunks_exact(3)
+            .enumerate()
+            .map(move |(idx, chunk)| {
+                let x = (idx % width as usize) as u32;
+                let y = (idx / width as usize) as u32;
+                (x, y, [chunk[0], chunk[1], chunk[2]])
             })
-            .collect(),
-    )
-    .unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use image::ImageBuffer;
-
-    use crate::image_utils::fix_image_contrast;
-
-    #[test]
-    fn fix_image_contrast_all_pixels_same() {
-        let image = ImageBuffer::from_raw(5, 5, vec![255.into(); 25]).unwrap();
-        let fixed = fix_image_contrast::<u8>(&image);
-        assert_eq!(fixed, image);
     }
 }
+
+#[cfg(feature = "image")]
+pub use image::load_image;

@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use egui_pixels::PixelRange;
+use egui_pixels::{PixelRange, RgbImageInterleaved};
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
@@ -29,13 +29,23 @@ pub enum InferenceError {
     UnexpectedOutput(String),
 }
 
-pub(super) fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, InferenceError> {
+pub(super) fn prepare_image_input(
+    img: &RgbImageInterleaved<u8>,
+) -> Result<SamInputData, InferenceError> {
     let (original_width, original_height) = img.dimensions();
-    let (original_width, original_height) = (
-        NonZeroU32::try_from(original_width)?,
-        NonZeroU32::try_from(original_height)?,
-    );
-    let img_resized = img.resize(1024, 1024, FilterType::CatmullRom);
+    // Convert RgbImageInterleaved to DynamicImage for proper resizing
+    let (width, height) = (original_width.get(), original_height.get());
+    let pixels = img.flat_buffer();
+    let rgb_image = image::RgbImage::from_raw(width, height, pixels.to_vec()).ok_or_else(|| {
+        InferenceError::Other(Arc::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Failed to create RgbImage",
+        )))
+    })?;
+    let dynamic_img = DynamicImage::ImageRgb8(rgb_image);
+
+    // Resize using the same method as the original code
+    let img_resized = dynamic_img.resize(1024, 1024, FilterType::CatmullRom);
     let (resized_width, resized_height) = img_resized.dimensions();
     let (resized_width, resized_height) = (
         NonZeroU32::try_from(resized_width)?,
@@ -49,56 +59,35 @@ pub(super) fn prepare_image_input(img: &DynamicImage) -> Result<SamInputData, In
     let (r, gb) = rgb.split_at_mut(1024 * 1024);
     let (g, b) = gb.split_at_mut(1024 * 1024);
 
-    match img_resized {
-        DynamicImage::ImageLuma16(i) => {
-            //let x = streaming - stats::mean();
-            let mut image_vec = i.into_vec();
-            let mut s = rolling_stats::Stats::new();
-            image_vec.iter().for_each(|v| s.update(*v as f32));
+    // Process the resized RGB image - we know it's RGB since input is RgbImageInterleaved
+    // Calculate statistics on resized image
+    let mut rs = rolling_stats::Stats::new();
+    let mut gs = rolling_stats::Stats::new();
+    let mut bs = rolling_stats::Stats::new();
 
-            for (src_c, dst_c) in image_vec
-                .chunks_exact_mut(resized_width.get() as usize)
-                .zip(r.chunks_exact_mut(1024))
-            {
-                for (src, dst) in src_c.iter_mut().zip(dst_c) {
-                    *dst = (*src as f32 - s.mean) / s.std_dev;
-                }
-            }
-            g.copy_from_slice(r);
-            b.copy_from_slice(r);
+    for (_, _, Rgba([r, g, b, _])) in img_resized.pixels() {
+        rs.update(r as f32);
+        gs.update(g as f32);
+        bs.update(b as f32);
+    }
+
+    // Fill arrays row-by-row, matching the original code exactly
+    for (((input_chunk, r_chunk), g_chunk), b_chunk) in img_resized
+        .pixels()
+        .chunks(img_resized.width() as _)
+        .into_iter()
+        .zip(r.chunks_exact_mut(1024))
+        .zip(g.chunks_exact_mut(1024))
+        .zip(b.chunks_exact_mut(1024))
+    {
+        for ((((_, _, Rgba([r, g, b, _])), r_dest), g_dest), b_dest) in
+            input_chunk.zip(r_chunk).zip(g_chunk).zip(b_chunk)
+        {
+            *r_dest = (r as f32 - rs.mean) / rs.std_dev;
+            *g_dest = (g as f32 - gs.mean) / gs.std_dev;
+            *b_dest = (b as f32 - bs.mean) / bs.std_dev;
         }
-        image => {
-            // Copy the image pixels to the tensor, normalizing them using mean and standard deviations
-            // for each color channel
-
-            let mut rs = rolling_stats::Stats::new();
-            let mut gs = rolling_stats::Stats::new();
-            let mut bs = rolling_stats::Stats::new();
-
-            for (_, _, Rgba([r, g, b, _])) in image.pixels() {
-                rs.update(r as f32);
-                gs.update(g as f32);
-                bs.update(b as f32);
-            }
-
-            for (((input_chunk, r_chunk), g_chunk), b_chunk) in image
-                .pixels()
-                .chunks(image.width() as _)
-                .into_iter()
-                .zip(r.chunks_exact_mut(1024))
-                .zip(g.chunks_exact_mut(1024))
-                .zip(b.chunks_exact_mut(1024))
-            {
-                for ((((_, _, Rgba([r, g, b, _])), r_dest), g_dest), b_dest) in
-                    input_chunk.zip(r_chunk).zip(g_chunk).zip(b_chunk)
-                {
-                    *r_dest = (r as f32 - rs.mean) / rs.std_dev;
-                    *g_dest = (g as f32 - gs.mean) / gs.std_dev;
-                    *b_dest = (b as f32 - bs.mean) / bs.std_dev;
-                }
-            }
-        }
-    };
+    }
 
     Ok(ResizedImageData {
         image_data: input.into_dyn(),

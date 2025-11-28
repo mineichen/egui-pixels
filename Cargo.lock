@@ -636,6 +636,7 @@ dependencies = [
  "egui-pixels",
  "getrandom 0.3.3",
  "image",
+ "image-buffer",
  "itertools",
  "js-sys",
  "log",
@@ -1255,6 +1256,11 @@ dependencies = [
  "zune-core",
  "zune-jpeg",
 ]
+
+[[package]]
+name = "image-buffer"
+version = "0.1.0"
+source = "git+https://github.com/mineichen/image-buffer?branch=main#df2c88f348b4015614201ee0b2e9f697fb199076"
 
 [[package]]
 name = "indexmap"
