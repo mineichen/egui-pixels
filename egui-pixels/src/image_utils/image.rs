@@ -167,10 +167,10 @@ where
     let lower: f32 = (*pixels[five_percent_pos]).into();
     let upper: f32 = (*pixels[five_percent_pos * 19]).into();
     let max_pixel_value: f32 = T::DEFAULT_MAX_VALUE.into();
-    let range = max_pixel_value / (upper - lower);
     if lower == upper {
         return i.clone();
     }
+    let range = max_pixel_value / (upper - lower);
     ImageImageBuffer::from_raw(
         i.width(),
         i.height(),
