@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use image_buffer::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
+use imbuf::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
 
 #[cfg(feature = "image")]
 mod image;
@@ -47,7 +47,7 @@ impl ImageLoadOk {
         let width = width.get();
         // flat_buffer() returns &[u8] for RgbImageInterleaved (flattened)
         self.adjust
-            .flat_buffer()
+            .buffer_flat()
             .chunks_exact(3)
             .enumerate()
             .map(move |(idx, chunk)| {

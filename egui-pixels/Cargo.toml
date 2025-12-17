@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 egui.workspace = true
 image = { workspace = true, optional = true }
-image-buffer.workspace = true
+imbuf.workspace = true
 itertools.workspace = true
 log.workspace = true
 num-traits = "0.2.19"

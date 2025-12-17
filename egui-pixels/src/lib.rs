@@ -16,10 +16,9 @@ pub use async_task::*;
 pub use cursor_image::*;
 #[cfg(all(feature = "ffi", target_arch = "wasm32"))]
 pub use ffi::*;
-pub use image_buffer::{RgbImageInterleaved, RgbaImageInterleaved};
 pub use image_state::*;
-pub use image_utils::OriginalImage;
 pub use image_utils::*;
+pub use imbuf::{RgbImageInterleaved, RgbaImageInterleaved};
 pub use mask::*;
 pub use pixel_range::*;
 pub use tool::*;

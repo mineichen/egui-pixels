@@ -636,7 +636,7 @@ dependencies = [
  "egui-pixels",
  "getrandom 0.3.3",
  "image",
- "image-buffer",
+ "imbuf",
  "itertools",
  "js-sys",
  "log",
@@ -1258,9 +1258,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "image-buffer"
+name = "imbuf"
 version = "0.1.0"
-source = "git+https://github.com/mineichen/image-buffer?branch=main#df2c88f348b4015614201ee0b2e9f697fb199076"
+source = "git+https://github.com/mineichen/image-buffer?branch=vtable_per_channel#bd13211e849c5552c390be513f87fcdb720d9585"
+dependencies = [
+ "thiserror 2.0.17",
+]
 
 [[package]]
 name = "indexmap"
