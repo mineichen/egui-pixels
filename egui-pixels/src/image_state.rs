@@ -37,9 +37,11 @@ impl ImageState {
             }
             ImageState::LoadingImageData(t) => {
                 if let Some(image_data_result) = t.data() {
-                    *self = match image_data_result {
-                        Ok(i) => {
-                            let loaded = ImageStateLoaded::from_image_data(i, ctx);
+                    *self = match image_data_result
+                        .map_err(|e| e.to_string())
+                        .and_then(|i| ImageStateLoaded::from_image_data(i, ctx))
+                    {
+                        Ok(loaded) => {
                             on_image_load(&loaded.image);
                             ImageState::Loaded(loaded)
                         }
@@ -56,8 +58,17 @@ impl ImageState {
 }
 
 impl ImageStateLoaded {
-    pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Self {
+    pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Result<Self, String> {
         let (width, height) = i.image.adjust.dimensions();
+        let max_texture_side = ctx.input(|i| i.max_texture_side);
+        if width.get() as usize > max_texture_side || height.get() as usize > max_texture_side {
+            return Err(format!(
+                "Image too large: {}x{}, max texture side is {}",
+                width.get(),
+                height.get(),
+                max_texture_side
+            ));
+        }
         let handle = ctx.load_texture(
             "Overlays",
             ColorImage::new(
@@ -75,7 +86,7 @@ impl ImageStateLoaded {
         let texture = SizedTexture::from_handle(&handle);
 
         let source = ImageSource::Texture(texture);
-        ImageStateLoaded {
+        Ok(ImageStateLoaded {
             id: i.id,
             image: i.image,
             texture: (handle, source),
@@ -84,7 +95,7 @@ impl ImageStateLoaded {
                 i.masks.clone(),
                 Default::default(),
             ),
-        }
+        })
     }
 }
 
