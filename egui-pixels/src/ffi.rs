@@ -61,7 +61,8 @@ pub fn run_web() {
 impl App {
     pub fn new() -> Self {
         let image = ImageData::chessboard().next().unwrap();
-        let image_state = ImageStateLoaded::from_image_data(image, &egui::Context::default());
+        let image_state = ImageStateLoaded::from_image_data(image, &egui::Context::default())
+            .expect("Default image should load");
         Self {
             image_state,
             viewer: ImageViewer::default(),
