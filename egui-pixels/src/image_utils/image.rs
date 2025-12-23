@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use image::{DynamicImage, ImageBuffer as ImageImageBuffer, Luma};
 
 use crate::image_utils::{ImageLoadOk, OriginalImage};
-use image_buffer::{LumaImage, RgbImageInterleaved};
+use imbuf::{LumaImage, RgbImageInterleaved};
 
 impl OriginalImage {
     pub fn to_dynamic_image(&self) -> DynamicImage {
@@ -28,7 +28,7 @@ impl OriginalImage {
             OriginalImage::Rgb8(img) => {
                 use image::RgbImage;
                 let (width, height) = (img.dimensions().0.get(), img.dimensions().1.get());
-                let pixels: Vec<u8> = img.flat_buffer().to_vec();
+                let pixels: Vec<u8> = img.buffer_flat().to_vec();
                 let rgb =
                     RgbImage::from_raw(width, height, pixels).expect("Failed to create RgbImage");
                 DynamicImage::ImageRgb8(rgb)
@@ -36,7 +36,7 @@ impl OriginalImage {
             OriginalImage::Rgba8(img) => {
                 use image::RgbaImage;
                 let (width, height) = (img.dimensions().0.get(), img.dimensions().1.get());
-                let pixels: Vec<u8> = img.flat_buffer().to_vec();
+                let pixels: Vec<u8> = img.buffer_flat().to_vec();
                 let rgba =
                     RgbaImage::from_raw(width, height, pixels).expect("Failed to create RgbaImage");
                 DynamicImage::ImageRgba8(rgba)
@@ -193,7 +193,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use image::{DynamicImage, ImageBuffer as ImageImageBuffer};
-    use image_buffer::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
+    use imbuf::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
 
     use crate::image_utils::OriginalImage;
 

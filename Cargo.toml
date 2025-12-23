@@ -11,7 +11,7 @@ eframe = { version = "0.33", default-features = false, features = ["wgpu", "defa
 egui = { version = "0.33", default-features = false }
 futures-core = "0.3"
 image = { version = "0.25", default-features = false }
-image-buffer = { git = "https://github.com/mineichen/image-buffer", branch = "main" }
+imbuf = { git = "https://github.com/mineichen/image-buffer", branch = "vtable_per_channel" }
 itertools = "0.14.0"
 log = "0.4.22"
 serde = { version = "1" }
