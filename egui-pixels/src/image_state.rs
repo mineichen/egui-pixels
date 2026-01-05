@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, num::NonZeroU32};
 
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
@@ -38,14 +38,15 @@ impl ImageState {
             ImageState::LoadingImageData(t) => {
                 if let Some(image_data_result) = t.data() {
                     *self = match image_data_result
-                        .map_err(|e| e.to_string())
-                        .and_then(|i| ImageStateLoaded::from_image_data(i, ctx))
-                    {
+                        .map_err(|e| format!("IO Error: {}", e))
+                        .and_then(|i| {
+                            ImageStateLoaded::from_image_data(i, ctx).map_err(|e| e.to_string())
+                        }) {
                         Ok(loaded) => {
                             on_image_load(&loaded.image);
                             ImageState::Loaded(loaded)
                         }
-                        Err(e) => ImageState::Error(format!("Error: {e}")),
+                        Err(e) => ImageState::Error(e),
                     }
                 }
             }
@@ -58,16 +59,11 @@ impl ImageState {
 }
 
 impl ImageStateLoaded {
-    pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Result<Self, String> {
+    pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Result<Self, TextureExceedsLimit> {
         let (width, height) = i.image.adjust.dimensions();
         let max_texture_side = ctx.input(|i| i.max_texture_side);
         if width.get() as usize > max_texture_side || height.get() as usize > max_texture_side {
-            return Err(format!(
-                "Image too large: {}x{}, max texture side is {}",
-                width.get(),
-                height.get(),
-                max_texture_side
-            ));
+            return Err(TextureExceedsLimit::new(width, height, max_texture_side));
         }
         let handle = ctx.load_texture(
             "Overlays",
@@ -116,5 +112,28 @@ impl ImageStateLoaded {
         ctx: &egui::Context,
     ) -> impl Iterator<Item = ImageSource<'static>> + '_ {
         std::iter::once(self.texture.1.clone()).chain(self.masks.sources(ctx))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "Image too large: {}x{}, max texture side is {}",
+    width,
+    height,
+    max_texture_side
+)]
+pub struct TextureExceedsLimit {
+    width: NonZeroU32,
+    height: NonZeroU32,
+    max_texture_side: usize,
+}
+
+impl TextureExceedsLimit {
+    pub fn new(width: NonZeroU32, height: NonZeroU32, max_texture_side: usize) -> Self {
+        Self {
+            width,
+            height,
+            max_texture_side,
+        }
     }
 }
