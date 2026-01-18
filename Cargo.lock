@@ -1261,7 +1261,7 @@ dependencies = [
 [[package]]
 name = "imbuf"
 version = "0.2.0"
-source = "git+https://github.com/mineichen/image-buffer#bbb50c7a8ea87149b8c3c63411c52d7547817a6f"
+source = "git+https://github.com/mineichen/imbuf#bbb50c7a8ea87149b8c3c63411c52d7547817a6f"
 dependencies = [
  "thiserror 2.0.17",
 ]
