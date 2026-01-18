@@ -4,7 +4,7 @@ use std::{
 };
 
 use egui_pixels::{PixelRange, RgbImageInterleaved};
-use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
+use image::{imageops::FilterType, DynamicImage, GenericImageView, Rgba};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
@@ -35,7 +35,7 @@ pub(super) fn prepare_image_input(
     let (original_width, original_height) = img.dimensions();
     // Convert RgbImageInterleaved to DynamicImage for proper resizing
     let (width, height) = (original_width.get(), original_height.get());
-    let pixels = img.flat_buffer();
+    let pixels = img.buffer_flat();
     let rgb_image = image::RgbImage::from_raw(width, height, pixels.to_vec()).ok_or_else(|| {
         InferenceError::Other(Arc::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
