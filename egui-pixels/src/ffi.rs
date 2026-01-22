@@ -86,11 +86,10 @@ impl eframe::App for App {
                 .viewer
                 .ui_meta(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()))
             {
-                if let Some(cursor_image_pos) = cursor_image_pos {
+                if cursor_image_pos.is_some() {
                     self.tool.handle_interaction(ToolContext::new(
                         &mut self.image_state,
                         response,
-                        cursor_image_pos,
                         ctx,
                         tool_painter,
                         &mut self.viewer,

@@ -108,7 +108,6 @@ impl ToolPainter {
 pub struct ToolContext<'a> {
     pub image: &'a mut ImageStateLoaded,
     pub response: egui::Response,
-    pub cursor_image_pos: (usize, usize),
     pub egui: &'a egui::Context,
     pub painter: ToolPainter,
     pub viewer: &'a mut ImageViewer,
@@ -118,7 +117,6 @@ impl<'a> ToolContext<'a> {
     pub fn new(
         image: &'a mut ImageStateLoaded,
         response: egui::Response,
-        cursor_image_pos: (usize, usize),
         egui: &'a egui::Context,
         painter: ToolPainter,
         viewer: &'a mut ImageViewer,
@@ -126,10 +124,18 @@ impl<'a> ToolContext<'a> {
         Self {
             image,
             response,
-            cursor_image_pos,
             egui,
             painter,
             viewer,
         }
+    }
+
+    /// Get the cursor position in image coordinates (pixels)
+    /// Returns None if the cursor is not over the image
+    pub fn cursor_image_pos(&self) -> Option<(usize, usize)> {
+        self.response.interact_pointer_pos().map(|screen_pos| {
+            let image_pos = self.painter.screen_to_image(screen_pos);
+            (image_pos.x as usize, image_pos.y as usize)
+        })
     }
 }

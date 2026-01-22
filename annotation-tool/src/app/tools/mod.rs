@@ -119,7 +119,6 @@ impl super::ImageViewerApp {
     pub(super) fn handle_tool_interaction(
         &mut self,
         response: egui::Response,
-        cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
         tool_painter: ToolPainter,
     ) {
@@ -137,7 +136,6 @@ impl super::ImageViewerApp {
                 tool.handle_interaction(ToolContext::new(
                     image,
                     response,
-                    cursor_image_pos,
                     ctx,
                     tool_painter,
                     &mut self.viewer,

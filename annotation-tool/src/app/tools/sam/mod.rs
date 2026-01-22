@@ -29,7 +29,7 @@ impl SamTool {
 
 impl super::Tool for SamTool {
     fn handle_interaction(&mut self, mut ctx: ToolContext) {
-        if let Some(x) = self.rect_selection.drag_stopped(&mut ctx) {
+        if let Some(x) = self.rect_selection.drag_finished(&mut ctx) {
             self.last_pos = Some(x);
         }
         if let (Some([[top_x, top_y], [bottom_x, bottom_y]]), Some(Ok(loaded_embeddings))) =
