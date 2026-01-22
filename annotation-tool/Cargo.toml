@@ -11,8 +11,7 @@ name = "annotation-tool-app"
 path = "src/main.rs"
 
 [dependencies]
-eframe = { version = "0.33", default-features = false, features = [
-    "glow",
+eframe = { version = "0.33", features = [
     "default_fonts",
 ] }
 egui-pixels = { path = "../egui-pixels", features = ["image"] }
@@ -29,8 +28,7 @@ image = { workspace = true, features = [
 ] }
 log.workspace = true
 thiserror = "2"
-
-ort = { version = "1.15.2", optional = true }
+ort = { version = "1.16.3", optional = true }
 ndarray = { version = "0.15", optional = true }
 rolling-stats = "0.7"
 itertools.workspace = true
