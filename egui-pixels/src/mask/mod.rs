@@ -1,4 +1,4 @@
-use std::{collections::BinaryHeap, num::NonZeroU16};
+use std::collections::BinaryHeap;
 
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
@@ -127,21 +127,10 @@ impl MaskImage {
         self.texture_handle_dirty = true;
     }
 
-    pub fn clear_rect(&mut self, [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2]) {
-        let x_left = x_top as u32;
-        let x_right = x_bottom as u32;
-        let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
+    pub fn clear_ranges(&mut self, ranges: impl Iterator<Item = PixelRange>) {
+        let action = HistoryAction::Clear(ranges.collect());
 
-        let y_range = y_top as u32..=y_bottom as u32;
-        let image_width = self.size[0] as u32;
-
-        assert!(image_width > 0, "Todo: Move Constraint to MaskImage.size");
-
-        let region = y_range
-            .map(|y| PixelRange::new_total(y * image_width + x_left, x_width))
-            .collect();
-
-        self.add_history_action(HistoryAction::Clear(region))
+        self.add_history_action(action)
     }
 
     pub fn add_area_non_overlapping_parts(&mut self, mut subgroups: PixelArea) {
@@ -255,6 +244,19 @@ impl MaskImage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::num::NonZeroU16;
+
+    // Helper function to convert bounds to an iterator of PixelRange for tests
+    fn bounds_to_ranges(
+        [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2],
+        image_width: u32,
+    ) -> impl Iterator<Item = PixelRange> {
+        let x_left = x_top as u32;
+        let x_right = x_bottom as u32;
+        let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
+        let y_range = y_top as u32..=y_bottom as u32;
+        y_range.map(move |y| PixelRange::new_total(y * image_width + x_left, x_width))
+    }
 
     #[test]
     fn add_area_with_overlap() {
@@ -339,7 +341,7 @@ mod tests {
             2,
             NonZeroU16::try_from(6).unwrap(),
         )]));
-        mask_image.clear_rect([[0, 0], [4, 1]]);
+        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [4, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
@@ -367,7 +369,7 @@ mod tests {
             2,
             NonZeroU16::try_from(6).unwrap(),
         )]));
-        mask_image.clear_rect([[5, 0], [10, 1]]);
+        mask_image.clear_ranges(bounds_to_ranges([[5, 0], [10, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
@@ -395,7 +397,7 @@ mod tests {
             2,
             NonZeroU16::try_from(6).unwrap(),
         )]));
-        mask_image.clear_rect([[4, 0], [5, 1]]);
+        mask_image.clear_ranges(bounds_to_ranges([[4, 0], [5, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
@@ -423,7 +425,7 @@ mod tests {
             4,
             NonZeroU16::try_from(2).unwrap(),
         )]));
-        mask_image.clear_rect([[0, 0], [3, 1]]);
+        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
@@ -451,7 +453,7 @@ mod tests {
             1,
             NonZeroU16::try_from(8).unwrap(),
         )]));
-        mask_image.clear_rect([[0, 0], [3, 1]]);
+        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![

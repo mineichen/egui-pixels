@@ -87,7 +87,6 @@ impl PixelArea {
         }
     }
 
-
     pub fn is_empty(&self) -> bool {
         self.pixels.is_empty()
     }
