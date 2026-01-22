@@ -62,7 +62,7 @@ impl ImageViewer {
         ui: &mut egui::Ui,
         sources: impl Iterator<Item = ImageSource<'static>>,
         sense: Option<Sense>,
-    ) -> InnerResponse<Option<ImageViewerInteraction>> {
+    ) -> InnerResponse<Option<(ImageViewerInteraction, ToolPainter)>> {
         let available_size = ui.available_size();
         let viewport_rect = ui.available_rect_before_wrap();
 
@@ -192,11 +192,10 @@ impl ImageViewer {
         let interaction = ImageViewerInteraction {
             original_image_size,
             cursor_image_pos,
-            tool_painter,
         };
 
         InnerResponse {
-            inner: Some(interaction),
+            inner: Some((interaction, tool_painter)),
             response,
         }
     }
@@ -215,6 +214,4 @@ pub struct ImageViewerInteraction {
     pub original_image_size: Vec2,
     /// Cursor position relative to image (in image pixels)
     pub cursor_image_pos: Option<(usize, usize)>,
-    /// Tool painter for drawing on the image canvas
-    pub tool_painter: ToolPainter,
 }

@@ -68,25 +68,12 @@ impl eframe::App for ImageViewerApp {
             self.menu_ui(ui);
             self.handle_image_transition(ui.ctx());
 
-            if let InnerResponse {
-                inner:
-                    Some(ImageViewerInteraction {
-                        original_image_size,
-                        cursor_image_pos,
-                        tool_painter,
-                    }),
-                response,
-            } = ui.reserve_bottom_space(80., |ui| {
-                self.state.viewer.ui(
-                    ui,
-                    self.state.image_state.sources(ui.ctx()),
-                    Some(Sense::click()),
-                )
-            }) {
-                if cursor_image_pos.is_some() {
-                    self.state
-                        .handle_tool_interaction(response, ui.ctx(), tool_painter);
-                }
+            let response = ui.reserve_bottom_space(80., |ui| self.state.ui(ui));
+            if let Some(x) = response.inner {
+                let ImageViewerInteraction {
+                    original_image_size,
+                    cursor_image_pos,
+                } = x;
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
                     original_image_size,

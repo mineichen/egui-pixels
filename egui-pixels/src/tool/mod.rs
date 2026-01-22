@@ -109,7 +109,7 @@ impl ToolPainter {
 #[non_exhaustive]
 pub struct ToolContext<'a> {
     pub image: &'a mut ImageStateLoaded,
-    pub response: egui::Response,
+    pub response: &'a egui::Response,
     pub egui: &'a egui::Context,
     pub painter: ToolPainter,
     pub viewer: &'a mut ImageViewer,
@@ -118,7 +118,7 @@ pub struct ToolContext<'a> {
 impl<'a> ToolContext<'a> {
     pub fn new(
         image: &'a mut ImageStateLoaded,
-        response: egui::Response,
+        response: &'a egui::Response,
         egui: &'a egui::Context,
         painter: ToolPainter,
         viewer: &'a mut ImageViewer,

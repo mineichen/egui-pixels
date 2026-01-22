@@ -5,7 +5,7 @@ use std::path::PathBuf;
 pub struct Config {
     pub sam_path: PathBuf,
     pub image_dir: Option<PathBuf>,
-    pub egui: crate::app::Config,
+    pub(crate) egui: crate::app::Config,
 }
 
 impl Default for Config {

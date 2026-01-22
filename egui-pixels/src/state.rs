@@ -1,6 +1,8 @@
 use std::io;
 
-use crate::{BoxFuture, ImageData, ImageLoadOk, ImageViewer, Tools};
+use egui::{InnerResponse, Sense};
+
+use crate::{BoxFuture, ImageData, ImageLoadOk, ImageViewer, ImageViewerInteraction, Tools};
 
 /// State container for handling tool interactions with the image viewer.
 /// Contains all the necessary components to process tool events and render tools on the image.
@@ -37,12 +39,27 @@ impl State {
         );
     }
 
+    pub fn ui(&mut self, ui: &mut egui::Ui) -> InnerResponse<Option<ImageViewerInteraction>> {
+        let InnerResponse { inner, response } =
+            self.viewer
+                .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
+        InnerResponse {
+            inner: if let Some((r, tool_painter)) = inner {
+                self.handle_tool_interaction(&response, ui.ctx(), tool_painter);
+                Some(r)
+            } else {
+                None
+            },
+            response,
+        }
+    }
+
     /// Handle tool interaction based on user input.
     /// This method checks which tool should be active (primary or secondary based on modifier keys),
     /// and delegates the interaction handling to the appropriate tool.
     pub fn handle_tool_interaction(
         &mut self,
-        response: egui::Response,
+        response: &egui::Response,
         ctx: &egui::Context,
         tool_painter: crate::ToolPainter,
     ) {
