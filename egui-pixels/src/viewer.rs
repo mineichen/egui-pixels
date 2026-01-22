@@ -13,7 +13,7 @@ pub struct ImageViewer {
     // 0.0 = left/top image edge is at the viewport center
     // 0.5 = image center is at the viewport center (fully centered)
     // 1.0 = right/bottom image edge is at the viewport center
-    pub pan_offset: Vec2,
+    pan_offset: Vec2,
 }
 
 impl ImageViewer {
@@ -22,8 +22,24 @@ impl ImageViewer {
         self.pan_offset = Vec2::splat(0.5);
     }
 
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+
+    pub fn set_zoom(&mut self, zoom: f32) {
+        self.zoom = zoom.clamp(0.05, 1.0);
+    }
+
     pub fn modify_zoom(&mut self, zoom: impl Fn(f32) -> f32) {
         self.zoom = zoom(self.zoom).clamp(0.05, 1.0);
+    }
+
+    pub fn pan_offset(&self) -> Vec2 {
+        self.pan_offset
+    }
+
+    pub fn set_pan_offset(&mut self, offset: Vec2) {
+        self.pan_offset = offset;
     }
 
     pub fn pan_bounds(
@@ -104,38 +120,6 @@ impl ImageViewer {
 
         let cursor_image_pos = {
             let render_scale = fit_scale / self.zoom;
-
-            let drag_delta = response.drag_delta();
-            if drag_delta != Vec2::default()
-                && ui.input(|i| i.modifiers.command || i.modifiers.ctrl)
-            {
-                let delta_norm = drag_delta / (render_scale * original_image_size);
-                let mut new_offset = self.pan_offset - delta_norm;
-
-                let (min_pan, max_pan) =
-                    self.pan_bounds(original_image_size, viewport_size, render_scale);
-
-                let move_left = self.pan_offset.x < new_offset.x;
-                let move_top = self.pan_offset.y < new_offset.y;
-
-                if !move_left && new_offset.x < min_pan.x {
-                    new_offset.x = self.pan_offset.x.min(min_pan.x);
-                }
-
-                if move_left && new_offset.x > max_pan.x {
-                    new_offset.x = self.pan_offset.x.max(max_pan.x);
-                }
-
-                if !move_top && new_offset.y < min_pan.y {
-                    new_offset.y = self.pan_offset.y.min(min_pan.y);
-                }
-
-                if move_top && new_offset.y > max_pan.y {
-                    new_offset.y = self.pan_offset.y.max(max_pan.y);
-                }
-
-                self.pan_offset = new_offset;
-            }
 
             let is_zoomed_out = (self.zoom - 1.0).abs() <= f32::EPSILON;
             if is_zoomed_out {

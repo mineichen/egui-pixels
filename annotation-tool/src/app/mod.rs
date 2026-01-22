@@ -63,7 +63,8 @@ impl ImageViewerApp {
                 ctx,
                 |i: &ImageLoadOk| {
                     self.viewer.reset();
-                    self.tools.load_tool(&i);
+                    self.tools.load_primary_tool(&i);
+                    self.tools.load_secondary_tool(&i);
                 },
                 &|| self.storage.load_image(&x.id),
             );

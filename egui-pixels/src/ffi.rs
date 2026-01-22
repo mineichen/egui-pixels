@@ -93,6 +93,7 @@ impl eframe::App for App {
                         cursor_image_pos,
                         ctx,
                         tool_painter,
+                        &mut self.viewer,
                     ));
                 }
                 ui.label(format!(

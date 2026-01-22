@@ -1,10 +1,12 @@
 mod clear;
+mod pan;
 mod rect_selection;
 
 pub use clear::*;
+pub use pan::*;
 pub use rect_selection::*;
 
-use crate::ImageStateLoaded;
+use crate::{ImageStateLoaded, ImageViewer};
 
 pub trait Tool {
     fn handle_interaction(&mut self, ctx: ToolContext);
@@ -109,6 +111,7 @@ pub struct ToolContext<'a> {
     pub cursor_image_pos: (usize, usize),
     pub egui: &'a egui::Context,
     pub painter: ToolPainter,
+    pub viewer: &'a mut ImageViewer,
 }
 
 impl<'a> ToolContext<'a> {
@@ -118,6 +121,7 @@ impl<'a> ToolContext<'a> {
         cursor_image_pos: (usize, usize),
         egui: &'a egui::Context,
         painter: ToolPainter,
+        viewer: &'a mut ImageViewer,
     ) -> Self {
         Self {
             image,
@@ -125,6 +129,7 @@ impl<'a> ToolContext<'a> {
             cursor_image_pos,
             egui,
             painter,
+            viewer,
         }
     }
 }
