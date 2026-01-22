@@ -32,8 +32,8 @@ impl SamTool {
 
 impl super::Tool for SamTool {
     fn handle_interaction(&mut self, mut ctx: ToolContext) {
-        if let Some(x) = self.rect_selection.drag_finished(&mut ctx) {
-            self.last_pos = Some(x);
+        if let Some(rect_result) = self.rect_selection.drag_finished(&mut ctx) {
+            self.last_pos = Some(rect_result.bounds());
         }
         if let (Some([[top_x, top_y], [bottom_x, bottom_y]]), Some(Ok(loaded_embeddings))) =
             (self.last_pos, self.embeddings.data())
@@ -49,12 +49,9 @@ impl super::Tool for SamTool {
                 )
                 .unwrap();
 
-            ctx.image
-                .masks
-                .add_area_non_overlapping_parts(PixelArea::with_random_color(
-                    new_mask,
-                    ctx.image.masks.random_seed(),
-                ));
+            let color = ctx.image.masks.next_color();
+            let pixel_area = PixelArea::new(new_mask, color);
+            ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
             self.last_pos = None;
 
             // if let Some(x) = ctx.app.selector.current() {

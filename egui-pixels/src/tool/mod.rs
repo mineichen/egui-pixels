@@ -1,9 +1,11 @@
 mod clear;
 mod pan;
+mod rect;
 mod rect_selection;
 
 pub use clear::*;
 pub use pan::*;
+pub use rect::*;
 pub use rect_selection::*;
 
 use crate::{ImageStateLoaded, ImageViewer};

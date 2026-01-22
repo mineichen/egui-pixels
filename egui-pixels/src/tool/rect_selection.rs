@@ -1,6 +1,75 @@
+use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
+
 use egui::Pos2;
 
-use crate::ToolContext;
+use crate::{PixelArea, PixelRange, ToolContext};
+
+/// Result of a rectangular selection with guaranteed non-zero dimensions
+pub struct RectSelectionResult {
+    min_x: usize,
+    min_y: usize,
+    max_x: usize,
+    max_y: usize,
+    image_width: NonZeroU32,
+}
+
+impl RectSelectionResult {
+    /// Create a new RectSelectionResult. Returns None if width or height would be zero.
+    /// This ensures max_x >= min_x and max_y >= min_y, guaranteeing non-zero dimensions.
+    pub fn new(
+        min_x: usize,
+        min_y: usize,
+        max_x: usize,
+        max_y: usize,
+        image_width: NonZeroU32,
+    ) -> Option<Self> {
+        if max_x > min_x && max_y > min_y {
+            Some(Self {
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+                image_width,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Get the width of the rectangle (guaranteed non-zero)
+    pub fn width(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.max_x - self.min_x + 1)
+            .expect("Width should always be non-zero due to validation in new()")
+    }
+
+    /// Get the height of the rectangle (guaranteed non-zero)
+    pub fn height(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.max_y - self.min_y + 1)
+            .expect("Height should always be non-zero due to validation in new()")
+    }
+
+    /// Get the bounds as [[min_x, min_y], [max_x, max_y]]
+    pub fn bounds(&self) -> [[usize; 2]; 2] {
+        [[self.min_x, self.min_y], [self.max_x, self.max_y]]
+    }
+
+    /// Iterate over pixel ranges for each row in the rectangle
+    pub fn iter_ranges(&self, confidence: u8) -> impl Iterator<Item = PixelRange> + '_ {
+        (self.min_y..=self.max_y).map(move |y| {
+            let start = y as u32 * self.image_width.get() + self.min_x as u32;
+            let length = (self.max_x - self.min_x + 1) as u16;
+            let length_nonzero = NonZeroU16::new(length)
+                .expect("Rectangle width should be non-zero due to validation in new()");
+            PixelRange::new(start, length_nonzero, confidence)
+        })
+    }
+
+    /// Convert to a PixelArea with the given confidence and color
+    pub fn into_pixel_area(self, confidence: u8, color: [u8; 3]) -> PixelArea {
+        let pixel_ranges: Vec<PixelRange> = self.iter_ranges(confidence).collect();
+        PixelArea::new(pixel_ranges, color)
+    }
+}
 
 #[derive(Default)]
 pub struct RectSelection {
@@ -9,7 +78,7 @@ pub struct RectSelection {
 }
 
 impl RectSelection {
-    pub fn drag_finished(&mut self, ctx: &mut ToolContext) -> Option<[[usize; 2]; 2]> {
+    pub fn drag_finished(&mut self, ctx: &mut ToolContext) -> Option<RectSelectionResult> {
         // Track drag start position in image coordinates
         if ctx.response.drag_started() {
             self.drag_start_image = ctx
@@ -39,10 +108,14 @@ impl RectSelection {
                 let start_x = start_image.x as usize;
                 let start_y = start_image.y as usize;
                 self.drag_start_image = None;
-                Some([
-                    [start_x.min(end_x), start_y.min(end_y)],
-                    [start_x.max(end_x), start_y.max(end_y)],
-                ])
+
+                let min_x = start_x.min(end_x);
+                let min_y = start_y.min(end_y);
+                let max_x = start_x.max(end_x);
+                let max_y = start_y.max(end_y);
+                let image_width = ctx.image.image.original.width();
+
+                RectSelectionResult::new(min_x, min_y, max_x, max_y, image_width)
             } else {
                 self.drag_start_image = None;
                 None

@@ -135,7 +135,10 @@ impl Storage for FileStorage {
                         lens.resize(pixel_range_len, 0);
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
-                        all.push(PixelArea::with_random_color(
+                        // Generate color based on current position (simulating the seed)
+                        let color = egui_pixels::random_color_from_seed(all.len() as u16);
+
+                        all.push(PixelArea::new(
                             starts
                                 .iter()
                                 .zip(lens.iter())
@@ -147,7 +150,7 @@ impl Storage for FileStorage {
                                     )),
                                 })
                                 .collect::<Result<Vec<_>, _>>()?,
-                            all.len() as u16,
+                            color,
                         ));
                     }
 

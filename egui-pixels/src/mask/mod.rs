@@ -9,9 +9,11 @@ use crate::{PixelArea, PixelRange};
 
 mod flat_map_inplace;
 mod history;
+mod random_color;
 
 pub(crate) use flat_map_inplace::*;
 pub use history::*;
+pub use random_color::random_color_from_seed;
 
 pub struct Annotations(Vec<PixelArea>);
 #[derive(Debug, Eq, PartialEq)]
@@ -66,6 +68,11 @@ impl MaskImage {
 
     pub fn random_seed(&self) -> u16 {
         (self.annotations.0.len() as u16).wrapping_add(self.history.random_seed())
+    }
+
+    /// Generate the next color based on the current seed
+    pub fn next_color(&self) -> [u8; 3] {
+        random_color_from_seed(self.random_seed())
     }
 
     pub fn sources(

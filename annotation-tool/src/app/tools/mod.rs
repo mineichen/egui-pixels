@@ -37,6 +37,13 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
             }),
         ),
         (
+            "Rect".to_string(),
+            Box::new(|_| {
+                async { Ok(Box::new(egui_pixels::RectTool::default()) as Box<dyn Tool + Send>) }
+                    .boxed()
+            }),
+        ),
+        (
             "Clear".to_string(),
             Box::new(|_| {
                 async { Ok(Box::new(egui_pixels::ClearTool::default()) as Box<dyn Tool + Send>) }
