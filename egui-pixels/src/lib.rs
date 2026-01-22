@@ -18,7 +18,10 @@ pub use cursor_image::*;
 pub use ffi::*;
 pub use image_state::*;
 pub use image_utils::*;
-pub use imbuf::{RgbImageInterleaved, RgbaImageInterleaved};
+pub use imbuf::Image;
+
+type RgbImageInterleaved<T> = Image<[T; 3], 1>;
+
 pub use mask::*;
 pub use pixel_range::*;
 pub use tool::*;

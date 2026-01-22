@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use imbuf::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
+use imbuf::Image;
 
 #[cfg(feature = "image")]
 mod image;
@@ -8,10 +8,10 @@ mod image;
 /// Different image formats supported for the original image
 #[derive(Clone)]
 pub enum OriginalImage {
-    Luma8(LumaImage<u8>),
-    Luma16(LumaImage<u16>),
-    Rgb8(RgbImageInterleaved<u8>),
-    Rgba8(RgbaImageInterleaved<u8>),
+    Luma8(Image<u8, 1>),
+    Luma16(Image<u16, 1>),
+    Rgb8(Image<[u8; 3], 1>),
+    Rgba8(Image<[u8; 4], 1>),
 }
 
 impl OriginalImage {
@@ -38,7 +38,7 @@ impl OriginalImage {
 #[derive(Clone)]
 pub struct ImageLoadOk {
     pub original: OriginalImage,
-    pub adjust: RgbImageInterleaved<u8>,
+    pub adjust: Image<[u8; 3], 1>,
 }
 
 impl ImageLoadOk {

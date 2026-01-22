@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use image::{DynamicImage, ImageBuffer as ImageImageBuffer, Luma};
 
 use crate::image_utils::{ImageLoadOk, OriginalImage};
-use imbuf::{LumaImage, RgbImageInterleaved};
+use imbuf::Image;
 
 impl OriginalImage {
     pub fn to_dynamic_image(&self) -> DynamicImage {
@@ -92,7 +92,7 @@ pub fn load_image(bytes: &[u8]) -> std::io::Result<ImageLoadOk> {
     })
 }
 
-fn luma8_to_buffer(img: &ImageImageBuffer<Luma<u8>, Vec<u8>>) -> std::io::Result<LumaImage<u8>> {
+fn luma8_to_buffer(img: &ImageImageBuffer<Luma<u8>, Vec<u8>>) -> std::io::Result<Image<u8, 1>> {
     let (width, height) = img.dimensions();
     let pixels: Vec<u8> = img.pixels().map(|p| p.0[0]).collect();
     let width = NonZeroU32::new(width).ok_or_else(|| {
@@ -101,12 +101,10 @@ fn luma8_to_buffer(img: &ImageImageBuffer<Luma<u8>, Vec<u8>>) -> std::io::Result
     let height = NonZeroU32::new(height).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid image height")
     })?;
-    Ok(LumaImage::new_vec(pixels, width, height))
+    Ok(Image::new_vec(pixels, width, height))
 }
 
-fn luma16_to_buffer(
-    img: &ImageImageBuffer<Luma<u16>, Vec<u16>>,
-) -> std::io::Result<LumaImage<u16>> {
+fn luma16_to_buffer(img: &ImageImageBuffer<Luma<u16>, Vec<u16>>) -> std::io::Result<Image<u16, 1>> {
     let (width, height) = img.dimensions();
     let pixels: Vec<u16> = img.pixels().map(|p| p.0[0]).collect();
     let width = NonZeroU32::new(width).ok_or_else(|| {
@@ -115,12 +113,12 @@ fn luma16_to_buffer(
     let height = NonZeroU32::new(height).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid image height")
     })?;
-    Ok(LumaImage::new_vec(pixels, width, height))
+    Ok(Image::new_vec(pixels, width, height))
 }
 
 fn rgb8_to_buffer(
     img: &ImageImageBuffer<image::Rgb<u8>, Vec<u8>>,
-) -> std::io::Result<RgbImageInterleaved<u8>> {
+) -> std::io::Result<Image<[u8; 3], 1>> {
     let (width, height) = img.dimensions();
     let vec_u8: Vec<u8> = img.pixels().flat_map(|p| p.0).collect();
     // Convert Vec<u8> to Vec<[u8; 3]>
@@ -134,10 +132,10 @@ fn rgb8_to_buffer(
     let height = NonZeroU32::new(height).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid image height")
     })?;
-    Ok(RgbImageInterleaved::new_vec(vec, width, height))
+    Ok(Image::new_vec(vec, width, height))
 }
 
-fn image_to_rgb_buffer(img: &DynamicImage) -> std::io::Result<RgbImageInterleaved<u8>> {
+fn image_to_rgb_buffer(img: &DynamicImage) -> std::io::Result<Image<[u8; 3], 1>> {
     let rgba = img.to_rgb8();
     let (width, height) = rgba.dimensions();
     let vec_u8 = rgba.into_vec();
@@ -152,7 +150,7 @@ fn image_to_rgb_buffer(img: &DynamicImage) -> std::io::Result<RgbImageInterleave
     let height = NonZeroU32::new(height).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid image height")
     })?;
-    Ok(RgbImageInterleaved::new_vec(vec, width, height))
+    Ok(Image::new_vec(vec, width, height))
 }
 
 fn fix_image_contrast<T: image::Primitive + Ord>(
@@ -193,7 +191,9 @@ mod tests {
     use std::num::NonZeroU32;
 
     use image::{DynamicImage, ImageBuffer as ImageImageBuffer};
-    use imbuf::{LumaImage, RgbImageInterleaved, RgbaImageInterleaved};
+    use imbuf::Image;
+
+    type LumaImage<T> = Image<T, 1>;
 
     use crate::image_utils::OriginalImage;
 
@@ -253,7 +253,7 @@ mod tests {
         let pixels: Vec<[u8; 3]> = (0..100)
             .map(|i| [(i * 3) as u8, (i * 3 + 1) as u8, (i * 3 + 2) as u8])
             .collect();
-        let rgb_img = RgbImageInterleaved::new_vec(pixels.clone(), width, height);
+        let rgb_img = Image::new_vec(pixels.clone(), width, height);
         let original = OriginalImage::Rgb8(rgb_img);
 
         let dyn_img = original.to_dynamic_image();
@@ -281,7 +281,7 @@ mod tests {
                 ]
             })
             .collect();
-        let rgba_img = RgbaImageInterleaved::new_vec(pixels.clone(), width, height);
+        let rgba_img = Image::new_vec(pixels.clone(), width, height);
         let original = OriginalImage::Rgba8(rgba_img);
 
         let dyn_img = original.to_dynamic_image();

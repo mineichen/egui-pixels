@@ -31,6 +31,7 @@ thiserror = "2"
 ort = { version = "1.16.3", optional = true }
 ndarray = { version = "0.15", optional = true }
 rolling-stats = "0.8"
+imbuf.workspace = true
 itertools.workspace = true
 futures = "0.3"
 bytemuck = "1.23"

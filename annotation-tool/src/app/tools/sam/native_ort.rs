@@ -1,12 +1,11 @@
 use std::{future::Future, path::Path, sync::Arc};
 
 use egui_pixels::PixelRange;
-use egui_pixels::RgbImageInterleaved;
 use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
 
-use super::{InferenceError, SamEmbeddings, inference::extract_pixel_ranges};
+use super::{InferenceError, RgbImageInterleaved, SamEmbeddings, inference::extract_pixel_ranges};
 
 #[derive(Clone)]
 pub struct SamSession {

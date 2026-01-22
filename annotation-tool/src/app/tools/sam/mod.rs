@@ -1,5 +1,6 @@
 use egui_pixels::{AsyncRefTask, PixelArea, RectSelection, ToolContext};
 use futures::FutureExt;
+use imbuf::Image;
 
 use inference::{InferenceError, SamEmbeddings};
 
@@ -7,6 +8,8 @@ mod inference;
 mod native_ort;
 
 pub use native_ort::SamSession;
+
+type RgbImageInterleaved<T> = imbuf::Image<[T; 3], 1>;
 
 pub struct SamTool {
     embeddings: AsyncRefTask<Result<SamEmbeddings, InferenceError>>,
@@ -17,7 +20,7 @@ pub struct SamTool {
 }
 
 impl SamTool {
-    pub fn new(session: SamSession, img: egui_pixels::RgbImageInterleaved<u8>) -> Self {
+    pub fn new(session: SamSession, img: Image<[u8; 3], 1>) -> Self {
         Self {
             embeddings: AsyncRefTask::new(session.get_image_embeddings(img).boxed()),
             session,
