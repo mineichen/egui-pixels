@@ -83,6 +83,7 @@ impl eframe::App for ImageViewerApp {
                     Some(ImageViewerInteraction {
                         original_image_size,
                         cursor_image_pos,
+                        tool_painter,
                     }),
                 response,
             } = ui.reserve_bottom_space(80., |ui| {
@@ -90,7 +91,12 @@ impl eframe::App for ImageViewerApp {
                     .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()))
             }) {
                 if let Some(cursor_image_pos) = cursor_image_pos {
-                    self.handle_tool_interaction(response, cursor_image_pos, ui.ctx());
+                    self.handle_tool_interaction(
+                        response,
+                        cursor_image_pos,
+                        ui.ctx(),
+                        tool_painter,
+                    );
                 }
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",

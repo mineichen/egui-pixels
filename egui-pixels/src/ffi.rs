@@ -79,6 +79,7 @@ impl eframe::App for App {
                     Some(ImageViewerInteraction {
                         original_image_size,
                         cursor_image_pos,
+                        tool_painter,
                     }),
                 response,
             } = self
@@ -91,6 +92,7 @@ impl eframe::App for App {
                         response,
                         cursor_image_pos,
                         ctx,
+                        tool_painter,
                     ));
                 }
                 ui.label(format!(

@@ -1,4 +1,4 @@
-use egui_pixels::{AsyncRefTask, ImageLoadOk, ImageState, Tool, ToolContext};
+use egui_pixels::{AsyncRefTask, ImageLoadOk, ImageState, Tool, ToolContext, ToolPainter};
 use futures::{FutureExt, future::BoxFuture};
 
 #[cfg(feature = "sam")]
@@ -80,11 +80,18 @@ impl super::ImageViewerApp {
         response: egui::Response,
         cursor_image_pos: (usize, usize),
         ctx: &egui::Context,
+        tool_painter: ToolPainter,
     ) {
         if let (ImageState::Loaded(image), Some(Ok(tool))) =
             (&mut self.image_state, self.tools.tool.data())
         {
-            tool.handle_interaction(ToolContext::new(image, response, cursor_image_pos, ctx));
+            tool.handle_interaction(ToolContext::new(
+                image,
+                response,
+                cursor_image_pos,
+                ctx,
+                tool_painter,
+            ));
         }
     }
 }

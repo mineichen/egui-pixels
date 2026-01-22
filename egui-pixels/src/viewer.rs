@@ -3,6 +3,8 @@ use egui::{
     load::{SizedTexture, TexturePoll},
 };
 
+use crate::ToolPainter;
+
 pub struct ImageViewer {
     // Zoom level (0.05..1.0)
     // 1.0 means, that image width or height fits the viewport and the other dimension is smaller than the viewport
@@ -201,14 +203,17 @@ impl ImageViewer {
             p.image(texture.id, image_rect_unclipped, uv, egui::Color32::WHITE);
         }
 
+        let tool_painter = ToolPainter::new(p, image_rect_unclipped, render_scale);
+
         let interaction = ImageViewerInteraction {
             original_image_size,
             cursor_image_pos,
+            tool_painter,
         };
 
         InnerResponse {
             inner: Some(interaction),
-            response: response,
+            response,
         }
     }
 }
@@ -224,6 +229,8 @@ impl Default for ImageViewer {
 
 pub struct ImageViewerInteraction {
     pub original_image_size: Vec2,
-    // Cursor position relative to image
+    /// Cursor position relative to image (in image pixels)
     pub cursor_image_pos: Option<(usize, usize)>,
+    /// Tool painter for drawing on the image canvas
+    pub tool_painter: ToolPainter,
 }
