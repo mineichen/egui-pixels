@@ -12,7 +12,7 @@ impl crate::app::ImageViewerApp {
     pub(super) fn menu_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let is_image_dirty = matches!(
-                &self.image_state,
+                &self.state.image_state,
                 ImageState::Loaded(ImageStateLoaded {
                     masks,
                     ..
@@ -23,7 +23,7 @@ impl crate::app::ImageViewerApp {
                     ui.disable();
                 }
                 if self.selector.ui(&*self.storage, ui) {
-                    self.image_state = ImageState::NotLoaded;
+                    self.state.image_state = ImageState::NotLoaded;
                 }
             });
 
@@ -32,7 +32,7 @@ impl crate::app::ImageViewerApp {
                 ImageState::Loaded(ImageStateLoaded {
                     id, masks, image, ..
                 }),
-            ) = (self.save_job.data(), &mut self.image_state)
+            ) = (self.save_job.data(), &mut self.state.image_state)
             {
                 if let Err(e) = last_save {
                     ui.label(e.as_str());
@@ -71,9 +71,9 @@ impl crate::app::ImageViewerApp {
                 }
             }
 
-            match &mut self.image_state {
+            match &mut self.state.image_state {
                 ImageState::Loaded(ImageStateLoaded { image, .. }) => {
-                    self.tools.ui(ui, image);
+                    super::tools::ui(ui, image, &mut self.state.tools);
                 }
                 ImageState::Error(error) => {
                     ui.label(format!("Error: {error}"));

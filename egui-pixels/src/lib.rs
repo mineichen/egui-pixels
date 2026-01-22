@@ -9,7 +9,9 @@ mod image_state;
 mod image_utils;
 mod mask;
 mod pixel_range;
+mod state;
 mod tool;
+mod tools;
 mod viewer;
 
 pub use async_task::*;
@@ -19,14 +21,17 @@ pub use ffi::*;
 pub use image_state::*;
 pub use image_utils::*;
 pub use imbuf::Image;
+pub use state::*;
 
-type RgbImageInterleaved<T> = Image<[T; 3], 1>;
+pub type ToolTask = AsyncRefTask<Result<Box<dyn Tool + Send>, String>>;
 
 pub use mask::*;
 pub use pixel_range::*;
 pub use tool::*;
+pub use tools::*;
 pub use viewer::*;
 
+type RgbImageInterleaved<T> = Image<[T; 3], 1>;
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 #[derive(PartialEq, Clone, Eq, PartialOrd, Ord, Debug, Hash)]

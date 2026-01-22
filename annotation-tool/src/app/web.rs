@@ -1,6 +1,7 @@
 use log::info;
 
-use crate::{ImageCallbackMap, app::tools::Tools, config::Config};
+use crate::{ImageCallbackMap, config::Config};
+use egui_pixels::Tools;
 
 pub fn run_web(mappers: ImageCallbackMap) {
     use eframe::wasm_bindgen::JsCast as _;

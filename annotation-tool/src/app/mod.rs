@@ -1,12 +1,11 @@
 use crate::storage::Storage;
 use egui::{self, InnerResponse, Sense, UiBuilder};
 use egui_pixels::{
-    AsyncRefTask, AsyncTask, CursorImage, CursorImageSystem, ImageLoadOk, ImageState, ImageViewer,
-    ImageViewerInteraction,
+    AsyncRefTask, AsyncTask, CursorImage, CursorImageSystem, ImageLoadOk, ImageViewerInteraction,
+    State, Tools,
 };
 
 use image_selector::ImageSelector;
-use tools::Tools;
 
 mod config;
 mod image_selector;
@@ -28,9 +27,7 @@ pub use web::run_web;
 pub(crate) struct ImageViewerApp {
     storage: Box<dyn Storage>,
     selector: ImageSelector,
-    viewer: ImageViewer,
-    image_state: ImageState,
-    tools: Tools,
+    state: State,
     save_job: AsyncRefTask<Result<(), String>>,
     mask_generator: MaskGenerator,
     pub cursor_image: CursorImageSystem,
@@ -45,12 +42,12 @@ const UGLY_POINTER_IMAGE: CursorImage = CursorImage {
 impl ImageViewerApp {
     pub fn new(storage: Box<dyn Storage>, tools: Tools, mask_generator: MaskGenerator) -> Self {
         let url_loader = Some(AsyncTask::new(storage.list_images()));
+        let state = State::new(tools);
+
         Self {
             storage,
             selector: ImageSelector::new(url_loader),
-            image_state: ImageState::NotLoaded,
-            viewer: ImageViewer::default(),
-            tools,
+            state,
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,
             cursor_image: CursorImageSystem::from(Box::new(|_: Option<&CursorImage>| {})),
@@ -59,15 +56,7 @@ impl ImageViewerApp {
 
     fn handle_image_transition(&mut self, ctx: &egui::Context) {
         if let Some(x) = self.selector.current() {
-            self.image_state.update(
-                ctx,
-                |i: &ImageLoadOk| {
-                    self.viewer.reset();
-                    self.tools.load_primary_tool(&i);
-                    self.tools.load_secondary_tool(&i);
-                },
-                &|| self.storage.load_image(&x.id),
-            );
+            self.state.update(ctx, &|| self.storage.load_image(&x.id));
         }
     }
 }
@@ -88,11 +77,15 @@ impl eframe::App for ImageViewerApp {
                     }),
                 response,
             } = ui.reserve_bottom_space(80., |ui| {
-                self.viewer
-                    .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()))
+                self.state.viewer.ui(
+                    ui,
+                    self.state.image_state.sources(ui.ctx()),
+                    Some(Sense::click()),
+                )
             }) {
                 if cursor_image_pos.is_some() {
-                    self.handle_tool_interaction(response, ui.ctx(), tool_painter);
+                    self.state
+                        .handle_tool_interaction(response, ui.ctx(), tool_painter);
                 }
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
