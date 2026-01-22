@@ -30,8 +30,8 @@ impl State {
             ctx,
             |i: &ImageLoadOk| {
                 self.viewer.reset();
-                self.tools.load_primary_tool(&i);
-                self.tools.load_secondary_tool(&i);
+                self.tools.primary().load(&i);
+                self.tools.secondary().load(&i);
             },
             image_loader,
         );
@@ -50,13 +50,13 @@ impl State {
             // Check if CTRL is pressed to determine which tool to use
             let use_secondary = ctx.input(|i| i.modifiers.ctrl || i.modifiers.command);
 
-            let tool_opt = if use_secondary {
-                self.tools.secondary_tool.data()
+            let mut tool_opt = if use_secondary {
+                self.tools.secondary()
             } else {
-                self.tools.primary_tool.data()
+                self.tools.primary()
             };
 
-            if let Some(Ok(tool)) = tool_opt {
+            if let Some(Ok(tool)) = tool_opt.data() {
                 tool.handle_interaction(crate::ToolContext::new(
                     image,
                     response,

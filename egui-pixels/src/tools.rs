@@ -3,14 +3,52 @@ use crate::{AsyncRefTask, ImageLoadOk, PanTool, Tool, ToolTask};
 /// Tool factory function that creates a tool for a given image
 pub type ToolFactory =
     Box<dyn Fn(&ImageLoadOk) -> crate::BoxFuture<'static, Result<Box<dyn Tool + Send>, String>>>;
+type ToolFactories = Vec<(String, ToolFactory)>;
 
 /// Core tool management without UI concerns
 pub struct Tools {
-    active_primary_idx: usize,
-    active_secondary_idx: usize,
-    tool_factories: Vec<(String, ToolFactory)>,
-    pub primary_tool: ToolTask,
-    pub secondary_tool: ToolTask,
+    tool_factories: ToolFactories,
+    primary_idx: usize,
+    primary_tool: ToolTask,
+    secondary_idx: usize,
+    secondary_tool: ToolTask,
+}
+
+pub struct ToolHandle<'a> {
+    idx: &'a mut usize,
+    tool: &'a mut ToolTask,
+    tool_factories: &'a mut ToolFactories,
+}
+
+impl<'a> ToolHandle<'a> {
+    pub fn load(&mut self, img: &ImageLoadOk) {
+        let (name, factory) = &mut self.tool_factories[*self.idx];
+        log::debug!("Loading tool: {name}");
+        *self.tool = AsyncRefTask::new(factory(img));
+    }
+    /// Get the index of the currently active primary tool
+    pub fn idx(&self) -> usize {
+        *self.idx
+    }
+    /// Set the active primary tool by index
+    /// Returns true if the tool changed and needs to be loaded
+    pub fn set_idx(&mut self, idx: usize, img: &ImageLoadOk) {
+        if idx < self.tool_factories.len() && idx != *self.idx {
+            *self.idx = idx;
+            self.load(img);
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.tool_factories[*self.idx].0
+    }
+    pub fn data(&mut self) -> Option<&mut Result<Box<dyn Tool + Send + 'static>, String>> {
+        self.tool.data()
+    }
+    /// Get the list of available tool names
+    pub fn tool_names(&self) -> impl Iterator<Item = &str> {
+        self.tool_factories.iter().map(|(name, _)| name.as_str())
+    }
 }
 
 impl Tools {
@@ -25,69 +63,27 @@ impl Tools {
         let primary_idx = (pan_idx == 0 && tool_factories.len() > 1) as usize;
 
         Self {
-            active_primary_idx: primary_idx,
-            active_secondary_idx: pan_idx,
             tool_factories,
+            primary_idx,
             primary_tool: AsyncRefTask::new_ready(Ok(Box::new(NopTool))),
+            secondary_idx: pan_idx,
             secondary_tool: AsyncRefTask::new_ready(Ok(Box::new(PanTool::default()))),
         }
     }
 
-    /// Load the primary tool for the given image
-    pub fn load_primary_tool(&mut self, img: &ImageLoadOk) {
-        let (name, factory) = &mut self.tool_factories[self.active_primary_idx];
-        log::debug!("Loading primary tool: {name}");
-        self.primary_tool = AsyncRefTask::new(factory(img));
-    }
-
-    /// Load the secondary tool for the given image
-    pub fn load_secondary_tool(&mut self, img: &ImageLoadOk) {
-        let (name, factory) = &mut self.tool_factories[self.active_secondary_idx];
-        log::debug!("Loading secondary tool: {name}");
-        self.secondary_tool = AsyncRefTask::new(factory(img));
-    }
-
-    /// Get the list of available tool names
-    pub fn tool_names(&self) -> impl Iterator<Item = &str> {
-        self.tool_factories.iter().map(|(name, _)| name.as_str())
-    }
-
-    /// Get the index of the currently active primary tool
-    pub fn active_primary_idx(&self) -> usize {
-        self.active_primary_idx
-    }
-
-    /// Get the index of the currently active secondary tool
-    pub fn active_secondary_idx(&self) -> usize {
-        self.active_secondary_idx
-    }
-
-    /// Set the active primary tool by index
-    /// Returns true if the tool changed and needs to be loaded
-    pub fn set_primary_idx(&mut self, idx: usize, img: &ImageLoadOk) {
-        if idx < self.tool_factories.len() && idx != self.active_primary_idx {
-            self.active_primary_idx = idx;
-            self.load_primary_tool(img);
+    pub fn primary(&mut self) -> ToolHandle<'_> {
+        ToolHandle {
+            idx: &mut self.primary_idx,
+            tool: &mut self.primary_tool,
+            tool_factories: &mut self.tool_factories,
         }
     }
-
-    /// Set the active secondary tool by index
-    /// Returns true if the tool changed and needs to be loaded
-    pub fn set_secondary_idx(&mut self, idx: usize, img: &ImageLoadOk) {
-        if idx < self.tool_factories.len() && idx != self.active_secondary_idx {
-            self.active_secondary_idx = idx;
-            self.load_secondary_tool(img);
+    pub fn secondary(&mut self) -> ToolHandle<'_> {
+        ToolHandle {
+            idx: &mut self.secondary_idx,
+            tool: &mut self.secondary_tool,
+            tool_factories: &mut self.tool_factories,
         }
-    }
-
-    /// Get the name of the active primary tool
-    pub fn active_primary_name(&self) -> &str {
-        &self.tool_factories[self.active_primary_idx].0
-    }
-
-    /// Get the name of the active secondary tool
-    pub fn active_secondary_name(&self) -> &str {
-        &self.tool_factories[self.active_secondary_idx].0
     }
 }
 
