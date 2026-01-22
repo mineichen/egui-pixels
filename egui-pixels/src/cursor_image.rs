@@ -25,12 +25,34 @@ impl CursorImageSystem {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub fn enable_web(&mut self, canvas: web_sys::HtmlCanvasElement) {
+        self.callback = Box::new(move |x: Option<&CursorImage>| {
+            if let Some(i) = x {
+                log::info!("Add ImageCursor: {i:?}");
+                let str = format!(
+                    "cursor: url(data:image/png;base64,{}) {} {}, auto;",
+                    i.bytes, i.offset_x, i.offset_y
+                );
+                canvas.set_attribute("style", &str)
+            } else {
+                log::info!("Remove ImageCursor");
+                canvas.remove_attribute("style")
+            }
+            .ok();
+        });
+    }
+
     pub fn set(&mut self, current: CursorImage) {
         self.current = Some(current);
     }
 
-    pub fn apply(&mut self) {
-        let current = self.current.take();
+    pub fn apply(&mut self, cursor_in_image: bool) {
+        let current = if cursor_in_image {
+            self.current.take()
+        } else {
+            None
+        };
         if current != self.published {
             if let Some(current) = current {
                 (self.callback)(Some(&current));

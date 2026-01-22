@@ -21,14 +21,13 @@ console_error_panic_hook = { version = "0.1", optional = true }
 js-sys = { version = "0.3", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", features = [
-    "Document",
-    "Window",
-    "Element",
-    "HtmlCanvasElement",
-], optional = true }
 getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
 thiserror = "2.0.17"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = [
+    "HtmlCanvasElement",
+] }
 
 [features]
 default = []
@@ -38,7 +37,8 @@ ffi = [
     "js-sys",
     "wasm-bindgen",
     "wasm-bindgen-futures",
-    "web-sys",
+    "web-sys/Document",
+    "web-sys/Window",
     "getrandom",
     "console_error_panic_hook",
 ]

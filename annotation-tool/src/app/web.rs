@@ -1,7 +1,7 @@
 use log::info;
 
 use crate::{ImageCallbackMap, config::Config};
-use egui_pixels::Tools;
+use egui_pixels::{CursorImage, Tools};
 
 pub fn run_web(mappers: ImageCallbackMap) {
     use eframe::wasm_bindgen::JsCast as _;
@@ -34,21 +34,7 @@ pub fn run_web(mappers: ImageCallbackMap) {
                         Tools::from(&Config::default()),
                         super::MaskGenerator::new(mappers),
                     );
-                    app.cursor_image = (move |x: Option<&super::CursorImage>| {
-                        if let Some(i) = x {
-                            info!("Add ImageCursor: {i:?}");
-                            let str = format!(
-                                "cursor: url(data:image/png;base64,{}) {} {}, auto;",
-                                i.bytes, i.offset_x, i.offset_y
-                            );
-                            canvas.set_attribute("style", &str)
-                        } else {
-                            info!("Remove ImageCursor");
-                            canvas.remove_attribute("style")
-                        }
-                        .ok();
-                    })
-                    .into();
+                    app.state.cursor_image.enable_web(canvas);
                     Ok(Box::new(app))
                 }),
             )

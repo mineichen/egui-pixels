@@ -2,7 +2,10 @@ use std::io;
 
 use egui::{InnerResponse, Sense};
 
-use crate::{BoxFuture, ImageData, ImageLoadOk, ImageViewer, ImageViewerInteraction, Tools};
+use crate::{
+    BoxFuture, CursorImage, CursorImageSystem, ImageData, ImageLoadOk, ImageViewer,
+    ImageViewerInteraction, Tools,
+};
 
 /// State container for handling tool interactions with the image viewer.
 /// Contains all the necessary components to process tool events and render tools on the image.
@@ -11,6 +14,7 @@ pub struct State {
     pub image_state: crate::ImageState,
     pub viewer: ImageViewer,
     pub tools: Tools,
+    pub cursor_image: CursorImageSystem,
 }
 
 impl State {
@@ -20,6 +24,12 @@ impl State {
             image_state: crate::ImageState::NotLoaded,
             viewer: ImageViewer::default(),
             tools,
+            cursor_image: CursorImageSystem::from(Box::new(|_: Option<&CursorImage>| {
+                #[cfg(target_arch = "wasm32")]
+                log::warn!(
+                    "WebCursors have to be enabled manually with `state.cursor_image.enable_web(canvas), probably in your egui::Webrunner::start() callback`"
+                );
+            })),
         }
     }
 
@@ -43,7 +53,7 @@ impl State {
         let InnerResponse { inner, response } =
             self.viewer
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
-        InnerResponse {
+        let result = InnerResponse {
             inner: if let Some((r, tool_painter)) = inner {
                 self.handle_tool_interaction(&response, ui.ctx(), tool_painter);
                 Some(r)
@@ -51,7 +61,16 @@ impl State {
                 None
             },
             response,
-        }
+        };
+        self.cursor_image.apply(
+            result
+                .inner
+                .as_ref()
+                .and_then(|r| r.cursor_image_pos)
+                .is_some(),
+        );
+
+        result
     }
 
     /// Handle tool interaction based on user input.
@@ -80,6 +99,7 @@ impl State {
                     ctx,
                     tool_painter,
                     &mut self.viewer,
+                    &mut self.cursor_image,
                 ));
             }
         }
