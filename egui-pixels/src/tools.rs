@@ -66,24 +66,14 @@ impl Tools {
         let tool_factories: ToolFactories = match tool_factories.len() {
             0 => vec![
                 (
-                    "Nop".to_string(),
+                    "nop".to_string(),
                     Box::new(|_| async { Ok(Box::new(NopTool) as Box<dyn Tool + Send>) }.boxed()),
                 ),
-                (
-                    "Pan".to_string(),
-                    Box::new(|_| {
-                        async { Ok(Box::new(PanTool::default()) as Box<dyn Tool + Send>) }.boxed()
-                    }),
-                ),
+                ("pan".to_string(), PanTool::create_factory()),
             ],
             1 => {
                 let mut tool_factories = tool_factories;
-                tool_factories.push((
-                    "Pan".to_string(),
-                    Box::new(|_| {
-                        async { Ok(Box::new(PanTool::default()) as Box<dyn Tool + Send>) }.boxed()
-                    }),
-                ));
+                tool_factories.push(("pan".to_string(), PanTool::create_factory()));
                 tool_factories
             }
             _ => tool_factories,
