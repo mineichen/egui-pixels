@@ -15,11 +15,24 @@ const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
 #[non_exhaustive]
 pub struct RectTool {
     rect_selection: RectSelection,
+    fix_color: Option<[u8; 3]>,
 }
 
 impl RectTool {
     pub fn create_factory() -> ToolFactory {
         Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool + Send>) }.boxed())
+    }
+
+    pub fn create_fix_color_factory(color: [u8; 3]) -> ToolFactory {
+        Box::new(move |_| {
+            async move {
+                Ok(Box::new(RectTool {
+                    rect_selection: RectSelection::default(),
+                    fix_color: Some(color),
+                }) as Box<dyn Tool + Send>)
+            }
+            .boxed()
+        })
     }
 }
 
@@ -28,15 +41,18 @@ impl Tool for RectTool {
         ctx.cursor_image.set(RECT_CURSOR_IMAGE);
 
         let selection = self.rect_selection.drag_finished(&mut ctx);
-        let color = ctx.image.masks.next_color();
         if let Some(rect_result) = selection {
-            let color = ctx.image.masks.next_color();
+            let color = self
+                .fix_color
+                .unwrap_or_else(|| ctx.image.masks.next_color());
             let pixel_area = rect_result.into_pixel_area(255, color);
             ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
         {
-            let color = ctx.image.masks.next_color();
+            let color = self
+                .fix_color
+                .unwrap_or_else(|| ctx.image.masks.next_color());
             let width = ctx.image.image.original.width().get() as usize;
             let start = (y * width + x) as u32;
             let length = NonZeroU16::MIN;
