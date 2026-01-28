@@ -32,7 +32,7 @@ impl<'a> ToolHandle<'a> {
     pub fn idx(&self) -> usize {
         *self.idx
     }
-    /// Set the active primary tool by index
+    /// Set the active tool by index
     /// Returns true if the tool changed and needs to be loaded
     pub fn set_idx(&mut self, idx: usize, img: &ImageLoadOk) {
         if idx < self.tool_factories.len() && idx != *self.idx {

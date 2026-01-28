@@ -3,6 +3,7 @@ use std::{io, num::NonZeroU32};
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
+use futures::FutureExt;
 
 use crate::{AsyncTask, BoxFuture, ImageData, ImageId, ImageLoadOk, MaskImage};
 
@@ -23,6 +24,12 @@ impl ImageState {
             ImageState::Loaded(x) => itertools::Either::Left(x.sources(ctx)),
             _ => itertools::Either::Right(std::iter::empty()),
         }
+    }
+
+    pub fn set_image_data(&mut self, image_data: ImageData) {
+        *self = Self::LoadingImageData(AsyncTask::new(
+            async move { std::io::Result::Ok(image_data) }.boxed(),
+        ))
     }
 
     pub fn update(
@@ -55,12 +62,6 @@ impl ImageState {
             }
             ImageState::Error(_error) => {}
         }
-    }
-}
-
-impl From<ImageStateLoaded> for ImageState {
-    fn from(value: ImageStateLoaded) -> Self {
-        Self::Loaded(value)
     }
 }
 
