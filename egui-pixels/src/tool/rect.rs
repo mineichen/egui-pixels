@@ -1,6 +1,8 @@
 use std::num::NonZeroU16;
 
-use crate::{CursorImage, PixelArea, PixelRange, RectSelection, Tool, ToolContext};
+use futures::FutureExt;
+
+use crate::{CursorImage, PixelArea, PixelRange, RectSelection, Tool, ToolContext, ToolFactory};
 
 // https://www.svgrepo.com/svg/437030/lasso
 const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
@@ -13,6 +15,12 @@ const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
 #[non_exhaustive]
 pub struct RectTool {
     rect_selection: RectSelection,
+}
+
+impl RectTool {
+    pub fn create_factory() -> ToolFactory {
+        Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool + Send>) }.boxed())
+    }
 }
 
 impl Tool for RectTool {

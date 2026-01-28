@@ -1,5 +1,4 @@
-use egui_pixels::{ImageLoadOk, PanTool, Tool, ToolFactory};
-use futures::FutureExt;
+use egui_pixels::{ClearTool, ImageLoadOk, PanTool, RectTool, ToolFactory};
 
 #[cfg(feature = "sam")]
 mod sam;
@@ -11,34 +10,11 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
     #[cfg(feature = "sam")]
     let session = sam::SamSession::new(&config.sam_path).unwrap();
     vec![
-        (
-            "Clear".to_string(),
-            Box::new(|_| {
-                async { Ok(Box::new(egui_pixels::ClearTool::default()) as Box<dyn Tool + Send>) }
-                    .boxed()
-            }),
-        ),
-        (
-            "Pan".to_string(),
-            Box::new(|_| {
-                async { Ok(Box::new(PanTool::default()) as Box<dyn Tool + Send>) }.boxed()
-            }),
-        ),
+        ("Clear".to_string(), ClearTool::create_factory()),
+        ("Pan".to_string(), PanTool::create_factory()),
         #[cfg(feature = "sam")]
-        (
-            "SAM".to_string(),
-            Box::new(move |img| {
-                let tool = sam::SamTool::new(session.clone(), img.adjust.clone());
-                async move { Ok(Box::new(tool) as Box<dyn Tool + Send>) }.boxed()
-            }),
-        ),
-        (
-            "Rect".to_string(),
-            Box::new(|_| {
-                async { Ok(Box::new(egui_pixels::RectTool::default()) as Box<dyn Tool + Send>) }
-                    .boxed()
-            }),
-        ),
+        ("SAM".to_string(), sam::SamTool::create_factory(session)),
+        ("Rect".to_string(), RectTool::create_factory()),
     ]
 }
 

@@ -1,4 +1,4 @@
-use egui_pixels::{AsyncRefTask, PixelArea, RectSelection, ToolContext};
+use egui_pixels::{AsyncRefTask, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
 use futures::FutureExt;
 use imbuf::Image;
 
@@ -28,9 +28,15 @@ impl SamTool {
             last_pos: None,
         }
     }
+    pub fn create_factory(session: SamSession) -> ToolFactory {
+        Box::new(move |img| {
+            let tool = SamTool::new(session.clone(), img.adjust.clone());
+            async move { Ok(Box::new(tool) as Box<dyn Tool + Send>) }.boxed()
+        })
+    }
 }
 
-impl super::Tool for SamTool {
+impl Tool for SamTool {
     fn handle_interaction(&mut self, mut ctx: ToolContext) {
         if let Some(rect_result) = self.rect_selection.drag_finished(&mut ctx) {
             self.last_pos = Some(rect_result.bounds());

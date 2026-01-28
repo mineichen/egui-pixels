@@ -1,11 +1,19 @@
 use std::num::NonZeroU16;
 
-use crate::{PixelRange, RectSelection, Tool, ToolContext};
+use futures::FutureExt;
+
+use crate::{PixelRange, RectSelection, Tool, ToolContext, ToolFactory};
 
 #[derive(Default)]
 #[non_exhaustive]
 pub struct ClearTool {
     rect_selection: RectSelection,
+}
+
+impl ClearTool {
+    pub fn create_factory() -> ToolFactory {
+        Box::new(|_| async { Ok(Box::new(ClearTool::default()) as Box<dyn Tool + Send>) }.boxed())
+    }
 }
 
 impl Tool for ClearTool {
