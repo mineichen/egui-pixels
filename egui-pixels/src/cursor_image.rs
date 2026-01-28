@@ -29,14 +29,14 @@ impl CursorImageSystem {
     pub fn enable_web(&mut self, canvas: web_sys::HtmlCanvasElement) {
         self.callback = Box::new(move |x: Option<&CursorImage>| {
             if let Some(i) = x {
-                log::info!("Add ImageCursor: {i:?}");
+                log::debug!("Setting ImageCursor");
                 let str = format!(
                     "cursor: url(data:image/png;base64,{}) {} {}, auto;",
                     i.bytes, i.offset_x, i.offset_y
                 );
                 canvas.set_attribute("style", &str)
             } else {
-                log::info!("Remove ImageCursor");
+                log::debug!("Remove ImageCursor");
                 canvas.remove_attribute("style")
             }
             .ok();

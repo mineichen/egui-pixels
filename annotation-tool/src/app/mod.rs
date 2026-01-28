@@ -61,6 +61,7 @@ impl eframe::App for ImageViewerApp {
                 let ImageViewerInteraction {
                     original_image_size,
                     cursor_image_pos,
+                    ..
                 } = x;
                 ui.label(format!(
                     "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",

@@ -3,7 +3,7 @@ use egui::{
     load::{SizedTexture, TexturePoll},
 };
 
-use crate::ToolPainter;
+use crate::ImagePainter;
 
 pub struct ImageViewer {
     // Zoom level (0.05..1.0)
@@ -62,7 +62,7 @@ impl ImageViewer {
         ui: &mut egui::Ui,
         sources: impl Iterator<Item = ImageSource<'static>>,
         sense: Option<Sense>,
-    ) -> InnerResponse<Option<(ImageViewerInteraction, ToolPainter)>> {
+    ) -> InnerResponse<Option<ImageViewerInteraction>> {
         let available_size = ui.available_size();
         let viewport_rect = ui.available_rect_before_wrap();
 
@@ -187,15 +187,16 @@ impl ImageViewer {
             p.image(texture.id, image_rect_unclipped, uv, egui::Color32::WHITE);
         }
 
-        let tool_painter = ToolPainter::new(p, image_rect_unclipped, render_scale);
+        let image_painter = ImagePainter::new(p, image_rect_unclipped, render_scale);
 
         let interaction = ImageViewerInteraction {
             original_image_size,
             cursor_image_pos,
+            image_painter,
         };
 
         InnerResponse {
-            inner: Some((interaction, tool_painter)),
+            inner: Some(interaction),
             response,
         }
     }
@@ -214,4 +215,6 @@ pub struct ImageViewerInteraction {
     pub original_image_size: Vec2,
     /// Cursor position relative to image (in image pixels)
     pub cursor_image_pos: Option<(usize, usize)>,
+    /// Allows painting stuff on the image with image coordinates
+    pub image_painter: ImagePainter,
 }

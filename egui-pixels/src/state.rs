@@ -54,8 +54,8 @@ impl State {
             self.viewer
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
         let result = InnerResponse {
-            inner: if let Some((r, tool_painter)) = inner {
-                self.handle_tool_interaction(&response, ui.ctx(), tool_painter);
+            inner: if let Some((mut r)) = inner {
+                self.handle_tool_interaction(&response, ui.ctx(), &mut r.image_painter);
                 Some(r)
             } else {
                 None
@@ -80,7 +80,7 @@ impl State {
         &mut self,
         response: &egui::Response,
         ctx: &egui::Context,
-        tool_painter: crate::ToolPainter,
+        tool_painter: &mut crate::ImagePainter,
     ) {
         if let crate::ImageState::Loaded(image) = &mut self.image_state {
             // Check if CTRL is pressed to determine which tool to use

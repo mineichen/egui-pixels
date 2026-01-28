@@ -17,7 +17,7 @@ pub trait Tool {
 /// Painter for tools that allows drawing on the image canvas.
 /// Provides methods for both screen-space (zoom-independent) and
 /// image-space (zoom-dependent) drawing.
-pub struct ToolPainter {
+pub struct ImagePainter {
     painter: egui::Painter,
     image_rect: egui::Rect,
     render_scale: f32,
@@ -28,7 +28,7 @@ const DASH_LENGTH: f32 = 4.0;
 /// Gap between dashes
 const GAP_LENGTH: f32 = 3.0;
 
-impl ToolPainter {
+impl ImagePainter {
     pub fn new(painter: egui::Painter, image_rect: egui::Rect, render_scale: f32) -> Self {
         Self {
             painter,
@@ -111,7 +111,7 @@ pub struct ToolContext<'a> {
     pub image: &'a mut ImageStateLoaded,
     pub response: &'a egui::Response,
     pub egui: &'a egui::Context,
-    pub painter: ToolPainter,
+    pub painter: &'a mut ImagePainter,
     pub viewer: &'a mut ImageViewer,
     pub cursor_image: &'a mut CursorImageSystem,
 }
@@ -121,7 +121,7 @@ impl<'a> ToolContext<'a> {
         image: &'a mut ImageStateLoaded,
         response: &'a egui::Response,
         egui: &'a egui::Context,
-        painter: ToolPainter,
+        painter: &'a mut ImagePainter,
         viewer: &'a mut ImageViewer,
         cursor_image: &'a mut CursorImageSystem,
     ) -> Self {
