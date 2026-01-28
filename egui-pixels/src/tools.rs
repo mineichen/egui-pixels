@@ -1,4 +1,6 @@
-use crate::{AsyncRefTask, ImageLoadOk, PanTool, Tool, ToolTask};
+use futures::FutureExt;
+
+use crate::{AsyncRefTask, ClearTool, ImageLoadOk, PanTool, Tool, ToolTask};
 
 /// Tool factory function that creates a tool for a given image
 pub type ToolFactory =
@@ -55,18 +57,37 @@ impl Tools {
     /// Create a new Tools instance with the given tool factories
     /// The first non-Pan tool will be selected as primary, and Pan as secondary
     pub fn new(tool_factories: Vec<(String, ToolFactory)>) -> Self {
-        // Default: primary = first non-Pan tool, secondary = Pan
-        let pan_idx = tool_factories
-            .iter()
-            .position(|(name, _)| name == "Pan")
-            .unwrap_or(0);
-        let primary_idx = (pan_idx == 0 && tool_factories.len() > 1) as usize;
+        let tool_factories: ToolFactories = match tool_factories.len() {
+            0 => vec![
+                (
+                    "Nop".to_string(),
+                    Box::new(|_| async { Ok(Box::new(NopTool) as Box<dyn Tool + Send>) }.boxed()),
+                ),
+                (
+                    "Pan".to_string(),
+                    Box::new(|_| {
+                        async { Ok(Box::new(PanTool::default()) as Box<dyn Tool + Send>) }.boxed()
+                    }),
+                ),
+            ],
+            1 => {
+                let mut tool_factories = tool_factories;
+                tool_factories.push((
+                    "Pan".to_string(),
+                    Box::new(|_| {
+                        async { Ok(Box::new(PanTool::default()) as Box<dyn Tool + Send>) }.boxed()
+                    }),
+                ));
+                tool_factories
+            }
+            _ => tool_factories,
+        };
 
         Self {
             tool_factories,
-            primary_idx,
+            primary_idx: 0,
             primary_tool: AsyncRefTask::new_ready(Ok(Box::new(NopTool))),
-            secondary_idx: pan_idx,
+            secondary_idx: 1,
             secondary_tool: AsyncRefTask::new_ready(Ok(Box::new(PanTool::default()))),
         }
     }

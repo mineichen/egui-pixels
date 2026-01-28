@@ -14,6 +14,7 @@ imbuf.workspace = true
 itertools.workspace = true
 log.workspace = true
 num-traits = "0.2.19"
+futures = "0.3"
 
 serde = { workspace = true, features = ["derive"], optional = true }
 eframe = { workspace = true, optional = true }

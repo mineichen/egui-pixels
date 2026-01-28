@@ -58,6 +58,12 @@ impl ImageState {
     }
 }
 
+impl From<ImageStateLoaded> for ImageState {
+    fn from(value: ImageStateLoaded) -> Self {
+        Self::Loaded(value)
+    }
+}
+
 impl ImageStateLoaded {
     pub fn from_image_data(i: ImageData, ctx: &egui::Context) -> Result<Self, TextureExceedsLimit> {
         let (width, height) = i.image.adjust.dimensions();

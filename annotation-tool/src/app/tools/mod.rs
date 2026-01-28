@@ -12,6 +12,13 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
     let session = sam::SamSession::new(&config.sam_path).unwrap();
     vec![
         (
+            "Clear".to_string(),
+            Box::new(|_| {
+                async { Ok(Box::new(egui_pixels::ClearTool::default()) as Box<dyn Tool + Send>) }
+                    .boxed()
+            }),
+        ),
+        (
             "Pan".to_string(),
             Box::new(|_| {
                 async { Ok(Box::new(PanTool::default()) as Box<dyn Tool + Send>) }.boxed()
@@ -29,13 +36,6 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
             "Rect".to_string(),
             Box::new(|_| {
                 async { Ok(Box::new(egui_pixels::RectTool::default()) as Box<dyn Tool + Send>) }
-                    .boxed()
-            }),
-        ),
-        (
-            "Clear".to_string(),
-            Box::new(|_| {
-                async { Ok(Box::new(egui_pixels::ClearTool::default()) as Box<dyn Tool + Send>) }
                     .boxed()
             }),
         ),
