@@ -53,6 +53,12 @@ impl<'a> ToolHandle<'a> {
     }
 }
 
+impl Default for Tools {
+    fn default() -> Self {
+        Self::new(vec![])
+    }
+}
+
 impl Tools {
     /// Create a new Tools instance with the given tool factories
     /// The first non-Pan tool will be selected as primary, and Pan as secondary
