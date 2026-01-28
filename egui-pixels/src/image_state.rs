@@ -32,23 +32,17 @@ impl ImageState {
         ))
     }
 
-    pub fn update(
-        &mut self,
-        ctx: &egui::Context,
-        mut on_image_load: impl FnMut(&ImageLoadOk),
-        image_loader: &dyn Fn() -> BoxFuture<'static, io::Result<ImageData>>,
-    ) {
+    pub fn update(&mut self, ctx: &egui::Context, mut on_image_load: impl FnMut(&ImageLoadOk)) {
         match self {
-            ImageState::NotLoaded => {
-                *self = ImageState::LoadingImageData(AsyncTask::new(image_loader()))
-            }
+            ImageState::NotLoaded => {}
             ImageState::LoadingImageData(t) => {
                 if let Some(image_data_result) = t.data() {
-                    *self = match image_data_result
+                    let load_result = image_data_result
                         .map_err(|e| format!("IO Error: {}", e))
                         .and_then(|i| {
                             ImageStateLoaded::from_image_data(i, ctx).map_err(|e| e.to_string())
-                        }) {
+                        });
+                    *self = match load_result {
                         Ok(loaded) => {
                             on_image_load(&loaded.image);
                             ImageState::Loaded(loaded)

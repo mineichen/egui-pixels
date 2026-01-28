@@ -1,5 +1,5 @@
 use egui::Key;
-use egui_pixels::AsyncRefTask;
+use egui_pixels::{AsyncRefTask, AsyncTask};
 use futures::FutureExt;
 use log::info;
 
@@ -22,8 +22,10 @@ impl crate::app::ImageViewerApp {
                 if is_image_dirty {
                     ui.disable();
                 }
-                if self.selector.ui(&*self.storage, ui) {
-                    self.state.image_state = ImageState::NotLoaded;
+                if let Some(id) = self.selector.ui(&*self.storage, ui) {
+                    self.state.image_state = ImageState::LoadingImageData(AsyncTask::new(
+                        self.storage.load_image(&id).boxed(),
+                    ));
                 }
             });
 

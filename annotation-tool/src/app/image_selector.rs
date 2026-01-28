@@ -2,7 +2,7 @@ use std::io;
 
 use crate::storage::Storage;
 use egui::{self, ComboBox, Key};
-use egui_pixels::{AsyncTask, ImageListTaskItem};
+use egui_pixels::{AsyncTask, ImageId, ImageListTaskItem};
 use log::info;
 
 const ICON_RELOAD: &str = "\u{21BB}";
@@ -15,6 +15,7 @@ pub(crate) struct ImageSelector {
     idx: usize,
     values: io::Result<Vec<ImageListTaskItem>>,
     loader: Option<ImageListTask>,
+    pending_idx: Option<usize>,
 }
 
 type ImageListTask = AsyncTask<io::Result<Vec<ImageListTaskItem>>>;
@@ -25,23 +26,28 @@ impl ImageSelector {
             idx: 0,
             values: Ok(Vec::new()),
             loader,
+            pending_idx: None,
         }
     }
 
-    pub fn current(&mut self) -> Option<&mut ImageListTaskItem> {
+    pub fn update(&mut self) {
         if let Some(loader) = self.loader.as_mut() {
             if let Some(values) = loader.data() {
                 info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));
                 self.loader = None;
                 self.values = values;
+                self.pending_idx = self
+                    .values
+                    .as_ref()
+                    .ok()
+                    .and_then(|x| (!x.is_empty()).then_some(0));
             }
         }
-        self.values.as_mut().ok().and_then(|x| x.get_mut(self.idx))
     }
 
-    /// Returns, wether image-state has to be reset
-    pub fn ui(&mut self, storage: &dyn Storage, ui: &mut egui::Ui) -> bool {
-        let mut reset_image_state = false;
+    /// Might return a ImageId which has to be loaded
+    pub fn ui(&mut self, storage: &dyn Storage, ui: &mut egui::Ui) -> Option<ImageId> {
+        let mut reset_image_state = self.pending_idx.take();
 
         match &mut self.values {
             Err(e) => {
@@ -68,7 +74,7 @@ impl ImageSelector {
                             }
                         }
 
-                        reset_image_state = true;
+                        reset_image_state = Some(self.idx);
                     }
                     if ui
                         .button(ICON_PREV)
@@ -79,7 +85,7 @@ impl ImageSelector {
                         })
                     {
                         self.idx = (self.idx.checked_sub(1)).unwrap_or(urls.len() - 1);
-                        reset_image_state = true;
+                        reset_image_state = Some(self.idx);
                     }
                 }
 
@@ -89,7 +95,7 @@ impl ImageSelector {
                     })
                     .changed()
                 {
-                    reset_image_state = true;
+                    reset_image_state = Some(self.idx);
                 }
                 if ui
                     .button(ICON_RELOAD)
@@ -108,7 +114,7 @@ impl ImageSelector {
                         })
                     {
                         self.idx = (self.idx + 1) % urls.len();
-                        reset_image_state = true;
+                        reset_image_state = Some(self.idx);
                     }
                     if ui
                         .button(ICON_NEXT_ANNOTATED)
@@ -130,11 +136,11 @@ impl ImageSelector {
                             }
                         }
 
-                        reset_image_state = true;
+                        reset_image_state = Some(self.idx);
                     }
                 }
             }
         }
-        reset_image_state
+        reset_image_state.and_then(|x| Some(self.values.as_ref().ok()?[x].id.clone()))
     }
 }

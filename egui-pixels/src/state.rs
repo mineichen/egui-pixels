@@ -1,10 +1,7 @@
-use std::io;
-
 use egui::{InnerResponse, Sense};
 
 use crate::{
-    BoxFuture, CursorImage, CursorImageSystem, ImageData, ImageLoadOk, ImageViewer,
-    ImageViewerInteraction, Tools,
+    CursorImage, CursorImageSystem, ImageLoadOk, ImageViewer, ImageViewerInteraction, Tools,
 };
 
 /// State container for handling tool interactions with the image viewer.
@@ -33,23 +30,12 @@ impl State {
         }
     }
 
-    pub fn update(
-        &mut self,
-        ctx: &egui::Context,
-        image_loader: &dyn Fn() -> BoxFuture<'static, io::Result<ImageData>>,
-    ) {
-        self.image_state.update(
-            ctx,
-            |i: &ImageLoadOk| {
-                self.viewer.reset();
-                self.tools.primary().load(&i);
-                self.tools.secondary().load(&i);
-            },
-            image_loader,
-        );
-    }
-
     pub fn ui(&mut self, ui: &mut egui::Ui) -> InnerResponse<Option<ImageViewerInteraction>> {
+        self.image_state.update(ui.ctx(), |i: &ImageLoadOk| {
+            self.viewer.reset();
+            self.tools.primary().load(&i);
+            self.tools.secondary().load(&i);
+        });
         let InnerResponse { inner, response } =
             self.viewer
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));

@@ -41,12 +41,6 @@ impl ImageViewerApp {
             mask_generator,
         }
     }
-
-    fn handle_image_transition(&mut self, ctx: &egui::Context) {
-        if let Some(x) = self.selector.current() {
-            self.state.update(ctx, &|| self.storage.load_image(&x.id));
-        }
-    }
 }
 
 impl eframe::App for ImageViewerApp {
@@ -54,7 +48,7 @@ impl eframe::App for ImageViewerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Image pixel selector");
             self.menu_ui(ui);
-            self.handle_image_transition(ui.ctx());
+            self.selector.update();
 
             let response = ui.reserve_bottom_space(80., |ui| self.state.ui(ui));
             if let Some(x) = response.inner {
