@@ -12,6 +12,12 @@ pub struct State {
     pub viewer: ImageViewer,
     pub tools: Tools,
     pub cursor_image: CursorImageSystem,
+    pub config: StateConfig,
+}
+
+#[derive(Default)]
+pub struct StateConfig {
+    pub reset_viewport_on_image_load: bool,
 }
 
 impl State {
@@ -27,12 +33,15 @@ impl State {
                     "WebCursors have to be enabled manually with `state.cursor_image.enable_web(canvas), probably in your egui::Webrunner::start() callback`"
                 );
             })),
+            config: StateConfig::default(),
         }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) -> InnerResponse<Option<ImageViewerInteraction>> {
         self.image_state.update(ui.ctx(), |i: &ImageLoadOk| {
-            self.viewer.reset();
+            if self.config.reset_viewport_on_image_load {
+                self.viewer.reset();
+            }
             self.tools.primary().load(&i);
             self.tools.secondary().load(&i);
         });
@@ -40,7 +49,7 @@ impl State {
             self.viewer
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
         let result = InnerResponse {
-            inner: if let Some((mut r)) = inner {
+            inner: if let Some(mut r) = inner {
                 self.handle_tool_interaction(&response, ui.ctx(), &mut r.image_painter);
                 Some(r)
             } else {
