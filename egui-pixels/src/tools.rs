@@ -1,6 +1,6 @@
 use futures::FutureExt;
 
-use crate::{AsyncRefTask, ClearTool, ImageLoadOk, PanTool, Tool, ToolTask};
+use crate::{AsyncRefTask, ImageLoadOk, PanTool, Tool, ToolTask};
 
 /// Tool factory function that creates a tool for a given image
 pub type ToolFactory =

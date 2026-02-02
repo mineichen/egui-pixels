@@ -5,7 +5,7 @@ use egui::{
 };
 use futures::FutureExt;
 
-use crate::{AsyncTask, BoxFuture, ImageData, ImageId, ImageLoadOk, MaskImage};
+use crate::{AsyncTask, ImageData, ImageId, ImageLoadOk, MaskImage};
 
 #[allow(clippy::large_enum_variant)]
 pub enum ImageState {

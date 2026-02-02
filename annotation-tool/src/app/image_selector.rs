@@ -31,17 +31,17 @@ impl ImageSelector {
     }
 
     pub fn update(&mut self) {
-        if let Some(loader) = self.loader.as_mut() {
-            if let Some(values) = loader.data() {
-                info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));
-                self.loader = None;
-                self.values = values;
-                self.pending_idx = self
-                    .values
-                    .as_ref()
-                    .ok()
-                    .and_then(|x| (!x.is_empty()).then_some(0));
-            }
+        if let Some(loader) = self.loader.as_mut()
+            && let Some(values) = loader.data()
+        {
+            info!("Reloaded {:?} urls", values.as_ref().map(|x| x.len()));
+            self.loader = None;
+            self.values = values;
+            self.pending_idx = self
+                .values
+                .as_ref()
+                .ok()
+                .and_then(|x| (!x.is_empty()).then_some(0));
         }
     }
 

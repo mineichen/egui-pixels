@@ -9,7 +9,6 @@ pub use app::run_web;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use storage::file::FileStorage;
-#[cfg(target_arch = "wasm32")]
 pub use storage::in_memory::InMemoryStorage;
 
 type ImageCallbackMap = Vec<(
