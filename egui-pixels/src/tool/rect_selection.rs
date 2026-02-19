@@ -74,6 +74,7 @@ impl RectSelectionResult {
 #[derive(Default)]
 pub struct RectSelection {
     /// Image position where drag started (in image pixel coordinates)
+    /// This is necessary to allow paning during the selection
     drag_start_image: Option<Pos2>,
 }
 
@@ -81,10 +82,11 @@ impl RectSelection {
     pub fn drag_finished(&mut self, ctx: &mut ToolContext) -> Option<RectSelectionResult> {
         // Track drag start position in image coordinates
         if ctx.response.drag_started() {
+            let drag_delta = ctx.response.drag_delta();
             self.drag_start_image = ctx
                 .response
                 .interact_pointer_pos()
-                .map(|screen_pos| ctx.painter.screen_to_image(screen_pos));
+                .map(|screen_pos| ctx.painter.screen_to_image(screen_pos - drag_delta));
         }
 
         // Draw dotted rectangle while dragging
