@@ -55,7 +55,7 @@ impl Storage for InMemoryStorage {
             .lock()
             .unwrap()
             .get(&id)
-            .map(ImageData::clone)
+            .cloned()
             .ok_or_else(|| std::io::Error::other(format!("Unknown image_id {id:?}")));
         std::future::ready(data).boxed()
     }

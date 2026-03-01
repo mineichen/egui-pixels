@@ -65,9 +65,8 @@ impl RectSelectionResult {
     }
 
     /// Convert to a PixelArea with the given confidence and color
-    pub fn into_pixel_area(self, confidence: u8, color: [u8; 3]) -> PixelArea {
-        let pixel_ranges: Vec<PixelRange> = self.iter_ranges(confidence).collect();
-        PixelArea::new(pixel_ranges, color)
+    pub fn into_pixel_area(self, confidence: u8, color: [u8; 3]) -> Option<PixelArea> {
+        PixelArea::new(self.iter_ranges(confidence), color)
     }
 }
 
@@ -90,18 +89,17 @@ impl RectSelection {
         }
 
         // Draw dotted rectangle while dragging
-        if ctx.response.dragged() {
-            if let (Some(start_image), Some(current_screen)) =
+        if ctx.response.dragged()
+            && let (Some(start_image), Some(current_screen)) =
                 (self.drag_start_image, ctx.response.interact_pointer_pos())
-            {
-                // Convert stored image coordinates back to current screen coordinates
-                let start_screen = ctx.painter.image_to_screen(start_image);
-                ctx.painter.draw_dotted_rect(start_screen, current_screen);
-            }
+        {
+            // Convert stored image coordinates back to current screen coordinates
+            let start_screen = ctx.painter.image_to_screen(start_image);
+            ctx.painter.draw_dotted_rect(start_screen, current_screen);
         }
 
         // Check if drag stopped (without CTRL, which is for panning)
-        let result = if ctx.response.drag_stopped()
+        if ctx.response.drag_stopped()
             && !ctx.egui.input(|i| i.modifiers.command || i.modifiers.ctrl)
         {
             if let (Some(start_image), Some((end_x, end_y))) =
@@ -124,8 +122,6 @@ impl RectSelection {
             }
         } else {
             None
-        };
-
-        result
+        }
     }
 }

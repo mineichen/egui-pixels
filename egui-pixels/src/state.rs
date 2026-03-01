@@ -42,8 +42,8 @@ impl State {
             if self.config.reset_viewport_on_image_load {
                 self.viewer.reset();
             }
-            self.tools.primary().load(&i);
-            self.tools.secondary().load(&i);
+            self.tools.primary().load(i);
+            self.tools.secondary().load(i);
         });
         let InnerResponse { inner, response } =
             self.viewer

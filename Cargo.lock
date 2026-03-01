@@ -986,6 +986,7 @@ dependencies = [
  "egui-pixels",
  "futures",
  "image",
+ "imagemask",
  "imbuf",
  "itertools",
  "log",
@@ -1739,6 +1740,15 @@ dependencies = [
  "tiff",
  "zune-core 0.5.1",
  "zune-jpeg 0.5.11",
+]
+
+[[package]]
+name = "imagemask"
+version = "0.1.0"
+source = "git+https://github.com/mineichen/imagemask.git#e20d64e707bfe4466f8ee864c661b5ce21ce85b6"
+dependencies = [
+ "itertools",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

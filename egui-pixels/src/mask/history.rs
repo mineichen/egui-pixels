@@ -14,16 +14,19 @@ pub enum HistoryAction {
 impl HistoryAction {
     pub fn apply(&self, mut rest: Vec<PixelArea>) -> Vec<PixelArea> {
         match self {
-            HistoryAction::Add(s) => rest.push(s.clone()),
-            HistoryAction::Reset => rest.clear(),
-            HistoryAction::Clear(s) => {
-                rest.retain_mut(|sub| {
-                    crate::remove_overlaps(sub, s.iter().copied());
-                    !sub.is_empty()
-                });
+            HistoryAction::Add(s) => {
+                rest.push(s.clone());
+                rest
             }
-        };
-        rest
+            HistoryAction::Reset => {
+                rest.clear();
+                rest
+            }
+            HistoryAction::Clear(s) => rest
+                .into_iter()
+                .filter_map(|sub| crate::remove_overlaps(sub, s.iter().copied()).ok())
+                .collect(),
+        }
     }
 }
 
@@ -99,11 +102,8 @@ impl History {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU16;
-
-    use crate::PixelRange;
-
     use super::*;
+    use std::num::NonZeroU32;
 
     #[test]
     fn undo_empty_returns_none() {
@@ -114,10 +114,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::with_black_color(vec![PixelRange::new_total(
-            0,
-            NonZeroU16::MIN,
-        )]));
+        let item = HistoryAction::Add(PixelArea::single_pixel_total_black(0, NonZeroU32::MIN));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -127,14 +124,8 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::with_black_color(vec![PixelRange::new_total(
-            0,
-            NonZeroU16::MIN,
-        )]));
-        let item2 = HistoryAction::Add(PixelArea::with_black_color(vec![PixelRange::new_total(
-            10,
-            NonZeroU16::MIN,
-        )]));
+        let item = HistoryAction::Add(PixelArea::single_pixel_total_black(0, NonZeroU32::MIN));
+        let item2 = HistoryAction::Add(PixelArea::single_pixel_total_black(10, NonZeroU32::MIN));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);

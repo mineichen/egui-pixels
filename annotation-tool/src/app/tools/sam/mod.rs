@@ -56,8 +56,9 @@ impl Tool for SamTool {
                 .unwrap();
 
             let color = ctx.image.masks.next_color();
-            let pixel_area = PixelArea::new(new_mask, color);
-            ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+            if let Some(pixel_area) = PixelArea::new(new_mask, color) {
+                ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+            }
             self.last_pos = None;
 
             // if let Some(x) = ctx.app.selector.current() {

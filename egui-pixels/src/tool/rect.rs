@@ -1,8 +1,8 @@
-use std::num::NonZeroU16;
+use std::num::NonZero;
 
 use futures::FutureExt;
 
-use crate::{CursorImage, PixelArea, PixelRange, RectSelection, Tool, ToolContext, ToolFactory};
+use crate::{CursorImage, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
 
 // https://www.svgrepo.com/svg/437030/lasso
 const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
@@ -45,8 +45,9 @@ impl Tool for RectTool {
             let color = self
                 .fix_color
                 .unwrap_or_else(|| ctx.image.masks.next_color());
-            let pixel_area = rect_result.into_pixel_area(255, color);
-            ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+            if let Some(pixel_area) = rect_result.into_pixel_area(255, color) {
+                ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+            }
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
         {
@@ -55,8 +56,8 @@ impl Tool for RectTool {
                 .unwrap_or_else(|| ctx.image.masks.next_color());
             let width = ctx.image.image.original.width().get() as usize;
             let start = (y * width + x) as u32;
-            let length = NonZeroU16::MIN;
-            let pixel_area = PixelArea::new(vec![PixelRange::new(start, length, 255)], color);
+            let length = NonZero::<u32>::MIN;
+            let pixel_area = PixelArea::single_pixel_total_color(start, length, color);
             ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
         }
     }

@@ -36,7 +36,7 @@ pub(super) fn ui(ui: &mut egui::Ui, img: &ImageLoadOk, core: &mut egui_pixels::T
                     ui.selectable_value(&mut active_idx, i, name);
                 }
             });
-        primary.set_idx(active_idx, &img);
+        primary.set_idx(active_idx, img);
     });
 
     let mut secondary = core.secondary();

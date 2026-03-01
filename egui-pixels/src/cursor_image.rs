@@ -5,10 +5,12 @@ pub struct CursorImage {
     pub offset_y: u8,
 }
 pub struct CursorImageSystem {
-    callback: Box<dyn FnMut(Option<&CursorImage>)>,
+    callback: CursorImageCallback,
     current: Option<CursorImage>,
     published: Option<CursorImage>,
 }
+
+type CursorImageCallback = Box<dyn FnMut(Option<&CursorImage>)>;
 
 impl<T: FnMut(Option<&CursorImage>) + 'static> From<T> for CursorImageSystem {
     fn from(value: T) -> Self {
@@ -17,7 +19,7 @@ impl<T: FnMut(Option<&CursorImage>) + 'static> From<T> for CursorImageSystem {
 }
 
 impl CursorImageSystem {
-    fn new(callback: Box<dyn FnMut(Option<&CursorImage>)>) -> Self {
+    fn new(callback: CursorImageCallback) -> Self {
         Self {
             callback,
             current: None,

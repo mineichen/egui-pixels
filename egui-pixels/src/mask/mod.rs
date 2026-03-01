@@ -7,11 +7,9 @@ use log::{debug, info};
 
 use crate::{PixelArea, PixelRange};
 
-mod flat_map_inplace;
 mod history;
 mod random_color;
 
-pub(crate) use flat_map_inplace::*;
 pub use history::*;
 pub use random_color::random_color_from_seed;
 
@@ -91,7 +89,7 @@ impl MaskImage {
 
             for subgroups in self.subgroups().into_iter() {
                 let [r, g, b] = subgroups.color;
-                for subgroup in subgroups.pixels {
+                for subgroup in subgroups.iter_pixel_ranges() {
                     let a = self.default_opacity_lut[subgroup.confidence() as usize];
                     let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
                     pixels[subgroup.as_range()].fill(group_color);
@@ -133,13 +131,12 @@ impl MaskImage {
         self.add_history_action(action)
     }
 
-    pub fn add_area_non_overlapping_parts(&mut self, mut subgroups: PixelArea) {
-        crate::remove_overlaps(&mut subgroups, self.subgroups_ordered().map(|(_, g)| g));
-        if subgroups.is_empty() {
+    pub fn add_area_non_overlapping_parts(&mut self, subgroups: PixelArea) {
+        if let Ok(x) = crate::remove_overlaps(subgroups, self.subgroups_ordered().map(|(_, g)| g)) {
+            self.add_area_overlapping(x)
+        } else {
             debug!("All Pixels are in a other subgroup already");
-            return;
         }
-        self.add_area_overlapping(subgroups)
     }
 
     pub fn add_area_overlapping(&mut self, subgroups: PixelArea) {
@@ -175,10 +172,10 @@ impl MaskImage {
                 self.texture_handle_dirty = true;
             };
         }
-        if let Some((visible, _, _)) = &mut self.texture_handle {
-            if cmd_d_pressed {
-                *visible = !*visible;
-            }
+        if let Some((visible, _, _)) = &mut self.texture_handle
+            && cmd_d_pressed
+        {
+            *visible = !*visible;
         }
     }
 
@@ -207,14 +204,14 @@ impl MaskImage {
             }
         }
 
-        struct GroupIterator(BinaryHeap<HeapItem<std::vec::IntoIter<PixelRange>>>);
+        struct GroupIterator(BinaryHeap<HeapItem<crate::PixelRangeIter>>);
 
         let x: BinaryHeap<_> = self
             .subgroups()
             .into_iter()
             .enumerate()
             .map(|(group_id, x)| {
-                let mut iter = x.pixels.into_iter();
+                let mut iter = x.into_iter();
                 HeapItem(
                     iter.next().expect("No empty groups available"),
                     group_id,
@@ -244,7 +241,15 @@ impl MaskImage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::num::NonZeroU16;
+    use std::num::NonZero;
+
+    const NON_ZERO_1: NonZero<u32> = NonZero::<u32>::MIN;
+    const NON_ZERO_2: NonZero<u32> = NonZero::new(2).unwrap();
+    const NON_ZERO_3: NonZero<u32> = NonZero::new(3).unwrap();
+    const NON_ZERO_4: NonZero<u32> = NonZero::new(4).unwrap();
+    const NON_ZERO_5: NonZero<u32> = NonZero::new(5).unwrap();
+    const NON_ZERO_6: NonZero<u32> = NonZero::new(6).unwrap();
+    const NON_ZERO_8: NonZero<u32> = NonZero::new(8).unwrap();
 
     // Helper function to convert bounds to an iterator of PixelRange for tests
     fn bounds_to_ranges(
@@ -253,7 +258,7 @@ mod tests {
     ) -> impl Iterator<Item = PixelRange> {
         let x_left = x_top as u32;
         let x_right = x_bottom as u32;
-        let x_width = NonZeroU16::try_from((x_right - x_left + 1) as u16).unwrap();
+        let x_width = NonZero::new((x_right - x_left + 1) as u16).unwrap();
         let y_range = y_top as u32..=y_bottom as u32;
         y_range.map(move |y| PixelRange::new_total(y * image_width + x_left, x_width))
     }
@@ -262,25 +267,13 @@ mod tests {
     fn add_area_with_overlap() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            1,
-            NonZeroU16::try_from(4).unwrap(),
-        )]));
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            2,
-            NonZeroU16::try_from(2).unwrap(),
-        )]));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(1, NON_ZERO_4));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(2, NON_ZERO_2));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    1,
-                    NonZeroU16::try_from(4).unwrap(),
-                )]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    2,
-                    NonZeroU16::try_from(2).unwrap(),
-                )]),
+                PixelArea::single_pixel_total_black(1, NON_ZERO_4),
+                PixelArea::single_pixel_total_black(2, NON_ZERO_2),
             ]
         );
     }
@@ -289,18 +282,13 @@ mod tests {
     fn add_area_non_overlapping_parts_remove_completely() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_non_overlapping_parts(PixelArea::with_black_color(vec![
-            PixelRange::new_total(1, NonZeroU16::try_from(4).unwrap()),
-        ]));
-        mask_image.add_area_non_overlapping_parts(PixelArea::with_black_color(vec![
-            PixelRange::new_total(2, NonZeroU16::try_from(2).unwrap()),
-        ]));
+        mask_image
+            .add_area_non_overlapping_parts(PixelArea::single_pixel_total_black(1, NON_ZERO_4));
+        mask_image
+            .add_area_non_overlapping_parts(PixelArea::single_pixel_total_black(2, NON_ZERO_2));
         assert_eq!(
             mask_image.subgroups(),
-            vec![PixelArea::with_black_color(vec![PixelRange::new_total(
-                1,
-                NonZeroU16::try_from(4).unwrap(),
-            )]),]
+            vec![PixelArea::single_pixel_total_black(1, NON_ZERO_4,),]
         );
     }
 
@@ -308,23 +296,15 @@ mod tests {
     fn add_area_non_overlapping_parts_remove_partially() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_non_overlapping_parts(PixelArea::with_black_color(vec![
-            PixelRange::new_total(1, NonZeroU16::try_from(4).unwrap()),
-        ]));
-        mask_image.add_area_non_overlapping_parts(PixelArea::with_black_color(vec![
-            PixelRange::new_total(2, NonZeroU16::try_from(4).unwrap()),
-        ]));
+        mask_image
+            .add_area_non_overlapping_parts(PixelArea::single_pixel_total_black(1, NON_ZERO_4));
+        mask_image
+            .add_area_non_overlapping_parts(PixelArea::single_pixel_total_black(2, NON_ZERO_4));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    1,
-                    NonZeroU16::try_from(4).unwrap(),
-                )]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    5,
-                    NonZeroU16::try_from(1).unwrap(),
-                )]),
+                PixelArea::single_pixel_total_black(1, NON_ZERO_4,),
+                PixelArea::single_pixel_total_black(5, NON_ZERO_1),
             ]
         );
     }
@@ -333,26 +313,14 @@ mod tests {
     fn clear_should_remove_multiple_overlapping_areas_start() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            1,
-            NonZeroU16::try_from(8).unwrap(),
-        )]));
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            2,
-            NonZeroU16::try_from(6).unwrap(),
-        )]));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(1, NON_ZERO_8));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(2, NON_ZERO_6));
         mask_image.clear_ranges(bounds_to_ranges([[0, 0], [4, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    5,
-                    NonZeroU16::try_from(4).unwrap(),
-                )]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    5,
-                    NonZeroU16::try_from(3).unwrap(),
-                )]),
+                PixelArea::single_pixel_total_black(5, NON_ZERO_4,),
+                PixelArea::single_pixel_total_black(5, NON_ZERO_3),
             ]
         );
     }
@@ -361,26 +329,14 @@ mod tests {
     fn clear_should_remove_multiple_overlapping_areas_end() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            1,
-            NonZeroU16::try_from(8).unwrap(),
-        )]));
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            2,
-            NonZeroU16::try_from(6).unwrap(),
-        )]));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(1, NON_ZERO_8));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(2, NON_ZERO_6));
         mask_image.clear_ranges(bounds_to_ranges([[5, 0], [10, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    1,
-                    NonZeroU16::try_from(4).unwrap(),
-                )]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    2,
-                    NonZeroU16::try_from(3).unwrap(),
-                )]),
+                PixelArea::single_pixel_total_black(1, NON_ZERO_4,),
+                PixelArea::single_pixel_total_black(2, NON_ZERO_3,),
             ]
         );
     }
@@ -389,26 +345,22 @@ mod tests {
     fn clear_should_remove_multiple_overlapping_areas_within() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            1,
-            NonZeroU16::try_from(8).unwrap(),
-        )]));
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            2,
-            NonZeroU16::try_from(6).unwrap(),
-        )]));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(1, NON_ZERO_8));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(2, NON_ZERO_6));
         mask_image.clear_ranges(bounds_to_ranges([[4, 0], [5, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![
-                    PixelRange::new_total(1, NonZeroU16::try_from(3).unwrap(),),
-                    PixelRange::new_total(6, NonZeroU16::try_from(3).unwrap(),)
-                ]),
-                PixelArea::with_black_color(vec![
-                    PixelRange::new_total(2, NonZeroU16::try_from(2).unwrap(),),
-                    PixelRange::new_total(6, NonZeroU16::try_from(2).unwrap(),)
-                ]),
+                PixelArea::with_black_color([
+                    PixelRange::new_total(1, 3.try_into().unwrap()),
+                    PixelRange::new_total(6, 3.try_into().unwrap())
+                ])
+                .unwrap(),
+                PixelArea::with_black_color([
+                    PixelRange::new_total(2, 2.try_into().unwrap(),),
+                    PixelRange::new_total(6, 2.try_into().unwrap(),)
+                ])
+                .unwrap(),
             ]
         );
     }
@@ -417,26 +369,14 @@ mod tests {
     fn clear_should_remove_overlapping_areas_first() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            1,
-            NonZeroU16::try_from(8).unwrap(),
-        )]));
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            4,
-            NonZeroU16::try_from(2).unwrap(),
-        )]));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(1, NON_ZERO_8));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(4, NON_ZERO_2));
         mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    4,
-                    NonZeroU16::try_from(5).unwrap(),
-                ),]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    4,
-                    NonZeroU16::try_from(2).unwrap(),
-                ),]),
+                PixelArea::single_pixel_total_black(4, NON_ZERO_5),
+                PixelArea::single_pixel_total_black(4, NON_ZERO_2,),
             ]
         );
     }
@@ -445,26 +385,14 @@ mod tests {
     fn clear_should_remove_overlapping_areas_last() {
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            4,
-            NonZeroU16::try_from(2).unwrap(),
-        )]));
-        mask_image.add_area_overlapping(PixelArea::with_black_color(vec![PixelRange::new_total(
-            1,
-            NonZeroU16::try_from(8).unwrap(),
-        )]));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(4, NON_ZERO_2));
+        mask_image.add_area_overlapping(PixelArea::single_pixel_total_black(1, NON_ZERO_8));
         mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], 10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    4,
-                    NonZeroU16::try_from(2).unwrap(),
-                ),]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    4,
-                    NonZeroU16::try_from(5).unwrap(),
-                ),]),
+                PixelArea::single_pixel_total_black(4, NON_ZERO_2,),
+                PixelArea::single_pixel_total_black(4, NON_ZERO_5),
             ]
         );
     }
@@ -472,22 +400,23 @@ mod tests {
     #[test]
     fn iter_sorted() {
         let mut history = History::default();
-        history.push(HistoryAction::Add(PixelArea::with_black_color(vec![
-            PixelRange::new_total(22, NonZeroU16::try_from(7).unwrap()),
-            PixelRange::new_total(39, NonZeroU16::try_from(1).unwrap()),
-            PixelRange::new_total(42, NonZeroU16::try_from(7).unwrap()),
-        ])));
+        history.push(HistoryAction::Add(
+            PixelArea::with_black_color(vec![
+                PixelRange::new_total(22, 7.try_into().unwrap()),
+                PixelRange::new_total(39, 1.try_into().unwrap()),
+                PixelRange::new_total(42, 7.try_into().unwrap()),
+            ])
+            .unwrap(),
+        ));
         let x = MaskImage::new(
             [10, 10],
             vec![
                 PixelArea::with_black_color(vec![
-                    PixelRange::new_total(2, NonZeroU16::try_from(5).unwrap()),
-                    PixelRange::new_total(12, NonZeroU16::try_from(5).unwrap()),
-                ]),
-                PixelArea::with_black_color(vec![PixelRange::new_total(
-                    32,
-                    NonZeroU16::try_from(5).unwrap(),
-                )]),
+                    PixelRange::new_total(2, 5.try_into().unwrap()),
+                    PixelRange::new_total(12, 5.try_into().unwrap()),
+                ])
+                .unwrap(),
+                PixelArea::single_pixel_total_black(32, NON_ZERO_5),
             ],
             history,
         );

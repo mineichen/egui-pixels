@@ -17,6 +17,7 @@ num-traits = "0.2.19"
 futures = "0.3"
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror = "2.0.17"
+imagemask.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = [

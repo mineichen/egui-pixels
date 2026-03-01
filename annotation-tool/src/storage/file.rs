@@ -130,6 +130,9 @@ impl Storage for FileStorage {
 
                     while f.read_exact(&mut pixel_range_bytes).is_ok() {
                         let pixel_range_len = u16::from_le_bytes(pixel_range_bytes) as usize;
+                        if pixel_range_len == 0 {
+                            continue;
+                        }
 
                         starts.resize(pixel_range_len, 0);
                         lens.resize(pixel_range_len, 0);
@@ -138,20 +141,23 @@ impl Storage for FileStorage {
                         // Generate color based on current position (simulating the seed)
                         let color = egui_pixels::random_color_from_seed(all.len() as u16);
 
-                        all.push(PixelArea::new(
-                            starts
-                                .iter()
-                                .zip(lens.iter())
-                                .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                    Ok(l) => Ok(PixelRange::new_total(*start, l)),
-                                    Err(e) => Err(std::io::Error::new(
-                                        ErrorKind::InvalidData,
-                                        format!("position {start},{len}: {e:?}"),
-                                    )),
-                                })
-                                .collect::<Result<Vec<_>, _>>()?,
-                            color,
-                        ));
+                        all.push(
+                            PixelArea::new(
+                                starts
+                                    .iter()
+                                    .zip(lens.iter())
+                                    .map(|(start, len)| match NonZeroU16::try_from(*len) {
+                                        Ok(l) => Ok(PixelRange::new_total(*start, l)),
+                                        Err(e) => Err(std::io::Error::new(
+                                            ErrorKind::InvalidData,
+                                            format!("position {start},{len}: {e:?}"),
+                                        )),
+                                    })
+                                    .collect::<Result<Vec<_>, _>>()?,
+                                color,
+                            )
+                            .expect("Group cannot be empty, checked in loop"),
+                        );
                     }
 
                     all
@@ -205,10 +211,10 @@ impl Storage for FileStorage {
                     let sub_len = sub.range_len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
-                    for subgroup in sub.pixels.iter() {
+                    for subgroup in sub.iter_pixel_ranges() {
                         f.write_all(&subgroup.start().to_le_bytes())?;
                     }
-                    for subgroup in sub.pixels {
+                    for subgroup in sub.iter_pixel_ranges() {
                         f.write_all(&subgroup.length().get().to_le_bytes())?;
                     }
                 }
