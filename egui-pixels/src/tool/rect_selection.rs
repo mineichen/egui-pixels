@@ -60,13 +60,13 @@ impl RectSelectionResult {
             let length = (self.max_x - self.min_x + 1) as u16;
             let length_nonzero = NonZeroU16::new(length)
                 .expect("Rectangle width should be non-zero due to validation in new()");
-            PixelRange::new(start, length_nonzero, meta)
+            PixelRange::new(start, length_nonzero, meta.clone())
         })
     }
 
-    /// Convert to a PixelArea with the given confidence and color
-    pub fn into_pixel_area(self, confidence: Meta, color: [u8; 3]) -> Option<PixelArea> {
-        PixelArea::new(self.iter_ranges(confidence), color)
+    /// Convert to a PixelArea with the given meta and color
+    pub fn into_pixel_area(self, meta: Meta, color: [u8; 3]) -> Option<PixelArea> {
+        PixelArea::new(self.iter_ranges(meta), color)
     }
 }
 

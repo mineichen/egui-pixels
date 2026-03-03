@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Range;
 
-use imagemask::{MetaRange, NonEmptyOrderedRanges, NonZeroRange};
+use imagemask::{NonEmptyOrderedRanges, NonZeroRange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -14,7 +14,7 @@ impl Meta {
         Self { confidence }
     }
 
-    pub const fn get(self) -> u8 {
+    pub const fn confidence(self) -> u8 {
         self.confidence
     }
 }
@@ -29,15 +29,15 @@ impl Default for Meta {
 pub struct PixelRange {
     start: u32,
     end: u32,
-    pub confidence: Meta,
+    pub meta: Meta,
 }
 
 impl PixelRange {
-    pub fn new(start: u32, length: NonZeroU16, confidence: Meta) -> Self {
+    pub fn new(start: u32, length: NonZeroU16, meta: Meta) -> Self {
         Self {
             start,
             end: start + length.get() as u32,
-            confidence,
+            meta,
         }
     }
 
@@ -51,8 +51,8 @@ impl PixelRange {
         start..end
     }
 
-    pub fn confidence(&self) -> Meta {
-        self.confidence
+    pub fn confidence(&self) -> u8 {
+        self.meta.confidence
     }
 
     pub fn start(&self) -> u32 {
@@ -121,7 +121,7 @@ impl PixelArea {
 
     fn try_from_iter(pixels: impl IntoIterator<Item = PixelRange>) -> Option<PixelRanges> {
         NonEmptyOrderedRanges::try_from_ordered_iter(
-            pixels.into_iter().map(|r| (r.start..r.end, r.confidence)),
+            pixels.into_iter().map(|r| (r.start..r.end, r.meta)),
         )
         .ok()
     }
@@ -137,10 +137,10 @@ impl PixelArea {
     pub fn iter_pixel_ranges(&self) -> impl Iterator<Item = PixelRange> + '_ {
         self.pixels
             .iter()
-            .map(|MetaRange { range, meta }| PixelRange {
-                start: range.start as u32,
-                end: range.end as u32,
-                confidence: *meta,
+            .map(|(range, meta)| PixelRange {
+                start: *range.start() as u32,
+                end: (*range.end() + 1) as u32,
+                meta: *meta,
             })
     }
 }
@@ -159,10 +159,10 @@ impl Iterator for PixelRangeIter {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
             .next()
-            .map(|MetaRange { range, meta }| PixelRange {
-                start: range.start as u32,
-                end: range.end as u32,
-                confidence: meta,
+            .map(|(range, meta)| PixelRange {
+                start: *range.start() as u32,
+                end: (*range.end() + 1) as u32,
+                meta,
             })
     }
 }
@@ -193,10 +193,10 @@ pub(crate) fn remove_overlaps(
 
     let mut new_ranges: Vec<(std::ops::Range<u32>, Meta)> = Vec::new();
 
-    for MetaRange { range, meta } in ranges.iter() {
-        let mut new_pos = range.start as u32;
-        let new_end = range.end as u32;
-        let confidence = *meta;
+    for (range, meta) in ranges.iter() {
+        let mut new_pos = *range.start() as u32;
+        let new_end = (*range.end() + 1) as u32;
+        let meta = *meta;
 
         // Skip existing ranges that end before our current position
         while let Some((_, existing_end)) = peekable_ordered_existing.peek() {
@@ -218,7 +218,7 @@ pub(crate) fn remove_overlaps(
 
             if existing_start > new_pos {
                 // There's a gap before this existing range
-                new_ranges.push((new_pos..existing_start, confidence));
+                new_ranges.push((new_pos..existing_start, meta));
             }
 
             if existing_end >= new_end {
@@ -234,7 +234,7 @@ pub(crate) fn remove_overlaps(
 
         // Add remaining range if any
         if new_pos < new_end {
-            new_ranges.push((new_pos..new_end, confidence));
+            new_ranges.push((new_pos..new_end, meta));
         }
     }
 
