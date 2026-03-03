@@ -2,7 +2,7 @@ use std::num::NonZero;
 
 use futures::FutureExt;
 
-use crate::{CursorImage, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
+use crate::{CursorImage, Meta, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
 
 // https://www.svgrepo.com/svg/437030/lasso
 const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
@@ -45,7 +45,7 @@ impl Tool for RectTool {
             let color = self
                 .fix_color
                 .unwrap_or_else(|| ctx.image.masks.next_color());
-            if let Some(pixel_area) = rect_result.into_pixel_area(255, color) {
+            if let Some(pixel_area) = rect_result.into_pixel_area(Meta::default(), color) {
                 ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
             }
         } else if ctx.response.clicked()

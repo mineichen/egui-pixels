@@ -2,7 +2,7 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use egui::Pos2;
 
-use crate::{PixelArea, PixelRange, ToolContext};
+use crate::{Meta, PixelArea, PixelRange, ToolContext};
 
 /// Result of a rectangular selection with guaranteed non-zero dimensions
 pub struct RectSelectionResult {
@@ -54,18 +54,18 @@ impl RectSelectionResult {
     }
 
     /// Iterate over pixel ranges for each row in the rectangle
-    pub fn iter_ranges(&self, confidence: u8) -> impl Iterator<Item = PixelRange> + '_ {
+    pub fn iter_ranges(&self, meta: Meta) -> impl Iterator<Item = PixelRange> + '_ {
         (self.min_y..=self.max_y).map(move |y| {
             let start = y as u32 * self.image_width.get() + self.min_x as u32;
             let length = (self.max_x - self.min_x + 1) as u16;
             let length_nonzero = NonZeroU16::new(length)
                 .expect("Rectangle width should be non-zero due to validation in new()");
-            PixelRange::new(start, length_nonzero, confidence)
+            PixelRange::new(start, length_nonzero, meta)
         })
     }
 
     /// Convert to a PixelArea with the given confidence and color
-    pub fn into_pixel_area(self, confidence: u8, color: [u8; 3]) -> Option<PixelArea> {
+    pub fn into_pixel_area(self, confidence: Meta, color: [u8; 3]) -> Option<PixelArea> {
         PixelArea::new(self.iter_ranges(confidence), color)
     }
 }

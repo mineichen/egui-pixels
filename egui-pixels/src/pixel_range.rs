@@ -4,14 +4,36 @@ use std::ops::Range;
 use imagemask::{MetaRange, NonEmptyOrderedRanges, NonZeroRange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub struct Meta {
+    confidence: u8,
+}
+
+impl Meta {
+    pub const fn new(confidence: u8) -> Self {
+        Self { confidence }
+    }
+
+    pub const fn get(self) -> u8 {
+        self.confidence
+    }
+}
+
+impl Default for Meta {
+    fn default() -> Self {
+        Self { confidence: 255 }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelRange {
     start: u32,
     end: u32,
-    pub confidence: u8,
+    pub confidence: Meta,
 }
 
 impl PixelRange {
-    pub fn new(start: u32, length: NonZeroU16, confidence: u8) -> Self {
+    pub fn new(start: u32, length: NonZeroU16, confidence: Meta) -> Self {
         Self {
             start,
             end: start + length.get() as u32,
@@ -20,7 +42,7 @@ impl PixelRange {
     }
 
     pub fn new_total(start: u32, length: NonZeroU16) -> Self {
-        Self::new(start, length, 255)
+        Self::new(start, length, Meta::default())
     }
 
     pub fn as_range(&self) -> Range<usize> {
@@ -29,7 +51,7 @@ impl PixelRange {
         start..end
     }
 
-    pub fn confidence(&self) -> u8 {
+    pub fn confidence(&self) -> Meta {
         self.confidence
     }
 
@@ -59,7 +81,7 @@ impl PixelRange {
     }
 }
 
-type PixelRanges = NonEmptyOrderedRanges<u32, u32, Vec<u8>>;
+type PixelRanges = NonEmptyOrderedRanges<u32, u32, Vec<Meta>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -85,7 +107,10 @@ impl PixelArea {
 
     pub fn single_pixel_total_color(start: u32, len: NonZeroU32, color: [u8; 3]) -> Self {
         Self {
-            pixels: NonEmptyOrderedRanges::new(NonZeroRange::from_span(start, len), 255),
+            pixels: NonEmptyOrderedRanges::new(
+                NonZeroRange::from_span(start, len),
+                Meta::default(),
+            ),
             color,
         }
     }
@@ -124,7 +149,7 @@ pub struct PixelRangeIter {
     inner: imagemask::OrderedRangeIter<
         std::vec::IntoIter<u32>,
         std::vec::IntoIter<u32>,
-        std::vec::IntoIter<u8>,
+        std::vec::IntoIter<Meta>,
     >,
 }
 
@@ -166,7 +191,7 @@ pub(crate) fn remove_overlaps(
         .map(|subgroup| (subgroup.start(), subgroup.end()))
         .peekable();
 
-    let mut new_ranges: Vec<(std::ops::Range<u32>, u8)> = Vec::new();
+    let mut new_ranges: Vec<(std::ops::Range<u32>, Meta)> = Vec::new();
 
     for MetaRange { range, meta } in ranges.iter() {
         let mut new_pos = range.start as u32;

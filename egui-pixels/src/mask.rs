@@ -90,7 +90,7 @@ impl MaskImage {
             for subgroups in self.subgroups().into_iter() {
                 let [r, g, b] = subgroups.color;
                 for subgroup in subgroups.iter_pixel_ranges() {
-                    let a = self.default_opacity_lut[subgroup.confidence() as usize];
+                    let a = self.default_opacity_lut[subgroup.confidence().get() as usize];
                     let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
                     pixels[subgroup.as_range()].fill(group_color);
                 }
