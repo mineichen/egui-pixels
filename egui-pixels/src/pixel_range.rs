@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroU32};
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 
-use imagemask::{NonEmptyOrderedRanges, NonZeroRange};
+use imagemask::{NonZeroRange, SortedRangesMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -81,7 +81,7 @@ impl PixelRange {
     }
 }
 
-type PixelRanges = NonEmptyOrderedRanges<u32, u32, Vec<Meta>>;
+type PixelRanges = SortedRangesMap<u32, u32, Vec<Meta>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -107,10 +107,7 @@ impl PixelArea {
 
     pub fn single_pixel_total_color(start: u32, len: NonZeroU32, color: [u8; 3]) -> Self {
         Self {
-            pixels: NonEmptyOrderedRanges::new(
-                NonZeroRange::from_span(start, len),
-                Meta::default(),
-            ),
+            pixels: PixelRanges::new(NonZeroRange::from_span(start, len), Meta::default()),
             color,
         }
     }
@@ -120,10 +117,8 @@ impl PixelArea {
     }
 
     fn try_from_iter(pixels: impl IntoIterator<Item = PixelRange>) -> Option<PixelRanges> {
-        NonEmptyOrderedRanges::try_from_ordered_iter(
-            pixels.into_iter().map(|r| (r.start..r.end, r.meta)),
-        )
-        .ok()
+        PixelRanges::try_from_ordered_iter(pixels.into_iter().map(|r| (r.start..r.end, r.meta)))
+            .ok()
     }
 
     pub fn from_ranges(pixels: PixelRanges, color: [u8; 3]) -> Self {
@@ -131,12 +126,12 @@ impl PixelArea {
     }
 
     pub fn range_len(&self) -> usize {
-        self.pixels.iter().count()
+        self.pixels.len()
     }
 
     pub fn iter_pixel_ranges(&self) -> impl Iterator<Item = PixelRange> + '_ {
         self.pixels
-            .iter()
+            .iter::<RangeInclusive<_>>()
             .map(|(range, meta)| PixelRange {
                 start: *range.start() as u32,
                 end: (*range.end() + 1) as u32,
@@ -146,10 +141,11 @@ impl PixelArea {
 }
 
 pub struct PixelRangeIter {
-    inner: imagemask::OrderedRangeIter<
+    inner: imagemask::SortedRangesMapIter<
         std::vec::IntoIter<u32>,
         std::vec::IntoIter<u32>,
         std::vec::IntoIter<Meta>,
+        RangeInclusive<u64>,
     >,
 }
 
@@ -157,13 +153,11 @@ impl Iterator for PixelRangeIter {
     type Item = PixelRange;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .next()
-            .map(|(range, meta)| PixelRange {
-                start: *range.start() as u32,
-                end: (*range.end() + 1) as u32,
-                meta,
-            })
+        self.inner.next().map(|(range, meta)| PixelRange {
+            start: *range.start() as u32,
+            end: (*range.end() + 1) as u32,
+            meta,
+        })
     }
 }
 
@@ -173,7 +167,7 @@ impl IntoIterator for PixelArea {
 
     fn into_iter(self) -> Self::IntoIter {
         PixelRangeIter {
-            inner: self.pixels.into_iter(),
+            inner: self.pixels.iter_owned(),
         }
     }
 }
@@ -193,7 +187,7 @@ pub(crate) fn remove_overlaps(
 
     let mut new_ranges: Vec<(std::ops::Range<u32>, Meta)> = Vec::new();
 
-    for (range, meta) in ranges.iter() {
+    for (range, meta) in ranges.iter::<RangeInclusive<_>>() {
         let mut new_pos = *range.start() as u32;
         let new_end = (*range.end() + 1) as u32;
         let meta = *meta;
@@ -240,7 +234,7 @@ pub(crate) fn remove_overlaps(
 
     Ok(PixelArea {
         color,
-        pixels: NonEmptyOrderedRanges::try_from_ordered_iter(new_ranges).map_err(|_| RemovedAll)?,
+        pixels: PixelRanges::try_from_ordered_iter(new_ranges).map_err(|_| RemovedAll)?,
     })
 }
 

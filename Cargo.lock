@@ -1402,12 +1402,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gen_ops"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "304de19db7028420975a296ab0fcbbc8e69438c4ed254a1e41e2a7f37d5f0e0a"
-
-[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1751,10 +1745,10 @@ dependencies = [
 [[package]]
 name = "imagemask"
 version = "0.1.0"
-source = "git+https://github.com/mineichen/imagemask.git#c61b30080052498bd7f1d8158bc34ceaffe2bddc"
+source = "git+https://github.com/mineichen/imagemask.git#763e7368320d5e703aa5f33ceb6ea82c68269c27"
 dependencies = [
  "itertools",
- "range-set-blaze",
+ "num-traits",
  "thiserror 2.0.18",
 ]
 
@@ -2727,18 +2721,6 @@ name = "range-alloc"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d6831663a5098ea164f89cff59c6284e95f4e3c76ce9848d4529f5ccca9bde"
-
-[[package]]
-name = "range-set-blaze"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf2137da7c20957a8c1fc2d9a78952fe5989379f3472f2e4ceb908074d561ac5"
-dependencies = [
- "gen_ops",
- "itertools",
- "num-integer",
- "num-traits",
-]
 
 [[package]]
 name = "raw-window-handle"
