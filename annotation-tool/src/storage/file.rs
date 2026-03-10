@@ -7,7 +7,9 @@ use std::{
     str::FromStr,
 };
 
-use egui_pixels::{ImageData, ImageId, ImageListTaskItem, PixelArea, PixelRange, load_image};
+use egui_pixels::{
+    CreateTotal, ImageData, ImageId, ImageListTaskItem, MetaRange, PixelArea, load_image,
+};
 use futures::{FutureExt, future::BoxFuture};
 use itertools::Itertools;
 use log::info;
@@ -148,7 +150,7 @@ impl Storage for FileStorage {
                                     .iter()
                                     .zip(lens.iter())
                                     .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                        Ok(l) => Ok(PixelRange::new_total(*start as _, l.into()).0),
+                                        Ok(l) => Ok(MetaRange::new_total(*start as _, l.into())),
                                         Err(e) => Err(std::io::Error::new(
                                             ErrorKind::InvalidData,
                                             format!("position {start},{len}: {e:?}"),

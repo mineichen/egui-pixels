@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 
 use futures::FutureExt;
 
-use crate::{Meta, PixelRange, RectSelection, Tool, ToolContext, ToolFactory};
+use crate::{CreateTotal, Meta, MetaRange, RectSelection, Tool, ToolContext, ToolFactory};
 
 #[derive(Default)]
 #[non_exhaustive]
@@ -28,7 +28,7 @@ impl Tool for ClearTool {
         {
             let image_width = ctx.image.image.original.width();
             let pos = y as u64 * image_width.get() as u64 + x as u64;
-            let single_pixel = std::iter::once(PixelRange::new_total(pos, NonZeroU64::MIN).0);
+            let single_pixel = std::iter::once(MetaRange::new_total(pos, NonZeroU64::MIN));
             ctx.image.masks.clear_ranges(single_pixel);
         }
     }

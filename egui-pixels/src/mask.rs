@@ -247,7 +247,7 @@ impl MaskImage {
 mod tests {
     use imagemask::NonZeroRange;
 
-    use crate::PixelRange;
+    use crate::{CreateTotal, MetaRange};
 
     use super::*;
     use std::num::NonZero;
@@ -260,7 +260,7 @@ mod tests {
     const NON_ZERO_6: NonZero<u32> = NonZero::new(6).unwrap();
     const NON_ZERO_8: NonZero<u32> = NonZero::new(8).unwrap();
 
-    // Helper function to convert bounds to an iterator of PixelRange for tests
+    // Helper function to convert bounds to an iterator of MetaRange for tests
     fn bounds_to_ranges(
         [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2],
         image_width: u32,
@@ -269,7 +269,7 @@ mod tests {
         let x_right = x_bottom as u64;
         let x_width = NonZero::new((x_right - x_left + 1) as u64).unwrap();
         let y_range = y_top as u64..=y_bottom as u64;
-        y_range.map(move |y| PixelRange::new_total(y * image_width as u64 + x_left, x_width).0)
+        y_range.map(move |y| MetaRange::new_total(y * image_width as u64 + x_left, x_width))
     }
 
     #[test]
@@ -365,12 +365,12 @@ mod tests {
                         range: NonZeroRange::from_span(1, 3.try_into().unwrap()),
                         meta: Default::default()
                     },
-                    PixelRange::new_total(6, 3.try_into().unwrap()).0
+                    MetaRange::new_total(6, 3.try_into().unwrap())
                 ])
                 .unwrap(),
                 PixelArea::with_black_color([
-                    PixelRange::new_total(2, 2.try_into().unwrap(),).0,
-                    PixelRange::new_total(6, 2.try_into().unwrap(),).0
+                    MetaRange::new_total(2, 2.try_into().unwrap(),),
+                    MetaRange::new_total(6, 2.try_into().unwrap(),)
                 ])
                 .unwrap(),
             ]
@@ -414,9 +414,9 @@ mod tests {
         let mut history = History::default();
         history.push(HistoryAction::Add(
             PixelArea::with_black_color(vec![
-                PixelRange::new_total(22, 7.try_into().unwrap()).0,
-                PixelRange::new_total(39, 1.try_into().unwrap()).0,
-                PixelRange::new_total(42, 7.try_into().unwrap()).0,
+                MetaRange::new_total(22, 7.try_into().unwrap()),
+                MetaRange::new_total(39, 1.try_into().unwrap()),
+                MetaRange::new_total(42, 7.try_into().unwrap()),
             ])
             .unwrap(),
         ));
@@ -424,8 +424,8 @@ mod tests {
             [10, 10],
             vec![
                 PixelArea::with_black_color(vec![
-                    PixelRange::new_total(2, 5.try_into().unwrap()).0,
-                    PixelRange::new_total(12, 5.try_into().unwrap()).0,
+                    MetaRange::new_total(2, 5.try_into().unwrap()),
+                    MetaRange::new_total(12, 5.try_into().unwrap()),
                 ])
                 .unwrap(),
                 PixelArea::single_pixel_total_black(32, NON_ZERO_5),

@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use egui_pixels::{MetaRange, PixelRange};
+use egui_pixels::{CreateTotal, MetaRange};
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
@@ -111,13 +111,13 @@ pub(super) fn extract_pixel_ranges(
         .into_iter()
         .for_each(|(_, mut b)| {
             let first = b.next().expect("Doesn't yield if group is empty");
-            result.push(PixelRange::new_total(first, NonZeroU64::MIN).0);
+            result.push(MetaRange::new_total(first, NonZeroU64::MIN));
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
                     item.range.increment_length();
                 } else {
-                    result.push(PixelRange::new_total(x, NonZeroU64::MIN).0);
+                    result.push(MetaRange::new_total(x, NonZeroU64::MIN));
                 }
                 x
             });
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn extract_pixel_ranges_summarizes_pixels() {
         assert_eq!(
-            vec![PixelRange::new_total(0, 3.try_into().unwrap()).0],
+            vec![MetaRange::new_total(0, 3.try_into().unwrap())],
             extract_pixel_ranges([1., 1., 1.].iter().copied(), 3.try_into().unwrap())
         );
     }
