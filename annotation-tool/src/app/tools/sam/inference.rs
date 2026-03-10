@@ -115,7 +115,7 @@ pub(super) fn extract_pixel_ranges(
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
-                    item.increment_length();
+                    item.0.range.increment_length();
                 } else {
                     result.push(PixelRange::new_total(x, NonZeroU16::MIN));
                 }

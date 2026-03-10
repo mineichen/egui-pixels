@@ -28,7 +28,7 @@ impl Default for Meta {
 pub type MetaRange = imagemask::MetaRange<NonZeroRange<u64>, Meta>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PixelRange(imagemask::MetaRange<NonZeroRange<u64>, Meta>);
+pub struct PixelRange(pub MetaRange);
 
 impl From<MetaRange> for PixelRange {
     fn from(value: MetaRange) -> Self {
@@ -47,34 +47,6 @@ impl PixelRange {
 
     pub fn new_total(start: u32, length: NonZeroU16) -> Self {
         Self::new(start, length, Meta::default())
-    }
-
-    pub fn meta(&self) -> Meta {
-        self.0.meta
-    }
-
-    pub fn start(&self) -> u32 {
-        self.0.range.start as _
-    }
-
-    pub fn length(&self) -> NonZeroU16 {
-        self.0
-            .range
-            .len_non_zero()
-            .try_into()
-            .expect("Cannot create a Range<u16> from Range<u64>")
-    }
-
-    pub fn increment_length(&mut self) {
-        self.0.range.increment_length();
-        debug_assert!(
-            u16::try_from(self.0.range.end - self.0.range.start).is_ok(),
-            "length is never > u16::MAX"
-        );
-    }
-
-    pub fn end(&self) -> u32 {
-        self.0.range.end.try_into().expect("Never bigger than u32")
     }
 }
 
@@ -142,12 +114,12 @@ pub(crate) fn remove_overlaps(
     let color = annotations.color;
     let ranges = &annotations.pixels;
     let mut peekable_ordered_existing = ordered_existing
-        .map(|subgroup| (subgroup.start(), subgroup.end()))
+        .map(|subgroup| (subgroup.0.range.start, subgroup.0.range.end))
         .peekable();
 
-    let mut new_ranges: Vec<(std::ops::Range<u32>, Meta)> = Vec::new();
+    let mut new_ranges: Vec<(std::ops::Range<u64>, Meta)> = Vec::new();
 
-    for (range, meta) in ranges.iter::<RangeInclusive<u32>>() {
+    for (range, meta) in ranges.iter::<RangeInclusive<u64>>() {
         let mut new_pos = *range.start();
         let new_end = *range.end() + 1;
         let meta = *meta;
