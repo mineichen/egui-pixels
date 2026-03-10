@@ -1,7 +1,7 @@
-use std::num::{NonZeroU16, NonZeroU32};
+use std::num::{NonZeroU16, NonZeroU32, NonZeroU64};
 use std::ops::{Range, RangeInclusive};
 
-use imagemask::{NonZeroRange, SortedRangesMap};
+use imagemask::{MetaRange, NonZeroRange, SortedRangesMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -26,19 +26,15 @@ impl Default for Meta {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PixelRange {
-    start: u32,
-    end: u32,
-    pub meta: Meta,
-}
+pub struct PixelRange(imagemask::MetaRange<NonZeroRange<u64>, Meta>);
 
 impl PixelRange {
     pub fn new(start: u32, length: NonZeroU16, meta: Meta) -> Self {
-        Self {
-            start,
-            end: start + length.get() as u32,
+        let len = NonZeroU64::from(length);
+        Self(imagemask::MetaRange {
+            range: NonZeroRange::from_span(start as u64, len),
             meta,
-        }
+        })
     }
 
     pub fn new_total(start: u32, length: NonZeroU16) -> Self {
@@ -46,38 +42,37 @@ impl PixelRange {
     }
 
     pub fn as_range(&self) -> Range<usize> {
-        let start = self.start as usize;
-        let end = self.end as usize;
+        let start = self.start() as usize;
+        let end = self.end() as usize;
         start..end
     }
 
-    pub fn confidence(&self) -> u8 {
-        self.meta.confidence
+    pub fn meta(&self) -> Meta {
+        self.0.meta
     }
 
     pub fn start(&self) -> u32 {
-        self.start
+        self.0.range.start as _
     }
 
     pub fn length(&self) -> NonZeroU16 {
-        let unchecked = self.end - self.start;
-        debug_assert!(
-            u16::try_from(unchecked).is_ok(),
-            "length is never > u16::MAX"
-        );
-        NonZeroU16::new(unchecked as u16).expect("length is never > u16::MAX")
+        self.0
+            .range
+            .len_non_zero()
+            .try_into()
+            .expect("Cannot create a Range<u16> from Range<u64>")
     }
 
     pub fn increment_length(&mut self) {
-        self.end = self.end.checked_add(1).expect("length is never > u16::MAX");
+        self.0.range.increment_length();
         debug_assert!(
-            u16::try_from(self.end - self.start).is_ok(),
+            u16::try_from(self.0.range.end - self.0.range.start).is_ok(),
             "length is never > u16::MAX"
         );
     }
 
     pub fn end(&self) -> u32 {
-        self.end
+        self.0.range.end.try_into().expect("Never bigger than u32")
     }
 }
 
@@ -117,8 +112,12 @@ impl PixelArea {
     }
 
     fn try_from_iter(pixels: impl IntoIterator<Item = PixelRange>) -> Option<PixelRanges> {
-        PixelRanges::try_from_ordered_iter(pixels.into_iter().map(|r| (r.start..r.end, r.meta)))
-            .ok()
+        PixelRanges::try_from_ordered_iter(
+            pixels
+                .into_iter()
+                .map(|r| (r.0.range.start..r.0.range.end, r.0.meta)),
+        )
+        .ok()
     }
 
     pub fn from_ranges(pixels: PixelRanges, color: [u8; 3]) -> Self {
@@ -130,13 +129,12 @@ impl PixelArea {
     }
 
     pub fn iter_pixel_ranges(&self) -> impl Iterator<Item = PixelRange> + '_ {
-        self.pixels
-            .iter::<RangeInclusive<_>>()
-            .map(|(range, meta)| PixelRange {
-                start: *range.start() as u32,
-                end: (*range.end() + 1) as u32,
-                meta: *meta,
+        self.pixels.iter::<NonZeroRange<u64>>().map(|r| {
+            PixelRange(MetaRange {
+                range: r.range,
+                meta: *r.meta,
             })
+        })
     }
 }
 
@@ -145,7 +143,7 @@ pub struct PixelRangeIter {
         std::vec::IntoIter<u32>,
         std::vec::IntoIter<u32>,
         std::vec::IntoIter<Meta>,
-        RangeInclusive<u64>,
+        NonZeroRange<u64>,
     >,
 }
 
@@ -153,11 +151,7 @@ impl Iterator for PixelRangeIter {
     type Item = PixelRange;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|(range, meta)| PixelRange {
-            start: *range.start() as u32,
-            end: (*range.end() + 1) as u32,
-            meta,
-        })
+        self.inner.next().map(|r| PixelRange(r))
     }
 }
 

@@ -1745,7 +1745,7 @@ dependencies = [
 [[package]]
 name = "imagemask"
 version = "0.1.0"
-source = "git+https://github.com/mineichen/imagemask.git#763e7368320d5e703aa5f33ceb6ea82c68269c27"
+source = "git+https://github.com/mineichen/imagemask.git#5d07f852b4dcf6f07eb8254907b301e27f459ba7"
 dependencies = [
  "itertools",
  "num-traits",
