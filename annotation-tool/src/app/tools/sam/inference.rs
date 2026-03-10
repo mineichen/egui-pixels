@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use egui_pixels::PixelRange;
+use egui_pixels::{MetaRange, PixelRange};
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
@@ -103,7 +103,7 @@ pub(super) fn prepare_image_input(
 pub(super) fn extract_pixel_ranges(
     iter: impl Iterator<Item = f32>,
     width: NonZeroU32,
-) -> Vec<PixelRange> {
+) -> Vec<MetaRange> {
     let mut result = vec![];
     iter.enumerate()
         .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u32))
@@ -111,13 +111,13 @@ pub(super) fn extract_pixel_ranges(
         .into_iter()
         .for_each(|(_, mut b)| {
             let first = b.next().expect("Doesn't yield if group is empty");
-            result.push(PixelRange::new_total(first, NonZeroU16::MIN));
+            result.push(PixelRange::new_total(first, NonZeroU16::MIN).0);
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
-                    item.0.range.increment_length();
+                    item.range.increment_length();
                 } else {
-                    result.push(PixelRange::new_total(x, NonZeroU16::MIN));
+                    result.push(PixelRange::new_total(x, NonZeroU16::MIN).0);
                 }
                 x
             });
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn extract_pixel_ranges_summarizes_pixels() {
         assert_eq!(
-            vec![PixelRange::new_total(0, 3.try_into().unwrap())],
+            vec![PixelRange::new_total(0, 3.try_into().unwrap()).0],
             extract_pixel_ranges([1., 1., 1.].iter().copied(), 3.try_into().unwrap())
         );
     }

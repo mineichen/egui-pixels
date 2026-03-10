@@ -6,7 +6,7 @@ use egui::{
 use imagemask::SortedRangesMap;
 use log::{debug, info};
 
-use crate::{Meta, MetaRange, PixelArea, PixelRange};
+use crate::{Meta, MetaRange, PixelArea};
 
 mod history;
 mod random_color;
@@ -126,7 +126,7 @@ impl MaskImage {
         self.texture_handle_dirty = true;
     }
 
-    pub fn clear_ranges(&mut self, ranges: impl Iterator<Item = PixelRange>) {
+    pub fn clear_ranges(&mut self, ranges: impl Iterator<Item = MetaRange>) {
         let action = HistoryAction::Clear(ranges.collect());
 
         self.add_history_action(action)
@@ -245,6 +245,10 @@ impl MaskImage {
 
 #[cfg(test)]
 mod tests {
+    use imagemask::NonZeroRange;
+
+    use crate::PixelRange;
+
     use super::*;
     use std::num::NonZero;
 
@@ -260,12 +264,12 @@ mod tests {
     fn bounds_to_ranges(
         [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2],
         image_width: u32,
-    ) -> impl Iterator<Item = PixelRange> {
+    ) -> impl Iterator<Item = MetaRange> {
         let x_left = x_top as u32;
         let x_right = x_bottom as u32;
         let x_width = NonZero::new((x_right - x_left + 1) as u16).unwrap();
         let y_range = y_top as u32..=y_bottom as u32;
-        y_range.map(move |y| PixelRange::new_total(y * image_width + x_left, x_width))
+        y_range.map(move |y| PixelRange::new_total(y * image_width + x_left, x_width).0)
     }
 
     #[test]
@@ -357,13 +361,16 @@ mod tests {
             mask_image.subgroups(),
             vec![
                 PixelArea::with_black_color([
-                    PixelRange::new_total(1, 3.try_into().unwrap()),
-                    PixelRange::new_total(6, 3.try_into().unwrap())
+                    MetaRange {
+                        range: NonZeroRange::from_span(1, 3.try_into().unwrap()),
+                        meta: Default::default()
+                    },
+                    PixelRange::new_total(6, 3.try_into().unwrap()).0
                 ])
                 .unwrap(),
                 PixelArea::with_black_color([
-                    PixelRange::new_total(2, 2.try_into().unwrap(),),
-                    PixelRange::new_total(6, 2.try_into().unwrap(),)
+                    PixelRange::new_total(2, 2.try_into().unwrap(),).0,
+                    PixelRange::new_total(6, 2.try_into().unwrap(),).0
                 ])
                 .unwrap(),
             ]
@@ -407,9 +414,9 @@ mod tests {
         let mut history = History::default();
         history.push(HistoryAction::Add(
             PixelArea::with_black_color(vec![
-                PixelRange::new_total(22, 7.try_into().unwrap()),
-                PixelRange::new_total(39, 1.try_into().unwrap()),
-                PixelRange::new_total(42, 7.try_into().unwrap()),
+                PixelRange::new_total(22, 7.try_into().unwrap()).0,
+                PixelRange::new_total(39, 1.try_into().unwrap()).0,
+                PixelRange::new_total(42, 7.try_into().unwrap()).0,
             ])
             .unwrap(),
         ));
@@ -417,8 +424,8 @@ mod tests {
             [10, 10],
             vec![
                 PixelArea::with_black_color(vec![
-                    PixelRange::new_total(2, 5.try_into().unwrap()),
-                    PixelRange::new_total(12, 5.try_into().unwrap()),
+                    PixelRange::new_total(2, 5.try_into().unwrap()).0,
+                    PixelRange::new_total(12, 5.try_into().unwrap()).0,
                 ])
                 .unwrap(),
                 PixelArea::single_pixel_total_black(32, NON_ZERO_5),

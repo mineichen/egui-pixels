@@ -148,7 +148,7 @@ impl Storage for FileStorage {
                                     .iter()
                                     .zip(lens.iter())
                                     .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                        Ok(l) => Ok(PixelRange::new_total(*start, l)),
+                                        Ok(l) => Ok(PixelRange::new_total(*start, l).0),
                                         Err(e) => Err(std::io::Error::new(
                                             ErrorKind::InvalidData,
                                             format!("position {start},{len}: {e:?}"),

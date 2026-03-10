@@ -1,6 +1,6 @@
 use std::{future::Future, path::Path, sync::Arc};
 
-use egui_pixels::PixelRange;
+use egui_pixels::MetaRange;
 use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};
@@ -80,7 +80,7 @@ impl SamSession {
         x2: f32,
         y2: f32,
         embeddings: &SamEmbeddings,
-    ) -> Result<Vec<PixelRange>, InferenceError> {
+    ) -> Result<Vec<MetaRange>, InferenceError> {
         // Prepare input for decoder
 
         // Get embeddings, image sizes and ONNX model instances from Web Application state

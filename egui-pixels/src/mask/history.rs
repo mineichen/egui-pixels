@@ -2,13 +2,13 @@
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
 
-use crate::{PixelArea, PixelRange};
+use crate::{MetaRange, PixelArea};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
     Add(PixelArea),
     Reset,
-    Clear(Vec<PixelRange>),
+    Clear(Vec<MetaRange>),
 }
 
 impl HistoryAction {

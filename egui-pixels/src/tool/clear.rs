@@ -28,7 +28,7 @@ impl Tool for ClearTool {
         {
             let image_width = ctx.image.image.original.width();
             let pos = y as u32 * image_width.get() + x as u32;
-            let single_pixel = std::iter::once(PixelRange::new_total(pos, NonZeroU16::MIN));
+            let single_pixel = std::iter::once(PixelRange::new_total(pos, NonZeroU16::MIN).0);
             ctx.image.masks.clear_ranges(single_pixel);
         }
     }

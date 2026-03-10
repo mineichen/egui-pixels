@@ -1,8 +1,9 @@
-use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
+use std::num::{NonZero, NonZeroU32, NonZeroUsize};
 
 use egui::Pos2;
+use imagemask::NonZeroRange;
 
-use crate::{Meta, PixelArea, PixelRange, ToolContext};
+use crate::{Meta, MetaRange, PixelArea, ToolContext};
 
 /// Result of a rectangular selection with guaranteed non-zero dimensions
 pub struct RectSelectionResult {
@@ -54,13 +55,14 @@ impl RectSelectionResult {
     }
 
     /// Iterate over pixel ranges for each row in the rectangle
-    pub fn iter_ranges(&self, meta: Meta) -> impl Iterator<Item = PixelRange> + '_ {
+    pub fn iter_ranges(&self, meta: Meta) -> impl Iterator<Item = MetaRange> + '_ {
         (self.min_y..=self.max_y).map(move |y| {
-            let start = y as u32 * self.image_width.get() + self.min_x as u32;
-            let length = (self.max_x - self.min_x + 1) as u16;
-            let length_nonzero = NonZeroU16::new(length)
+            let start = y as u64 * self.image_width.get() as u64 + self.min_x as u64;
+            let length = (self.max_x - self.min_x + 1) as u64;
+            let length_nonzero = NonZero::new(length)
                 .expect("Rectangle width should be non-zero due to validation in new()");
-            PixelRange::new(start, length_nonzero, meta)
+            let range = NonZeroRange::from_span(start, length_nonzero);
+            MetaRange { range, meta }
         })
     }
 

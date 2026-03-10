@@ -37,16 +37,12 @@ impl From<MetaRange> for PixelRange {
 }
 
 impl PixelRange {
-    pub fn new(start: u32, length: NonZeroU16, meta: Meta) -> Self {
+    pub fn new_total(start: u32, length: NonZeroU16) -> Self {
         let len = NonZeroU64::from(length);
         Self(imagemask::MetaRange {
             range: NonZeroRange::from_span(start as u64, len),
-            meta,
+            meta: Default::default(),
         })
-    }
-
-    pub fn new_total(start: u32, length: NonZeroU16) -> Self {
-        Self::new(start, length, Meta::default())
     }
 }
 
@@ -60,14 +56,14 @@ pub struct PixelArea {
 }
 
 impl PixelArea {
-    pub fn new(pixels: impl IntoIterator<Item = PixelRange>, color: [u8; 3]) -> Option<Self> {
+    pub fn new(pixels: impl IntoIterator<Item = MetaRange>, color: [u8; 3]) -> Option<Self> {
         Some(Self {
             pixels: Self::try_from_iter(pixels)?,
             color,
         })
     }
 
-    pub fn with_black_color(pixels: impl IntoIterator<Item = PixelRange>) -> Option<Self> {
+    pub fn with_black_color(pixels: impl IntoIterator<Item = MetaRange>) -> Option<Self> {
         Some(Self {
             pixels: Self::try_from_iter(pixels)?,
             color: [0, 0, 0],
@@ -85,11 +81,11 @@ impl PixelArea {
         Self::single_pixel_total_color(start, len, [0, 0, 0])
     }
 
-    fn try_from_iter(pixels: impl IntoIterator<Item = PixelRange>) -> Option<PixelRanges> {
+    fn try_from_iter(pixels: impl IntoIterator<Item = MetaRange>) -> Option<PixelRanges> {
         PixelRanges::try_from_ordered_iter(
             pixels
                 .into_iter()
-                .map(|r| (r.0.range.start..r.0.range.end, r.0.meta)),
+                .map(|r| (r.range.start..r.range.end, r.meta)),
         )
         .ok()
     }
@@ -108,13 +104,13 @@ pub struct RemovedAll;
 
 pub(crate) fn remove_overlaps(
     annotations: PixelArea,
-    ordered_existing: impl IntoIterator<Item = PixelRange>,
+    ordered_existing: impl IntoIterator<Item = MetaRange>,
 ) -> Result<PixelArea, RemovedAll> {
     let ordered_existing = ordered_existing.into_iter();
     let color = annotations.color;
     let ranges = &annotations.pixels;
     let mut peekable_ordered_existing = ordered_existing
-        .map(|subgroup| (subgroup.0.range.start, subgroup.0.range.end))
+        .map(|subgroup| (subgroup.range.start, subgroup.range.end))
         .peekable();
 
     let mut new_ranges: Vec<(std::ops::Range<u64>, Meta)> = Vec::new();
@@ -178,7 +174,7 @@ mod tests {
 
     const NON_ZERO_4: NonZero<u32> = NonZero::new(4).unwrap();
 
-    fn collect_pixels(area: &PixelArea) -> Vec<PixelRange> {
+    fn collect_pixels(area: &PixelArea) -> Vec<MetaRange> {
         area.pixels
             .iter::<NonZeroRange<u64>>()
             .map(|x| {
@@ -194,25 +190,25 @@ mod tests {
     #[test]
     fn overlapping_before() {
         let annotation = PixelArea::single_pixel_total_black(2, NON_ZERO_4);
-        let existing = vec![PixelRange::new_total(0, 3.try_into().unwrap())];
+        let existing = vec![PixelRange::new_total(0, 3.try_into().unwrap()).0];
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
-            vec![PixelRange::new_total(3, 3.try_into().unwrap())]
+            vec![PixelRange::new_total(3, 3.try_into().unwrap()).0]
         )
     }
 
     #[test]
     fn existing_within_new() {
         let annotation = PixelArea::single_pixel_total_black(0, 6.try_into().unwrap());
-        let existing = vec![PixelRange::new_total(1, 4.try_into().unwrap())];
+        let existing = vec![PixelRange::new_total(1, 4.try_into().unwrap()).0];
 
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
             vec![
-                PixelRange::new_total(0, 1.try_into().unwrap()),
-                PixelRange::new_total(5, 1.try_into().unwrap())
+                PixelRange::new_total(0, 1.try_into().unwrap()).0,
+                PixelRange::new_total(5, 1.try_into().unwrap()).0
             ]
         )
     }
@@ -220,29 +216,29 @@ mod tests {
     #[test]
     fn overlapping_both() {
         let annotation = PixelArea::single_pixel_total_black(2, 4.try_into().unwrap());
-        let existing = vec![PixelRange::new_total(0, 6.try_into().unwrap())];
+        let existing = vec![PixelRange::new_total(0, 6.try_into().unwrap()).0];
         remove_overlaps(annotation, existing.into_iter()).unwrap_err();
     }
 
     #[test]
     fn overlapping_twice() {
         let annotation = PixelArea::with_black_color(vec![
-            PixelRange::new_total(2, 1.try_into().unwrap()),
-            PixelRange::new_total(4, 1.try_into().unwrap()),
+            PixelRange::new_total(2, 1.try_into().unwrap()).0,
+            PixelRange::new_total(4, 1.try_into().unwrap()).0,
         ])
         .unwrap();
-        let existing = vec![PixelRange::new_total(0, 6.try_into().unwrap())];
+        let existing = vec![PixelRange::new_total(0, 6.try_into().unwrap()).0];
         remove_overlaps(annotation, existing.into_iter()).unwrap_err();
     }
 
     #[test]
     fn overlapping_end() {
         let annotation = PixelArea::single_pixel_total_black(1, 4.try_into().unwrap());
-        let existing = vec![PixelRange::new_total(2, 6.try_into().unwrap())];
+        let existing = vec![PixelRange::new_total(2, 6.try_into().unwrap()).0];
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
-            vec![PixelRange::new_total(1, NonZeroU16::MIN)]
+            vec![PixelRange::new_total(1, NonZeroU16::MIN).0]
         )
     }
 
@@ -250,8 +246,8 @@ mod tests {
     fn overlapping_between() {
         let annotation = PixelArea::single_pixel_total_black(2, 4.try_into().unwrap());
         let existing = vec![
-            PixelRange::new_total(0, 3.try_into().unwrap()),
-            PixelRange::new_total(0, 8.try_into().unwrap()),
+            PixelRange::new_total(0, 3.try_into().unwrap()).0,
+            PixelRange::new_total(0, 8.try_into().unwrap()).0,
         ];
         remove_overlaps(annotation, existing.into_iter()).unwrap_err();
     }
@@ -259,11 +255,11 @@ mod tests {
     #[test]
     fn no_overlap_before() {
         let annotation = PixelArea::single_pixel_total_black(2, 4.try_into().unwrap());
-        let existing = vec![PixelRange::new_total(0, 2.try_into().unwrap())];
+        let existing = vec![PixelRange::new_total(0, 2.try_into().unwrap()).0];
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
-            vec![PixelRange::new_total(2, 4.try_into().unwrap())]
+            vec![PixelRange::new_total(2, 4.try_into().unwrap()).0]
         )
     }
 }
