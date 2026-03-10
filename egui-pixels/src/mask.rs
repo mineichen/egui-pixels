@@ -3,9 +3,10 @@ use std::{collections::BinaryHeap, ops::Range};
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
+use imagemask::SortedRangesMap;
 use log::{debug, info};
 
-use crate::{PixelArea, PixelRange};
+use crate::{Meta, MetaRange, PixelArea, PixelRange};
 
 mod history;
 mod random_color;
@@ -132,7 +133,9 @@ impl MaskImage {
     }
 
     pub fn add_area_non_overlapping_parts(&mut self, subgroups: PixelArea) {
-        if let Ok(x) = crate::remove_overlaps(subgroups, self.subgroups_ordered().map(|(_, g)| g)) {
+        if let Ok(x) =
+            crate::remove_overlaps(subgroups, self.subgroups_ordered().map(|(_, g)| g.into()))
+        {
             self.add_area_overlapping(x)
         } else {
             debug!("All Pixels are in a other subgroup already");
@@ -184,8 +187,8 @@ impl MaskImage {
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
-    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, PixelRange)> + '_ {
-        struct HeapItem<T>(PixelRange, usize, T);
+    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, MetaRange)> + '_ {
+        struct HeapItem<T>(MetaRange, usize, T);
 
         impl<T> Eq for HeapItem<T> {}
         impl<T> PartialEq for HeapItem<T> {
@@ -200,18 +203,20 @@ impl MaskImage {
         }
         impl<T> Ord for HeapItem<T> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                self.0.start().cmp(&other.0.start()).reverse()
+                self.0.range.start.cmp(&other.0.range.start).reverse()
             }
         }
 
-        struct GroupIterator(BinaryHeap<HeapItem<crate::PixelRangeIter>>);
+        struct GroupIterator(
+            BinaryHeap<HeapItem<<SortedRangesMap<u32, u32, Vec<Meta>> as IntoIterator>::IntoIter>>,
+        );
 
         let x: BinaryHeap<_> = self
             .subgroups()
             .into_iter()
             .enumerate()
             .map(|(group_id, x)| {
-                let mut iter = x.into_iter();
+                let mut iter = x.pixels.into_iter();
                 HeapItem(
                     iter.next().expect("No empty groups available"),
                     group_id,
@@ -221,7 +226,7 @@ impl MaskImage {
             .collect();
 
         impl Iterator for GroupIterator {
-            type Item = (usize, PixelRange);
+            type Item = (usize, MetaRange);
 
             fn next(&mut self) -> Option<Self::Item> {
                 if let Some(HeapItem(subgroup, group_id, mut rest)) = self.0.pop() {

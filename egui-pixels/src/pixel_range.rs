@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroU32, NonZeroU64};
 use std::ops::RangeInclusive;
 
-use imagemask::{MetaRange, NonZeroRange, SortedRangesMap};
+use imagemask::{NonZeroRange, SortedRangesMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -25,11 +25,13 @@ impl Default for Meta {
     }
 }
 
+pub type MetaRange = imagemask::MetaRange<NonZeroRange<u64>, Meta>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelRange(imagemask::MetaRange<NonZeroRange<u64>, Meta>);
 
-impl From<MetaRange<NonZeroRange<u64>, Meta>> for PixelRange {
-    fn from(value: MetaRange<NonZeroRange<u64>, Meta>) -> Self {
+impl From<MetaRange> for PixelRange {
+    fn from(value: MetaRange) -> Self {
         Self(value)
     }
 }
@@ -129,33 +131,6 @@ impl PixelArea {
     }
 }
 
-pub struct PixelRangeIter {
-    inner: imagemask::SortedRangesMapIter<
-        std::vec::IntoIter<u32>,
-        std::vec::IntoIter<u32>,
-        std::vec::IntoIter<Meta>,
-        NonZeroRange<u64>,
-    >,
-}
-
-impl Iterator for PixelRangeIter {
-    type Item = PixelRange;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(PixelRange)
-    }
-}
-
-impl IntoIterator for PixelArea {
-    type Item = PixelRange;
-    type IntoIter = PixelRangeIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        PixelRangeIter {
-            inner: self.pixels.iter_owned(),
-        }
-    }
-}
 #[derive(std::fmt::Debug)]
 pub struct RemovedAll;
 
