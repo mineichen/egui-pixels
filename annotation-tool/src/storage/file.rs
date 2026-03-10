@@ -126,7 +126,7 @@ impl Storage for FileStorage {
                     let mut f = brotli::Decompressor::new(f, 4096);
                     let mut pixel_range_bytes = [0; 2];
                     let mut all = Vec::new();
-                    let mut starts = Vec::new();
+                    let mut starts = Vec::<u32>::new();
                     let mut lens = Vec::new();
 
                     while f.read_exact(&mut pixel_range_bytes).is_ok() {
@@ -148,7 +148,7 @@ impl Storage for FileStorage {
                                     .iter()
                                     .zip(lens.iter())
                                     .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                        Ok(l) => Ok(PixelRange::new_total(*start, l).0),
+                                        Ok(l) => Ok(PixelRange::new_total(*start as _, l.into()).0),
                                         Err(e) => Err(std::io::Error::new(
                                             ErrorKind::InvalidData,
                                             format!("position {start},{len}: {e:?}"),

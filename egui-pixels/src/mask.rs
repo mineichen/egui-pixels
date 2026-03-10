@@ -265,11 +265,11 @@ mod tests {
         [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2],
         image_width: u32,
     ) -> impl Iterator<Item = MetaRange> {
-        let x_left = x_top as u32;
-        let x_right = x_bottom as u32;
-        let x_width = NonZero::new((x_right - x_left + 1) as u16).unwrap();
-        let y_range = y_top as u32..=y_bottom as u32;
-        y_range.map(move |y| PixelRange::new_total(y * image_width + x_left, x_width).0)
+        let x_left = x_top as u64;
+        let x_right = x_bottom as u64;
+        let x_width = NonZero::new((x_right - x_left + 1) as u64).unwrap();
+        let y_range = y_top as u64..=y_bottom as u64;
+        y_range.map(move |y| PixelRange::new_total(y * image_width as u64 + x_left, x_width).0)
     }
 
     #[test]

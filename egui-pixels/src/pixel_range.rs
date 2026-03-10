@@ -1,4 +1,4 @@
-use std::num::{NonZeroU16, NonZeroU32, NonZeroU64};
+use std::num::{NonZeroU32, NonZeroU64};
 use std::ops::RangeInclusive;
 
 use imagemask::{NonZeroRange, SortedRangesMap};
@@ -37,7 +37,7 @@ impl From<MetaRange> for PixelRange {
 }
 
 impl PixelRange {
-    pub fn new_total(start: u32, length: NonZeroU16) -> Self {
+    pub fn new_total(start: u64, length: NonZeroU64) -> Self {
         let len = NonZeroU64::from(length);
         Self(imagemask::MetaRange {
             range: NonZeroRange::from_span(start as u64, len),
@@ -238,7 +238,7 @@ mod tests {
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
-            vec![PixelRange::new_total(1, NonZeroU16::MIN).0]
+            vec![PixelRange::new_total(1, NonZeroU64::MIN).0]
         )
     }
 

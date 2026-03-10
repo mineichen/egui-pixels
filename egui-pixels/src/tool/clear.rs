@@ -1,4 +1,4 @@
-use std::num::NonZeroU16;
+use std::num::NonZeroU64;
 
 use futures::FutureExt;
 
@@ -27,8 +27,8 @@ impl Tool for ClearTool {
             && let Some((x, y)) = ctx.cursor_image_pos()
         {
             let image_width = ctx.image.image.original.width();
-            let pos = y as u32 * image_width.get() + x as u32;
-            let single_pixel = std::iter::once(PixelRange::new_total(pos, NonZeroU16::MIN).0);
+            let pos = y as u64 * image_width.get() as u64 + x as u64;
+            let single_pixel = std::iter::once(PixelRange::new_total(pos, NonZeroU64::MIN).0);
             ctx.image.masks.clear_ranges(single_pixel);
         }
     }

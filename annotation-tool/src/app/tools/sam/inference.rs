@@ -1,5 +1,5 @@
 use std::{
-    num::{NonZeroU16, NonZeroU32, TryFromIntError},
+    num::{NonZeroU32, NonZeroU64, TryFromIntError},
     sync::Arc,
 };
 
@@ -106,18 +106,18 @@ pub(super) fn extract_pixel_ranges(
 ) -> Vec<MetaRange> {
     let mut result = vec![];
     iter.enumerate()
-        .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u32))
-        .chunk_by(|&x| x / width)
+        .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u64))
+        .chunk_by(|&x| x / NonZeroU64::from(width))
         .into_iter()
         .for_each(|(_, mut b)| {
             let first = b.next().expect("Doesn't yield if group is empty");
-            result.push(PixelRange::new_total(first, NonZeroU16::MIN).0);
+            result.push(PixelRange::new_total(first, NonZeroU64::MIN).0);
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
                     item.range.increment_length();
                 } else {
-                    result.push(PixelRange::new_total(x, NonZeroU16::MIN).0);
+                    result.push(PixelRange::new_total(x, NonZeroU64::MIN).0);
                 }
                 x
             });
