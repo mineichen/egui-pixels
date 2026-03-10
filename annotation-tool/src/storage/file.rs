@@ -2,6 +2,7 @@ use std::{
     fs::DirEntry,
     io::{self, ErrorKind, Read, Write},
     num::NonZeroU16,
+    ops::Range,
     path::PathBuf,
     str::FromStr,
 };
@@ -211,11 +212,11 @@ impl Storage for FileStorage {
                     let sub_len = sub.range_len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
-                    for subgroup in sub.iter_pixel_ranges() {
-                        f.write_all(&subgroup.start().to_le_bytes())?;
+                    for (subgroup, _) in sub.pixels.iter::<Range<u32>>() {
+                        f.write_all(&subgroup.start.to_le_bytes())?;
                     }
-                    for subgroup in sub.iter_pixel_ranges() {
-                        f.write_all(&subgroup.length().get().to_le_bytes())?;
+                    for (subgroup, _) in sub.pixels.iter::<Range<u32>>() {
+                        f.write_all(&u16::try_from(subgroup.len()).unwrap().to_le_bytes())?;
                     }
                 }
 

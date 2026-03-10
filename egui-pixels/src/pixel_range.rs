@@ -1,5 +1,5 @@
 use std::num::{NonZeroU16, NonZeroU32, NonZeroU64};
-use std::ops::{Range, RangeInclusive};
+use std::ops::RangeInclusive;
 
 use imagemask::{MetaRange, NonZeroRange, SortedRangesMap};
 
@@ -28,6 +28,12 @@ impl Default for Meta {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelRange(imagemask::MetaRange<NonZeroRange<u64>, Meta>);
 
+impl From<MetaRange<NonZeroRange<u64>, Meta>> for PixelRange {
+    fn from(value: MetaRange<NonZeroRange<u64>, Meta>) -> Self {
+        Self(value)
+    }
+}
+
 impl PixelRange {
     pub fn new(start: u32, length: NonZeroU16, meta: Meta) -> Self {
         let len = NonZeroU64::from(length);
@@ -39,12 +45,6 @@ impl PixelRange {
 
     pub fn new_total(start: u32, length: NonZeroU16) -> Self {
         Self::new(start, length, Meta::default())
-    }
-
-    pub fn as_range(&self) -> Range<usize> {
-        let start = self.start() as usize;
-        let end = self.end() as usize;
-        start..end
     }
 
     pub fn meta(&self) -> Meta {
@@ -127,15 +127,6 @@ impl PixelArea {
     pub fn range_len(&self) -> usize {
         self.pixels.len()
     }
-
-    pub fn iter_pixel_ranges(&self) -> impl Iterator<Item = PixelRange> + '_ {
-        self.pixels.iter::<NonZeroRange<u64>>().map(|r| {
-            PixelRange(MetaRange {
-                range: r.range,
-                meta: *r.meta,
-            })
-        })
-    }
 }
 
 pub struct PixelRangeIter {
@@ -181,7 +172,7 @@ pub(crate) fn remove_overlaps(
 
     let mut new_ranges: Vec<(std::ops::Range<u32>, Meta)> = Vec::new();
 
-    for (range, meta) in ranges.iter::<RangeInclusive<_>>() {
+    for (range, meta) in ranges.iter::<RangeInclusive<u32>>() {
         let mut new_pos = *range.start() as u32;
         let new_end = (*range.end() + 1) as u32;
         let meta = *meta;
@@ -241,7 +232,16 @@ mod tests {
     const NON_ZERO_4: NonZero<u32> = NonZero::new(4).unwrap();
 
     fn collect_pixels(area: &PixelArea) -> Vec<PixelRange> {
-        area.iter_pixel_ranges().collect()
+        area.pixels
+            .iter::<NonZeroRange<u64>>()
+            .map(|x| {
+                MetaRange {
+                    range: x.range,
+                    meta: *x.meta,
+                }
+                .into()
+            })
+            .collect()
     }
 
     #[test]

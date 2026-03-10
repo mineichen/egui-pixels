@@ -1,4 +1,4 @@
-use std::collections::BinaryHeap;
+use std::{collections::BinaryHeap, ops::Range};
 
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
@@ -89,10 +89,10 @@ impl MaskImage {
 
             for subgroups in self.subgroups().into_iter() {
                 let [r, g, b] = subgroups.color;
-                for subgroup in subgroups.iter_pixel_ranges() {
-                    let a = self.default_opacity_lut[subgroup.meta().confidence() as usize];
+                for (range, meta) in subgroups.pixels.iter::<Range<usize>>() {
+                    let a = self.default_opacity_lut[meta.confidence() as usize];
                     let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
-                    pixels[subgroup.as_range()].fill(group_color);
+                    pixels[range].fill(group_color);
                 }
             }
 
