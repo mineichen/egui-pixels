@@ -142,7 +142,7 @@ impl Iterator for PixelRangeIter {
     type Item = PixelRange;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|r| PixelRange(r))
+        self.inner.next().map(PixelRange)
     }
 }
 
@@ -173,8 +173,8 @@ pub(crate) fn remove_overlaps(
     let mut new_ranges: Vec<(std::ops::Range<u32>, Meta)> = Vec::new();
 
     for (range, meta) in ranges.iter::<RangeInclusive<u32>>() {
-        let mut new_pos = *range.start() as u32;
-        let new_end = (*range.end() + 1) as u32;
+        let mut new_pos = *range.start();
+        let new_end = *range.end() + 1;
         let meta = *meta;
 
         // Skip existing ranges that end before our current position

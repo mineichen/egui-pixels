@@ -60,7 +60,7 @@ impl RectSelectionResult {
             let length = (self.max_x - self.min_x + 1) as u16;
             let length_nonzero = NonZeroU16::new(length)
                 .expect("Rectangle width should be non-zero due to validation in new()");
-            PixelRange::new(start, length_nonzero, meta.clone())
+            PixelRange::new(start, length_nonzero, meta)
         })
     }
 
