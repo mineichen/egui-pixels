@@ -2,13 +2,17 @@
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
 
-use crate::{MetaRange, PixelArea};
+use std::ops::{Range, RangeInclusive};
+
+use imagemask::{NonZeroRange, SortedRanges};
+
+use crate::{CreateTotal, MetaRange, PixelArea};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
     Add(PixelArea),
     Reset,
-    Clear(Vec<MetaRange>),
+    Clear(SortedRanges<u64, u64>),
 }
 
 impl HistoryAction {
@@ -24,7 +28,11 @@ impl HistoryAction {
             }
             HistoryAction::Clear(s) => rest
                 .into_iter()
-                .filter_map(|sub| crate::remove_overlaps(sub, s.iter().copied()).ok())
+                .filter_map(|mut sub| {
+                    // let (src, sink) = sub.pixels.split();
+                    // sink.process(src);
+                    crate::remove_overlaps(sub, s.iter()).ok()
+                })
                 .collect(),
         }
     }
@@ -114,7 +122,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::single_pixel_total_black(0, NonZeroU32::MIN));
+        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, NonZeroU32::MIN));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -124,8 +132,8 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::single_pixel_total_black(0, NonZeroU32::MIN));
-        let item2 = HistoryAction::Add(PixelArea::single_pixel_total_black(10, NonZeroU32::MIN));
+        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, NonZeroU32::MIN));
+        let item2 = HistoryAction::Add(PixelArea::single_range_total_black(10, NonZeroU32::MIN));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);

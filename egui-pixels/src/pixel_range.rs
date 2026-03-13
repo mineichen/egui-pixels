@@ -70,7 +70,7 @@ impl PixelArea {
         }
     }
 
-    pub fn single_pixel_total_black(start: u32, len: NonZeroU32) -> Self {
+    pub fn single_range_total_black(start: u32, len: NonZeroU32) -> Self {
         Self::single_pixel_total_color(start, len, [0, 0, 0])
     }
 
@@ -97,13 +97,13 @@ pub struct RemovedAll;
 
 pub(crate) fn remove_overlaps(
     annotations: PixelArea,
-    ordered_existing: impl IntoIterator<Item = MetaRange>,
+    ordered_existing: impl IntoIterator<Item = NonZeroRange<u64>>,
 ) -> Result<PixelArea, RemovedAll> {
     let ordered_existing = ordered_existing.into_iter();
     let color = annotations.color;
     let ranges = &annotations.pixels;
     let mut peekable_ordered_existing = ordered_existing
-        .map(|subgroup| (subgroup.range.start, subgroup.range.end))
+        .map(|subgroup| (subgroup.start, subgroup.end))
         .peekable();
 
     let mut new_ranges: Vec<(std::ops::Range<u64>, Meta)> = Vec::new();
@@ -182,8 +182,8 @@ mod tests {
 
     #[test]
     fn overlapping_before() {
-        let annotation = PixelArea::single_pixel_total_black(2, NON_ZERO_4);
-        let existing = vec![MetaRange::new_total(0, 3.try_into().unwrap())];
+        let annotation = PixelArea::single_range_total_black(2, NON_ZERO_4);
+        let existing = vec![NonZeroRange::from_span(0, 3.try_into().unwrap())];
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
@@ -193,8 +193,8 @@ mod tests {
 
     #[test]
     fn existing_within_new() {
-        let annotation = PixelArea::single_pixel_total_black(0, 6.try_into().unwrap());
-        let existing = vec![MetaRange::new_total(1, 4.try_into().unwrap())];
+        let annotation = PixelArea::single_range_total_black(0, 6.try_into().unwrap());
+        let existing = vec![NonZeroRange::from_span(1, 4.try_into().unwrap())];
 
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
@@ -208,8 +208,8 @@ mod tests {
 
     #[test]
     fn overlapping_both() {
-        let annotation = PixelArea::single_pixel_total_black(2, 4.try_into().unwrap());
-        let existing = vec![MetaRange::new_total(0, 6.try_into().unwrap())];
+        let annotation = PixelArea::single_range_total_black(2, 4.try_into().unwrap());
+        let existing = vec![NonZeroRange::from_span(0, 6.try_into().unwrap())];
         remove_overlaps(annotation, existing.into_iter()).unwrap_err();
     }
 
@@ -220,14 +220,14 @@ mod tests {
             MetaRange::new_total(4, 1.try_into().unwrap()),
         ])
         .unwrap();
-        let existing = vec![MetaRange::new_total(0, 6.try_into().unwrap())];
+        let existing = vec![NonZeroRange::from_span(0, 6.try_into().unwrap())];
         remove_overlaps(annotation, existing.into_iter()).unwrap_err();
     }
 
     #[test]
     fn overlapping_end() {
-        let annotation = PixelArea::single_pixel_total_black(1, 4.try_into().unwrap());
-        let existing = vec![MetaRange::new_total(2, 6.try_into().unwrap())];
+        let annotation = PixelArea::single_range_total_black(1, 4.try_into().unwrap());
+        let existing = vec![NonZeroRange::from_span(2, 6.try_into().unwrap())];
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
@@ -237,18 +237,18 @@ mod tests {
 
     #[test]
     fn overlapping_between() {
-        let annotation = PixelArea::single_pixel_total_black(2, 4.try_into().unwrap());
+        let annotation = PixelArea::single_range_total_black(2, 4.try_into().unwrap());
         let existing = vec![
-            MetaRange::new_total(0, 3.try_into().unwrap()),
-            MetaRange::new_total(0, 8.try_into().unwrap()),
+            NonZeroRange::from_span(0, 3.try_into().unwrap()),
+            NonZeroRange::from_span(0, 8.try_into().unwrap()),
         ];
         remove_overlaps(annotation, existing.into_iter()).unwrap_err();
     }
 
     #[test]
     fn no_overlap_before() {
-        let annotation = PixelArea::single_pixel_total_black(2, 4.try_into().unwrap());
-        let existing = vec![MetaRange::new_total(0, 2.try_into().unwrap())];
+        let annotation = PixelArea::single_range_total_black(2, 4.try_into().unwrap());
+        let existing = vec![NonZeroRange::from_span(0, 2.try_into().unwrap())];
         let annotation = remove_overlaps(annotation, existing.into_iter()).unwrap();
         assert_eq!(
             collect_pixels(&annotation),
