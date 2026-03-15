@@ -13,8 +13,8 @@ use range_set_blaze::{CheckSortedDisjoint, SortedDisjointMap};
 
 use crate::{Meta, MetaRange, PixelArea};
 
-mod merge_sorted;
 mod history;
+mod merge_sorted;
 mod random_color;
 
 use merge_sorted::MergeSortedOverlapping;
