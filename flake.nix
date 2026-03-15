@@ -55,7 +55,7 @@
             rustc --version
             cargo --version
             trunk --version
-            
+
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [
               pkgs.wayland
               pkgs.libxkbcommon
@@ -71,7 +71,7 @@
             export XDG_SESSION_TYPE="''${XDG_SESSION_TYPE:-wayland}"
             export XDG_CURRENT_DESKTOP="''${XDG_CURRENT_DESKTOP:-KDE}"
             exec nix develop . --command ${pkgs.lib.getExe pkgs.code-cursor} --no-sandbox "$PWD"
-            
+
           ''}/bin/cursor";
         };
 
@@ -88,12 +88,12 @@
           program = "${pkgs.writeShellScriptBin "annotation-tool-web" ''
             set -e
             PROJECT_ROOT="$PWD"
-            
+
             if [ ! -f "$PROJECT_ROOT/flake.nix" ]; then
               echo "Error: Not in flake root directory" >&2
               exit 1
             fi
-            
+
             exec nix develop "$PROJECT_ROOT" --command bash -c "
               cd '$PROJECT_ROOT/annotation-tool'
               exec ${pkgs.trunk}/bin/trunk serve --release --no-default-features
@@ -106,15 +106,15 @@
           program = "${pkgs.writeShellScriptBin "annotation-tool-app" ''
             set -e
             PROJECT_ROOT="$PWD"
-            
+
             if [ ! -f "$PROJECT_ROOT/flake.nix" ]; then
               echo "Error: Not in flake root directory" >&2
               exit 1
             fi
-            
+
             # Build if needed
             nix develop "$PROJECT_ROOT" --command bash -c "cargo build --release --features sam --bin annotation-tool-app"
-            
+
             # Run with arguments passed through
             exec nix develop "$PROJECT_ROOT" --command bash -c "
               export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [
@@ -123,6 +123,7 @@
                 onnxruntime_1_16
                 pkgs.stdenv.cc.cc.lib
               ]}:\$LD_LIBRARY_PATH
+              export RUST_BACKTRACE=1
               if [ \$# -eq 0 ]; then
                 exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" ~/Downloads
               else

@@ -1,15 +1,23 @@
-use std::{collections::BinaryHeap, ops::Range};
+use std::{
+    collections::BinaryHeap,
+    iter::FusedIterator,
+    ops::{Range, RangeInclusive},
+};
 
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
 use imagemask::SortedRangesMap;
 use log::{debug, info};
+use range_set_blaze::{CheckSortedDisjoint, SortedDisjointMap};
 
 use crate::{Meta, MetaRange, PixelArea};
 
+mod merge_sorted;
 mod history;
 mod random_color;
+
+use merge_sorted::MergeSortedOverlapping;
 
 pub use history::*;
 pub use random_color::random_color_from_seed;
@@ -135,9 +143,13 @@ impl MaskImage {
     }
 
     pub fn add_area_non_overlapping_parts(&mut self, subgroups: PixelArea) {
-        if let Ok(x) =
-            crate::remove_overlaps(subgroups, self.subgroups_ordered().map(|(_, g)| g.range))
-        {
+        let remaining = subgroups.map_inplace(|x| {
+            x.map_and_set_difference(CheckSortedDisjoint::new(MergeSortedOverlapping::new(
+                self.subgroups_ordered()
+                    .map(|x| RangeInclusive::<u64>::from(x.1.range)),
+            )))
+        });
+        if let Some(x) = remaining {
             self.add_area_overlapping(x)
         } else {
             debug!("All Pixels are in a other subgroup already");
@@ -189,7 +201,7 @@ impl MaskImage {
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
-    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, MetaRange)> + '_ {
+    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, MetaRange)> + FusedIterator + '_ {
         struct HeapItem<T>(MetaRange, usize, T);
 
         impl<T> Eq for HeapItem<T> {}
@@ -217,13 +229,9 @@ impl MaskImage {
             .subgroups()
             .into_iter()
             .enumerate()
-            .map(|(group_id, x)| {
+            .filter_map(|(group_id, x)| {
                 let mut iter = x.pixels.into_iter();
-                HeapItem(
-                    iter.next().expect("No empty groups available"),
-                    group_id,
-                    iter,
-                )
+                Some(HeapItem(iter.next()?, group_id, iter))
             })
             .collect();
 
@@ -241,6 +249,8 @@ impl MaskImage {
                 }
             }
         }
+        // self.0.pop() at some point relies on Vec::pop(), which can be called multiple times
+        impl FusedIterator for GroupIterator {}
         GroupIterator(x)
     }
 }
@@ -439,5 +449,28 @@ mod tests {
             .map(|(group_id, _)| group_id)
             .collect();
         assert_eq!(group_sequence, vec![0, 0, 2, 1, 2, 2]);
+    }
+
+    #[test]
+    fn add_to_existing_overlapping_doesnt_fail() {
+        let mut history = History::default();
+        history.push(HistoryAction::Add(
+            PixelArea::with_black_color(vec![MetaRange::new_total(0, 2.try_into().unwrap())])
+                .unwrap(),
+        ));
+        history.push(HistoryAction::Add(
+            PixelArea::with_black_color(vec![MetaRange::new_total(1, 4.try_into().unwrap())])
+                .unwrap(),
+        ));
+        let mut x = MaskImage::new([10, 10], vec![], history);
+        x.add_area_non_overlapping_parts(
+            PixelArea::with_black_color(vec![MetaRange::new_total(2, 4.try_into().unwrap())])
+                .unwrap(),
+        );
+        let group_sequence: Vec<_> = x
+            .subgroups_ordered()
+            .map(|(group_id, _)| group_id)
+            .collect();
+        assert_eq!(group_sequence, vec![0, 1, 2]);
     }
 }

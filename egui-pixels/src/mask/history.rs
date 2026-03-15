@@ -2,11 +2,12 @@
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
 
-use std::ops::{Range, RangeInclusive};
+use std::ops::RangeInclusive;
 
-use imagemask::{NonZeroRange, SortedRanges};
+use imagemask::SortedRanges;
+use range_set_blaze::SortedDisjointMap;
 
-use crate::{CreateTotal, MetaRange, PixelArea};
+use crate::{Meta, PixelArea};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
@@ -28,13 +29,19 @@ impl HistoryAction {
             }
             HistoryAction::Clear(s) => rest
                 .into_iter()
-                .filter_map(|mut sub| {
-                    // let (src, sink) = sub.pixels.split();
-                    // sink.process(src);
-                    crate::remove_overlaps(sub, s.iter()).ok()
+                .filter_map(|area| {
+                    area.map_inplace(|x| x.map_and_set_difference(s.iter::<RangeInclusive<u64>>()))
                 })
                 .collect(),
         }
+    }
+}
+
+impl range_set_blaze::ValueRef for Meta {
+    type Target = Meta;
+
+    fn into_value(self) -> Self::Target {
+        self
     }
 }
 
