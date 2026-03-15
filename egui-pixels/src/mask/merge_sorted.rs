@@ -1,11 +1,13 @@
 use std::{iter::FusedIterator, ops::RangeInclusive};
 
-pub struct MergeSortedOverlapping<I> {
+use range_set_blaze::Integer;
+
+pub struct MergeSortedOverlapping<I, T> {
     iter: I,
-    acc: Option<RangeInclusive<u64>>,
+    acc: Option<RangeInclusive<T>>,
 }
 
-impl<I> MergeSortedOverlapping<I> {
+impl<I, T> MergeSortedOverlapping<I, T> {
     pub fn new(iter: impl IntoIterator<IntoIter = I>) -> Self {
         Self {
             iter: iter.into_iter(),
@@ -14,18 +16,18 @@ impl<I> MergeSortedOverlapping<I> {
     }
 }
 
-impl<I> Iterator for MergeSortedOverlapping<I>
+impl<I, T: Integer> Iterator for MergeSortedOverlapping<I, T>
 where
-    I: Iterator<Item = RangeInclusive<u64>>,
+    I: Iterator<Item = RangeInclusive<T>>,
 {
-    type Item = RangeInclusive<u64>;
+    type Item = RangeInclusive<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut iter = (&mut self.iter).inspect(|x| {
             let (start, end) = (x.start(), x.end());
             debug_assert!(
                 start < end,
-                "Got a range with start > end ({start} > {end})"
+                "Got a range with start > end ({start:?} > {end:?})"
             )
         });
         let mut last = self.acc.take().or_else(|| iter.next())?;
@@ -37,10 +39,10 @@ where
                     let (last_end, next_end) = (*last.end(), *next.end());
                     if last_start > next_start {
                         panic!(
-                            "MergeSortedOverlapping: input not sorted by start. Got range {next_start:?} after range starting at {last_start}"
+                            "MergeSortedOverlapping: input not sorted by start. Got range {next_start:?} after range starting at {last_start:?}"
                         );
                     }
-                    if next_start > last_end + 1 {
+                    if next_start > last_end.add_one() {
                         self.acc = Some(next);
                         return Some(last);
                     }
@@ -51,17 +53,17 @@ where
     }
 }
 
-impl<I> FusedIterator for MergeSortedOverlapping<I> where
-    I: FusedIterator<Item = RangeInclusive<u64>>
+impl<I, T: Integer> FusedIterator for MergeSortedOverlapping<I, T> where
+    I: FusedIterator<Item = RangeInclusive<T>>
 {
 }
 
-impl<I> range_set_blaze::SortedStarts<u64> for MergeSortedOverlapping<I> where
-    I: FusedIterator<Item = RangeInclusive<u64>>
+impl<I, T: Integer> range_set_blaze::SortedStarts<T> for MergeSortedOverlapping<I, T> where
+    I: FusedIterator<Item = RangeInclusive<T>>
 {
 }
-impl<I> range_set_blaze::SortedDisjoint<u64> for MergeSortedOverlapping<I> where
-    I: FusedIterator<Item = RangeInclusive<u64>>
+impl<I, T: Integer> range_set_blaze::SortedDisjoint<T> for MergeSortedOverlapping<I, T> where
+    I: FusedIterator<Item = RangeInclusive<T>>
 {
 }
 
@@ -73,7 +75,8 @@ mod tests {
 
     #[test]
     fn empty() {
-        let result = MergeSortedOverlapping::new([]).collect::<Vec<_>>();
+        let result =
+            MergeSortedOverlapping::new([] as [RangeInclusive<u64>; 0]).collect::<Vec<_>>();
         assert_eq!(result, vec![]);
     }
 
