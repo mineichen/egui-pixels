@@ -9,7 +9,7 @@ use egui::{
 };
 use imagemask::SortedRangesMap;
 use log::{debug, info};
-use range_set_blaze::{CheckSortedDisjoint, SortedDisjointMap};
+use range_set_blaze::SortedDisjointMap;
 
 use crate::{Meta, MetaRange, PixelArea};
 
@@ -144,10 +144,10 @@ impl MaskImage {
 
     pub fn add_area_non_overlapping_parts(&mut self, subgroups: PixelArea) {
         let remaining = subgroups.map_inplace(|x| {
-            x.map_and_set_difference(CheckSortedDisjoint::new(MergeSortedOverlapping::new(
+            x.map_and_set_difference(MergeSortedOverlapping::new(
                 self.subgroups_ordered()
                     .map(|x| RangeInclusive::<u64>::from(x.1.range)),
-            )))
+            ))
         });
         if let Some(x) = remaining {
             self.add_area_overlapping(x)

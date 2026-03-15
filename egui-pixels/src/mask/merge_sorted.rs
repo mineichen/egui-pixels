@@ -56,6 +56,15 @@ impl<I> FusedIterator for MergeSortedOverlapping<I> where
 {
 }
 
+impl<I> range_set_blaze::SortedStarts<u64> for MergeSortedOverlapping<I> where
+    I: FusedIterator<Item = RangeInclusive<u64>>
+{
+}
+impl<I> range_set_blaze::SortedDisjoint<u64> for MergeSortedOverlapping<I> where
+    I: FusedIterator<Item = RangeInclusive<u64>>
+{
+}
+
 #[cfg(test)]
 mod tests {
     use range_set_blaze::CheckSortedDisjoint;
