@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use imbuf::Image;
 
-#[cfg(feature = "image")]
+#[cfg(feature = "image-0_25")]
 mod image;
 
 /// Different image formats supported for the original image
@@ -58,5 +58,5 @@ impl ImageLoadOk {
     }
 }
 
-#[cfg(feature = "image")]
+#[cfg(feature = "image-0_25")]
 pub use image::load_image;

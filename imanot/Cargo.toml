@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 egui.workspace = true
 futures = "0.3"
-image = { workspace = true, optional = true }
+image-0_25 = { workspace = true, optional = true }
 imask.workspace = true
 imbuf.workspace = true
 itertools.workspace = true
@@ -27,7 +27,6 @@ web-sys = { version = "0.3", features = [
 
 [features]
 default = []
-image = ["dep:image"]
 
 [dev-dependencies]
 serde_json = "1.0.145"

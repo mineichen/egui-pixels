@@ -10,7 +10,7 @@ edition = "2024"
 eframe = { version = "0.33", default-features = false, features = ["wgpu", "default_fonts"] }
 egui = { version = "0.33", default-features = false }
 futures-core = "0.3"
-image = { version = "0.25", default-features = false }
+image-0_25 = { package = "image", version = "0.25", default-features = false }
 imbuf = "0.3"
 imask = { git = "https://github.com/mineichen/imask.git", features = ["range-set-blaze-0_5"] }
 range-set-blaze = "0.5"

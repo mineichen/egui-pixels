@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
-use image::{DynamicImage, ImageBuffer as ImageImageBuffer, Luma};
+use image_0_25 as image;
+use image_0_25::{DynamicImage, ImageBuffer as ImageImageBuffer, Luma};
 
 use crate::image_utils::{ImageLoadOk, OriginalImage};
 use imbuf::Image;
@@ -197,7 +198,7 @@ mod tests {
 
     use crate::image_utils::OriginalImage;
 
-    use super::fix_image_contrast;
+    use super::*;
 
     #[test]
     fn fix_image_contrast_all_pixels_same() {
