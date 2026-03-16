@@ -7,17 +7,14 @@ use std::{
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use imagemask::SortedRangesMap;
+use imagemask::{SanitizeSortedDisjoint, SortedRangesMap};
 use log::{debug, info};
 use range_set_blaze::SortedDisjointMap;
 
 use crate::{Meta, MetaRange, PixelArea};
 
 mod history;
-mod merge_sorted;
 mod random_color;
-
-use merge_sorted::MergeSortedOverlapping;
 
 pub use history::*;
 pub use random_color::random_color_from_seed;
@@ -144,7 +141,7 @@ impl MaskImage {
 
     pub fn add_area_non_overlapping_parts(&mut self, subgroups: PixelArea) {
         let remaining = subgroups.map_inplace(|x| {
-            x.map_and_set_difference(MergeSortedOverlapping::new(
+            x.map_and_set_difference(SanitizeSortedDisjoint::new(
                 self.subgroups_ordered()
                     .map(|x| RangeInclusive::<u64>::from(x.1.range)),
             ))
