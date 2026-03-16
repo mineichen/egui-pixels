@@ -7,7 +7,7 @@ use std::{
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use imagemask::{SanitizeSortedDisjoint, SortedRangesMap};
+use imask::{SanitizeSortedDisjoint, SortedRanges, SortedRangesMap};
 use log::{debug, info};
 use range_set_blaze::SortedDisjointMap;
 
@@ -133,7 +133,7 @@ impl MaskImage {
 
     pub fn clear_ranges(&mut self, ranges: impl Iterator<Item = MetaRange>) {
         let action = HistoryAction::Clear(
-            imagemask::SortedRanges::try_from_ordered_iter(ranges.map(|r| r.range.into())).unwrap(),
+            SortedRanges::try_from_ordered_iter(ranges.map(|r| r.range.into())).unwrap(),
         );
 
         self.add_history_action(action)
@@ -254,7 +254,7 @@ impl MaskImage {
 
 #[cfg(test)]
 mod tests {
-    use imagemask::NonZeroRange;
+    use imask::NonZeroRange;
 
     use crate::{CreateTotal, MetaRange};
 

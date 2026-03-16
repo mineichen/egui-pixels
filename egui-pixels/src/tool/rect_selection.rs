@@ -1,7 +1,7 @@
 use std::num::{NonZero, NonZeroU32, NonZeroUsize};
 
 use egui::Pos2;
-use imagemask::NonZeroRange;
+use imask::NonZeroRange;
 
 use crate::{Meta, MetaRange, PixelArea, ToolContext};
 

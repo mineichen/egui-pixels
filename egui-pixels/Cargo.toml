@@ -9,16 +9,16 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 egui.workspace = true
+futures = "0.3"
 image = { workspace = true, optional = true }
+imask.workspace = true
 imbuf.workspace = true
 itertools.workspace = true
 log.workspace = true
 num-traits = "0.2.19"
-futures = "0.3"
 serde = { workspace = true, features = ["derive"], optional = true }
-thiserror = "2.0.17"
-imagemask.workspace = true
 range-set-blaze.workspace = true
+thiserror = "2.0.17"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = [

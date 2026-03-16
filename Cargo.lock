@@ -182,7 +182,6 @@ dependencies = [
 name = "annotation-tool"
 version = "0.1.0"
 dependencies = [
- "annotation-tool",
  "brotli",
  "bytemuck",
  "console_error_panic_hook",
@@ -1014,7 +1013,7 @@ dependencies = [
  "egui-pixels",
  "futures",
  "image",
- "imagemask",
+ "imask",
  "imbuf",
  "itertools",
  "log",
@@ -1799,9 +1798,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "imagemask"
-version = "0.1.0"
-source = "git+https://github.com/mineichen/imagemask.git#fc582b0173123b41868e3d477fec6513b32a1542"
+name = "imask"
+version = "0.0.1"
 dependencies = [
  "futures-core",
  "futures-io",

@@ -4,7 +4,7 @@
 
 use std::ops::RangeInclusive;
 
-use imagemask::SortedRanges;
+use imask::SortedRanges;
 use range_set_blaze::SortedDisjointMap;
 
 use crate::{Meta, PixelArea};

@@ -1,7 +1,7 @@
 use std::num::{NonZeroU32, NonZeroU64};
 use std::ops::RangeInclusive;
 
-use imagemask::{NonZeroRange, SortedRangesMap, SourceIteratorMap};
+use imask::{NonZeroRange, SortedRangesMap, SourceIteratorMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -25,14 +25,14 @@ impl Default for Meta {
     }
 }
 
-pub type MetaRange = imagemask::MetaRange<NonZeroRange<u64>, Meta>;
+pub type MetaRange = imask::MetaRange<NonZeroRange<u64>, Meta>;
 
 pub trait CreateTotal {
     fn new_total(start: u64, length: NonZeroU64) -> Self;
 }
 impl CreateTotal for MetaRange {
     fn new_total(start: u64, length: NonZeroU64) -> Self {
-        imagemask::MetaRange {
+        Self {
             range: NonZeroRange::from_span(start, length),
             meta: Default::default(),
         }
