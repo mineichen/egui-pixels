@@ -1,8 +1,8 @@
 [package]
-name = "egui-pixels"
+name = "imanot"
 version.workspace = true
 edition.workspace = true
-description = "Image viewer with zoom, pan and pixel selection tools"
+description = "Extensible image annotation framework with zoom, pan and pixel selection tools for Desktop and WASM"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -31,4 +31,4 @@ image = ["dep:image"]
 
 [dev-dependencies]
 serde_json = "1.0.145"
-egui-pixels = { path = ".", features = ["serde"] }
+imanot = { path = ".", features = ["serde"] }

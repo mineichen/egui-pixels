@@ -1,5 +1,5 @@
 use egui::ComboBox;
-use egui_pixels::{OriginalImage, PixelArea};
+use imanot::{OriginalImage, PixelArea};
 
 use crate::ImageCallbackMap;
 

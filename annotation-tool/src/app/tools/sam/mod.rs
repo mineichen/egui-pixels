@@ -1,6 +1,6 @@
-use egui_pixels::{AsyncRefTask, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
 use futures::FutureExt;
 use imbuf::Image;
+use imanot::{AsyncRefTask, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
 
 use inference::{InferenceError, SamEmbeddings};
 

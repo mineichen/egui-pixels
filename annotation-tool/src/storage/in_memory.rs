@@ -4,8 +4,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use egui_pixels::{ImageListTaskItem, PixelArea};
 use futures::{FutureExt, future::BoxFuture};
+use imanot::{ImageListTaskItem, PixelArea};
 
 use super::{ImageData, ImageId, Storage};
 

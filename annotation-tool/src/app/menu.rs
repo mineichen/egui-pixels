@@ -1,9 +1,7 @@
 use egui::Key;
-use egui_pixels::{AsyncRefTask, AsyncTask};
 use futures::FutureExt;
+use imanot::{AsyncRefTask, AsyncTask, ImageState, ImageStateLoaded};
 use log::info;
-
-use egui_pixels::{ImageState, ImageStateLoaded};
 
 // const ICON_SAM: &str = "\u{2728}";
 const ICON_SAVE: &str = "\u{1F4BE}";

@@ -1,6 +1,6 @@
 use std::{future::Future, path::Path, sync::Arc};
 
-use egui_pixels::MetaRange;
+use imanot::MetaRange;
 use log::debug;
 use ndarray::Array;
 use ort::{Environment, OrtError, Session, SessionBuilder, Value};

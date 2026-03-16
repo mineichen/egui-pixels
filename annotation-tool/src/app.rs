@@ -1,6 +1,6 @@
 use crate::storage::Storage;
 use egui::{self, InnerResponse, UiBuilder};
-use egui_pixels::{AsyncRefTask, AsyncTask, ImageViewerInteraction, State, Tools};
+use imanot::{AsyncRefTask, AsyncTask, ImageViewerInteraction, State, Tools};
 
 use image_selector::ImageSelector;
 

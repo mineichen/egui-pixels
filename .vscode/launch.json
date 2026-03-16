@@ -63,16 +63,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'egui_pixels'",
+            "name": "Debug unit tests in library 'imanot'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=egui-pixels"
+                    "--package=imanot"
                 ],
                 "filter": {
-                    "name": "egui_pixels",
+                    "name": "imanot",
                     "kind": "lib"
                 }
             },

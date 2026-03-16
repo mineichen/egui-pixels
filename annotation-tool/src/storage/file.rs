@@ -7,11 +7,11 @@ use std::{
     str::FromStr,
 };
 
-use egui_pixels::{
-    CreateTotal, ImageData, ImageId, ImageListTaskItem, MetaRange, PixelArea, load_image,
-};
 use futures::{FutureExt, future::BoxFuture};
 use itertools::Itertools;
+use imanot::{
+    CreateTotal, ImageData, ImageId, ImageListTaskItem, MetaRange, PixelArea, load_image,
+};
 use log::info;
 
 use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
@@ -142,7 +142,7 @@ impl Storage for FileStorage {
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
                         // Generate color based on current position (simulating the seed)
-                        let color = egui_pixels::random_color_from_seed(all.len() as u16);
+                        let color = imanot::random_color_from_seed(all.len() as u16);
 
                         all.push(
                             PixelArea::new(

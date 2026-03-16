@@ -13,5 +13,5 @@ pub use storage::in_memory::InMemoryStorage;
 
 type ImageCallbackMap = Vec<(
     String,
-    Box<dyn Fn(&image::DynamicImage) -> Vec<egui_pixels::PixelArea>>,
+    Box<dyn Fn(&image::DynamicImage) -> Vec<imanot::PixelArea>>,
 )>;

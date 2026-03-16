@@ -1,4 +1,4 @@
-use egui_pixels::{ClearTool, ImageLoadOk, PanTool, RectTool, ToolFactory};
+use imanot::{ClearTool, ImageLoadOk, PanTool, RectTool, ToolFactory};
 
 #[cfg(feature = "sam")]
 mod sam;
@@ -18,13 +18,13 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
     ]
 }
 
-impl<'a> From<&'a crate::config::Config> for egui_pixels::Tools {
+impl<'a> From<&'a crate::config::Config> for imanot::Tools {
     fn from(config: &'a crate::config::Config) -> Self {
         Self::new(default_tools(config))
     }
 }
 
-pub(super) fn ui(ui: &mut egui::Ui, img: &ImageLoadOk, core: &mut egui_pixels::Tools) {
+pub(super) fn ui(ui: &mut egui::Ui, img: &ImageLoadOk, core: &mut imanot::Tools) {
     let mut primary = core.primary();
     ui.horizontal(|ui| {
         ui.label("Primary:");

@@ -3,8 +3,8 @@ use std::{
     str::FromStr,
 };
 
-use egui_pixels::{ImageData, ImageId, ImageListTaskItem, PixelArea};
 use futures::future::BoxFuture;
+use imanot::{ImageData, ImageId, ImageListTaskItem, PixelArea};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;
