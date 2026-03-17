@@ -4,7 +4,7 @@ use crate::{AsyncRefTask, ImageLoadOk, PanTool, Tool, ToolTask};
 
 /// Tool factory function that creates a tool for a given image
 pub type ToolFactory =
-    Box<dyn Fn(&ImageLoadOk) -> crate::BoxFuture<'static, Result<Box<dyn Tool + Send>, String>>>;
+    Box<dyn Fn(&ImageLoadOk) -> crate::LocalBoxFuture<'static, Result<Box<dyn Tool>, String>>>;
 type ToolFactories = Vec<(String, ToolFactory)>;
 
 /// Core tool management without UI concerns
@@ -44,7 +44,7 @@ impl<'a> ToolHandle<'a> {
     pub fn name(&self) -> &str {
         &self.tool_factories[*self.idx].0
     }
-    pub fn data(&mut self) -> Option<&mut Result<Box<dyn Tool + Send + 'static>, String>> {
+    pub fn data(&mut self) -> Option<&mut Result<Box<dyn Tool + 'static>, String>> {
         self.tool.data()
     }
     /// Get the list of available tool names
@@ -67,7 +67,7 @@ impl Tools {
             0 => vec![
                 (
                     "nop".to_string(),
-                    Box::new(|_| async { Ok(Box::new(NopTool) as Box<dyn Tool + Send>) }.boxed()),
+                    Box::new(|_| async { Ok(Box::new(NopTool) as Box<dyn Tool>) }.boxed_local()),
                 ),
                 ("pan".to_string(), PanTool::create_factory()),
             ],

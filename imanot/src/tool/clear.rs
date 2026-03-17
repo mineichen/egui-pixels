@@ -12,7 +12,7 @@ pub struct ClearTool {
 
 impl ClearTool {
     pub fn create_factory() -> ToolFactory {
-        Box::new(|_| async { Ok(Box::new(ClearTool::default()) as Box<dyn Tool + Send>) }.boxed())
+        Box::new(|_| async { Ok(Box::new(ClearTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
 }
 

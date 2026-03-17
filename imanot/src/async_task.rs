@@ -1,14 +1,14 @@
 use std::{pin::Pin, task::Context};
 
-use crate::BoxFuture;
+use crate::LocalBoxFuture;
 
 pub enum AsyncRefTask<T> {
-    Pending(BoxFuture<'static, T>),
+    Pending(LocalBoxFuture<'static, T>),
     Ready(T),
 }
 
 impl<T> AsyncRefTask<T> {
-    pub fn new(b: BoxFuture<'static, T>) -> Self {
+    pub fn new(b: LocalBoxFuture<'static, T>) -> Self {
         Self::Pending(b)
     }
 
@@ -36,10 +36,10 @@ impl<T> AsyncRefTask<T> {
         }
     }
 }
-pub struct AsyncTask<T>(BoxFuture<'static, T>);
+pub struct AsyncTask<T>(LocalBoxFuture<'static, T>);
 
 impl<T> AsyncTask<T> {
-    pub fn new(b: BoxFuture<'static, T>) -> Self {
+    pub fn new(b: LocalBoxFuture<'static, T>) -> Self {
         Self(b)
     }
 

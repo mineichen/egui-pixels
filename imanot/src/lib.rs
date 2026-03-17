@@ -19,7 +19,7 @@ pub use image_utils::*;
 pub use imbuf::Image;
 pub use state::*;
 
-pub type ToolTask = AsyncRefTask<Result<Box<dyn Tool + Send>, String>>;
+pub type ToolTask = AsyncRefTask<Result<Box<dyn Tool>, String>>;
 
 pub use mask::*;
 pub use pixel_range::*;
@@ -28,7 +28,7 @@ pub use tools::*;
 pub use viewer::*;
 
 type RgbImageInterleaved<T> = Image<[T; 3], 1>;
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 #[derive(PartialEq, Clone, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct ImageId(Arc<str>);

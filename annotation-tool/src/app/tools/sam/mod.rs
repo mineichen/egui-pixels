@@ -1,6 +1,6 @@
 use futures::FutureExt;
-use imbuf::Image;
 use imanot::{AsyncRefTask, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
+use imbuf::Image;
 
 use inference::{InferenceError, SamEmbeddings};
 
@@ -31,7 +31,7 @@ impl SamTool {
     pub fn create_factory(session: SamSession) -> ToolFactory {
         Box::new(move |img| {
             let tool = SamTool::new(session.clone(), img.adjust.clone());
-            async move { Ok(Box::new(tool) as Box<dyn Tool + Send>) }.boxed()
+            async move { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()
         })
     }
 }

@@ -20,7 +20,7 @@ pub struct RectTool {
 
 impl RectTool {
     pub fn create_factory() -> ToolFactory {
-        Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool + Send>) }.boxed())
+        Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
 
     pub fn create_fix_color_factory(color: [u8; 3]) -> ToolFactory {
@@ -29,9 +29,9 @@ impl RectTool {
                 Ok(Box::new(RectTool {
                     rect_selection: RectSelection::default(),
                     fix_color: Some(color),
-                }) as Box<dyn Tool + Send>)
+                }) as Box<dyn Tool>)
             }
-            .boxed()
+            .boxed_local()
         })
     }
 }
