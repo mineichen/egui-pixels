@@ -133,7 +133,7 @@ impl MaskImage {
 
     pub fn clear_ranges(&mut self, ranges: impl Iterator<Item = MetaRange>) {
         let action = HistoryAction::Clear(
-            SortedRanges::try_from_ordered_iter(ranges.map(|r| r.range.into())).unwrap(),
+            SortedRanges::try_from_ordered_iter(ranges.map(|r| r.range)).unwrap(),
         );
 
         self.add_history_action(action)
