@@ -24,7 +24,10 @@ impl RectSelectionResult {
         max_y: usize,
         image_width: NonZeroU32,
     ) -> Option<Self> {
-        if max_x > min_x && max_y > min_y {
+        if max_x > min_x
+            && max_y > min_y
+            && max_x < usize::try_from(image_width.get()).expect("Width is < usize::MAX")
+        {
             Some(Self {
                 min_x,
                 min_y,
@@ -111,11 +114,13 @@ impl RectSelection {
                 let start_y = start_image.y as usize;
                 self.drag_start_image = None;
 
+                let image_width = ctx.image.image.original.width();
                 let min_x = start_x.min(end_x);
                 let min_y = start_y.min(end_y);
-                let max_x = start_x.max(end_x);
+                let max_x = start_x
+                    .max(end_x)
+                    .min(usize::try_from(image_width.get()).expect("Width < usize::MAX") - 1);
                 let max_y = start_y.max(end_y);
-                let image_width = ctx.image.image.original.width();
 
                 RectSelectionResult::new(min_x, min_y, max_x, max_y, image_width)
             } else {
