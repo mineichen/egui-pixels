@@ -8,10 +8,11 @@ use std::{
 };
 
 use futures::{FutureExt, future::BoxFuture};
-use itertools::Itertools;
 use imanot::{
     CreateTotal, ImageData, ImageId, ImageListTaskItem, MetaRange, PixelArea, load_image,
 };
+use imask::ImaskSet;
+use itertools::Itertools;
 use log::info;
 
 use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
@@ -111,6 +112,8 @@ impl Storage for FileStorage {
             let mask_path = Self::get_mask_path(&id)?;
 
             let image_load_ok = load_image(&image_bytes)?;
+            let image_width = image_load_ok.original.width();
+            let image_height = image_load_ok.original.height();
             let masks = match std::fs::File::open(mask_path) {
                 Ok(mut f) => {
                     let mut preamble = [0; PREAMBLE.len()];
@@ -156,7 +159,8 @@ impl Storage for FileStorage {
                                             format!("position {start},{len}: {e:?}"),
                                         )),
                                     })
-                                    .collect::<Result<Vec<_>, _>>()?,
+                                    .collect::<Result<Vec<_>, _>>()?
+                                    .with_bounds(image_width, image_height),
                                 color,
                             )
                             .expect("Group cannot be empty, checked in loop"),

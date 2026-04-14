@@ -30,6 +30,7 @@ image = { version = "0.25", default-features = false, features = [
     "jpeg",
     "tiff",
 ] }
+imask.workspace = true
 imbuf.workspace = true
 itertools.workspace = true
 log.workspace = true

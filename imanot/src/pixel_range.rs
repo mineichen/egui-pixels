@@ -1,7 +1,7 @@
-use std::num::{NonZeroU32, NonZeroU64};
+use std::num::{NonZero, NonZeroU32, NonZeroU64};
 use std::ops::RangeInclusive;
 
-use imask::{NonZeroRange, SortedRangesMap, SourceIteratorMap};
+use imask::{ImageDimension, ImaskSet, NonZeroRange, SortedRangesMap, SourceIteratorMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -49,7 +49,10 @@ pub struct PixelArea {
 }
 
 impl PixelArea {
-    pub fn new(pixels: impl IntoIterator<Item = MetaRange>, color: [u8; 3]) -> Option<Self> {
+    pub fn new(
+        pixels: impl IntoIterator<Item = MetaRange, IntoIter: ImageDimension>,
+        color: [u8; 3],
+    ) -> Option<Self> {
         Some(Self {
             pixels: Self::try_from_iter(pixels)?,
             color,
@@ -67,29 +70,49 @@ impl PixelArea {
         })
     }
 
-    pub fn with_black_color(pixels: impl IntoIterator<Item = MetaRange>) -> Option<Self> {
+    pub fn with_black_color(
+        pixels: impl IntoIterator<Item = MetaRange, IntoIter: ImageDimension>,
+    ) -> Option<Self> {
         Some(Self {
             pixels: Self::try_from_iter(pixels)?,
             color: [0, 0, 0],
         })
     }
 
-    pub fn single_pixel_total_color(start: u32, len: NonZeroU32, color: [u8; 3]) -> Self {
+    pub fn single_pixel_total_color(
+        x: u32,
+        y: u32,
+        len: NonZeroU32,
+        color: [u8; 3],
+        image_width: NonZeroU32,
+    ) -> Self {
+        // Very ugly, but the project currently depends on all Masks having width == ImageWidth
+
+        use imask::Rect;
+        let start = x + y * image_width.get();
+        let height = NonZero::new(y + 1).expect("Cannot be zero without overflow");
         Self {
-            pixels: MetaRanges::new(NonZeroRange::from_span(start, len), Meta::default()),
+            pixels: MetaRanges::new(
+                NonZeroRange::from_span(start, len),
+                Meta::default(),
+                Rect::new(0, 0, image_width, height),
+            ),
             color,
         }
     }
-
-    pub fn single_range_total_black(start: u32, len: NonZeroU32) -> Self {
-        Self::single_pixel_total_color(start, len, [0, 0, 0])
+    #[cfg(test)]
+    pub fn single_range_total_black(x: u32, y: u32, len: NonZeroU32, width: NonZeroU32) -> Self {
+        Self::single_pixel_total_color(x, y, len, [0, 0, 0], width)
     }
 
-    fn try_from_iter(pixels: impl IntoIterator<Item = MetaRange>) -> Option<MetaRanges> {
+    fn try_from_iter(
+        pixels: impl IntoIterator<Item = MetaRange, IntoIter: ImageDimension>,
+    ) -> Option<MetaRanges> {
+        let iter = pixels.into_iter();
+        let roi = iter.bounds();
         MetaRanges::try_from_ordered_iter(
-            pixels
-                .into_iter()
-                .map(|r| (r.range.start..r.range.end, r.meta)),
+            iter.map(|r| (r.range.start..r.range.end, r.meta))
+                .with_roi(roi),
         )
         .ok()
     }

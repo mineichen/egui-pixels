@@ -4,8 +4,8 @@ use std::{
 };
 
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
-use itertools::Itertools;
 use imanot::{CreateTotal, MetaRange};
+use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
 use super::RgbImageInterleaved;
@@ -148,13 +148,17 @@ impl<T> ResizedImageData<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use super::*;
+
+    const NON_ZERO_3: NonZero<u32> = NonZero::new(3).unwrap();
 
     #[test]
     fn extract_pixel_ranges_summarizes_pixels() {
         assert_eq!(
-            vec![MetaRange::new_total(0, 3.try_into().unwrap())],
-            extract_pixel_ranges([1., 1., 1.].iter().copied(), 3.try_into().unwrap())
+            vec![MetaRange::new_total(0, NON_ZERO_3.into())],
+            extract_pixel_ranges([1., 1., 1.].iter().copied(), NON_ZERO_3)
         );
     }
 }

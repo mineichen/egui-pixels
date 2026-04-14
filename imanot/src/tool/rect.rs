@@ -1,4 +1,4 @@
-use std::num::NonZero;
+use std::num::NonZeroU32;
 
 use futures::FutureExt;
 
@@ -54,10 +54,14 @@ impl Tool for RectTool {
             let color = self
                 .fix_color
                 .unwrap_or_else(|| ctx.image.masks.next_color());
-            let width = ctx.image.image.original.width().get() as usize;
-            let start = (y * width + x) as u32;
-            let length = NonZero::<u32>::MIN;
-            let pixel_area = PixelArea::single_pixel_total_color(start, length, color);
+            let image_width = ctx.image.image.original.width();
+            let pixel_area = PixelArea::single_pixel_total_color(
+                x.try_into().unwrap(),
+                y.try_into().unwrap(),
+                NonZeroU32::MIN,
+                color,
+                image_width,
+            );
             ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
         }
     }

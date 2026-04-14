@@ -1,7 +1,7 @@
 use std::num::{NonZero, NonZeroU32, NonZeroUsize};
 
 use egui::Pos2;
-use imask::NonZeroRange;
+use imask::{ImageDimension, ImaskSet, NonZeroRange, RectIterator};
 
 use crate::{Meta, MetaRange, PixelArea, ToolContext};
 
@@ -56,22 +56,32 @@ impl RectSelectionResult {
     pub fn bounds(&self) -> [[usize; 2]; 2] {
         [[self.min_x, self.min_y], [self.max_x, self.max_y]]
     }
+    pub fn iter_ranges(&self) -> RectIterator<NonZeroRange<u64>> {
+        let width = NonZero::new((self.max_x - self.min_x) as u64 + 1).unwrap();
+        let height = NonZero::new((self.max_y - self.min_y) as u64 + 1).unwrap();
+        let rect = imask::Rect::<u64>::new(
+            self.min_x.try_into().unwrap(),
+            self.min_y.try_into().unwrap(),
+            width,
+            height,
+        );
+        rect.into_rect_iter(self.image_width.into())
+    }
 
     /// Iterate over pixel ranges for each row in the rectangle
-    pub fn iter_ranges(&self, meta: Meta) -> impl Iterator<Item = MetaRange> + '_ {
-        (self.min_y..=self.max_y).map(move |y| {
-            let start = y as u64 * self.image_width.get() as u64 + self.min_x as u64;
-            let length = (self.max_x - self.min_x + 1) as u64;
-            let length_nonzero = NonZero::new(length)
-                .expect("Rectangle width should be non-zero due to validation in new()");
-            let range = NonZeroRange::from_span(start, length_nonzero);
-            MetaRange { range, meta }
-        })
+    pub fn iter_ranges_meta(
+        &self,
+        meta: Meta,
+    ) -> impl Iterator<Item = MetaRange> + ImageDimension + '_ {
+        let iter = self.iter_ranges();
+        let bounds = iter.bounds();
+        iter.map(move |range| MetaRange { range, meta })
+            .with_roi(bounds)
     }
 
     /// Convert to a PixelArea with the given meta and color
     pub fn into_pixel_area(self, meta: Meta, color: [u8; 3]) -> Option<PixelArea> {
-        PixelArea::new(self.iter_ranges(meta), color)
+        PixelArea::new(self.iter_ranges_meta(meta), color)
     }
 }
 

@@ -7,7 +7,7 @@ use std::{
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use imask::{SanitizeSortedDisjoint, SortedRanges, SortedRangesMap};
+use imask::{ImageDimension, NonZeroRange, SanitizeSortedDisjoint, SortedRanges, SortedRangesMap};
 use log::{debug, info};
 use range_set_blaze::SortedDisjointMap;
 
@@ -131,10 +131,11 @@ impl MaskImage {
         self.texture_handle_dirty = true;
     }
 
-    pub fn clear_ranges(&mut self, ranges: impl Iterator<Item = MetaRange>) {
-        let action = HistoryAction::Clear(
-            SortedRanges::try_from_ordered_iter(ranges.map(|r| r.range)).unwrap(),
-        );
+    pub fn clear_ranges(
+        &mut self,
+        ranges: impl Iterator<Item = NonZeroRange<u64>> + ImageDimension,
+    ) {
+        let action = HistoryAction::Clear(SortedRanges::try_from_ordered_iter(ranges).unwrap());
 
         self.add_history_action(action)
     }
@@ -161,6 +162,21 @@ impl MaskImage {
     }
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
+        if let Some(x) = self.annotations.0.first() {
+            match &action {
+                HistoryAction::Add(pixel_area) => assert_eq!(
+                    pixel_area.pixels.bounds().width,
+                    x.pixels.bounds().width,
+                    "Imanot cannot handle pixel_area with different sizes yet",
+                ),
+                HistoryAction::Reset => {}
+                HistoryAction::Clear(sorted_ranges) => assert_eq!(
+                    sorted_ranges.bounds().width,
+                    x.pixels.bounds().width,
+                    "Imanot cannot handle pixel_area with different sizes yet",
+                ),
+            }
+        }
         self.history.push(action);
         self.texture_handle_dirty = true;
     }
@@ -254,12 +270,12 @@ impl MaskImage {
 
 #[cfg(test)]
 mod tests {
-    use imask::NonZeroRange;
+    use imask::{ImaskSet, NonZeroRange};
 
     use crate::{CreateTotal, MetaRange};
 
     use super::*;
-    use std::num::NonZero;
+    use std::num::{NonZero, NonZeroU32};
 
     const NON_ZERO_1: NonZero<u32> = NonZero::<u32>::MIN;
     const NON_ZERO_2: NonZero<u32> = NonZero::new(2).unwrap();
@@ -267,120 +283,131 @@ mod tests {
     const NON_ZERO_4: NonZero<u32> = NonZero::new(4).unwrap();
     const NON_ZERO_5: NonZero<u32> = NonZero::new(5).unwrap();
     const NON_ZERO_6: NonZero<u32> = NonZero::new(6).unwrap();
+    const NON_ZERO_7: NonZero<u32> = NonZero::new(7).unwrap();
     const NON_ZERO_8: NonZero<u32> = NonZero::new(8).unwrap();
+
+    const WIDTH_10: NonZero<u32> = NonZero::new(10).unwrap();
+
+    fn build_mask_10(items: impl IntoIterator<Item = (u32, NonZeroU32)>) -> MaskImage {
+        let history = History::default();
+        let mut mask_image = MaskImage::new([10, 10], vec![], history);
+        for (x, len) in items {
+            let area = PixelArea::single_range_total_black(x, 0, len, WIDTH_10);
+            mask_image.add_area_overlapping(area);
+        }
+        mask_image
+    }
 
     // Helper function to convert bounds to an iterator of MetaRange for tests
     fn bounds_to_ranges(
         [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2],
-        image_width: u32,
-    ) -> impl Iterator<Item = MetaRange> {
+        image_width: NonZero<u32>,
+    ) -> impl Iterator<Item = NonZeroRange<u64>> + ImageDimension {
         let x_left = x_top as u64;
         let x_right = x_bottom as u64;
         let x_width = NonZero::new((x_right - x_left + 1) as u64).unwrap();
         let y_range = y_top as u64..=y_bottom as u64;
-        y_range.map(move |y| MetaRange::new_total(y * image_width as u64 + x_left, x_width))
+
+        y_range
+            .map(move |y| NonZeroRange::from_span(y * image_width.get() as u64 + x_left, x_width))
+            .with_bounds(image_width, image_width)
     }
 
     #[test]
     fn add_area_with_overlap() {
-        let history = History::default();
-        let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(1, NON_ZERO_4));
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(2, NON_ZERO_2));
+        let mask_image = build_mask_10([(1, NON_ZERO_4), (2, NON_ZERO_2)]);
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::single_range_total_black(1, NON_ZERO_4),
-                PixelArea::single_range_total_black(2, NON_ZERO_2),
+                PixelArea::single_range_total_black(1, 0, NON_ZERO_4, WIDTH_10),
+                PixelArea::single_range_total_black(2, 0, NON_ZERO_2, WIDTH_10),
             ]
         );
     }
 
     #[test]
     fn add_area_non_overlapping_parts_remove_completely() {
+        let items = [(1, NON_ZERO_4), (2, NON_ZERO_2)];
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image
-            .add_area_non_overlapping_parts(PixelArea::single_range_total_black(1, NON_ZERO_4));
-        mask_image
-            .add_area_non_overlapping_parts(PixelArea::single_range_total_black(2, NON_ZERO_2));
+        for (x, len) in items {
+            let area = PixelArea::single_range_total_black(x, 0, len, WIDTH_10);
+            mask_image.add_area_non_overlapping_parts(area);
+        }
         assert_eq!(
             mask_image.subgroups(),
-            vec![PixelArea::single_range_total_black(1, NON_ZERO_4,),]
+            vec![PixelArea::single_range_total_black(
+                1, 0, NON_ZERO_4, WIDTH_10
+            )]
         );
     }
 
     #[test]
     fn add_area_non_overlapping_parts_remove_partially() {
+        let items = [(1, NON_ZERO_4), (2, NON_ZERO_4)];
         let history = History::default();
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image
-            .add_area_non_overlapping_parts(PixelArea::single_range_total_black(1, NON_ZERO_4));
-        mask_image
-            .add_area_non_overlapping_parts(PixelArea::single_range_total_black(2, NON_ZERO_4));
+        for (x, len) in items {
+            let area = PixelArea::single_range_total_black(x, 0, len, WIDTH_10);
+            mask_image.add_area_non_overlapping_parts(area);
+        }
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::single_range_total_black(1, NON_ZERO_4,),
-                PixelArea::single_range_total_black(5, NON_ZERO_1),
+                PixelArea::single_range_total_black(1, 0, NON_ZERO_4, WIDTH_10),
+                PixelArea::single_range_total_black(5, 0, NON_ZERO_1, WIDTH_10),
             ]
         );
     }
 
     #[test]
     fn clear_should_remove_multiple_overlapping_areas_start() {
-        let history = History::default();
-        let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(1, NON_ZERO_8));
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(2, NON_ZERO_6));
-        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [4, 1]], 10));
+        let mut mask_image = build_mask_10([(1, NON_ZERO_8), (2, NON_ZERO_6)]);
+        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [4, 1]], WIDTH_10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::single_range_total_black(5, NON_ZERO_4,),
-                PixelArea::single_range_total_black(5, NON_ZERO_3),
+                PixelArea::single_range_total_black(5, 0, NON_ZERO_4, WIDTH_10),
+                PixelArea::single_range_total_black(5, 0, NON_ZERO_3, WIDTH_10),
             ]
         );
     }
 
     #[test]
     fn clear_should_remove_multiple_overlapping_areas_end() {
-        let history = History::default();
-        let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(1, NON_ZERO_8));
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(2, NON_ZERO_6));
-        mask_image.clear_ranges(bounds_to_ranges([[5, 0], [10, 1]], 10));
+        let mut mask_image = build_mask_10([(1, NON_ZERO_8), (2, NON_ZERO_6)]);
+        mask_image.clear_ranges(bounds_to_ranges([[5, 0], [10, 1]], WIDTH_10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::single_range_total_black(1, NON_ZERO_4,),
-                PixelArea::single_range_total_black(2, NON_ZERO_3,),
+                PixelArea::single_range_total_black(1, 0, NON_ZERO_4, WIDTH_10),
+                PixelArea::single_range_total_black(2, 0, NON_ZERO_3, WIDTH_10),
             ]
         );
     }
 
     #[test]
     fn clear_should_remove_multiple_overlapping_areas_within() {
-        let history = History::default();
-        let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(1, NON_ZERO_8));
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(2, NON_ZERO_6));
-        mask_image.clear_ranges(bounds_to_ranges([[4, 0], [5, 1]], 10));
+        let mut mask_image = build_mask_10([(1, NON_ZERO_8), (2, NON_ZERO_6)]);
+        mask_image.clear_ranges(bounds_to_ranges([[4, 0], [5, 1]], WIDTH_10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::with_black_color([
-                    MetaRange {
-                        range: NonZeroRange::from_span(1, 3.try_into().unwrap()),
-                        meta: Default::default()
-                    },
-                    MetaRange::new_total(6, 3.try_into().unwrap())
-                ])
+                PixelArea::with_black_color(
+                    [
+                        MetaRange::new_total(1, NON_ZERO_3.into()),
+                        MetaRange::new_total(6, NON_ZERO_3.into())
+                    ]
+                    .with_bounds(WIDTH_10, NON_ZERO_1)
+                )
                 .unwrap(),
-                PixelArea::with_black_color([
-                    MetaRange::new_total(2, 2.try_into().unwrap(),),
-                    MetaRange::new_total(6, 2.try_into().unwrap(),)
-                ])
+                PixelArea::with_black_color(
+                    [
+                        MetaRange::new_total(2, NON_ZERO_2.into()),
+                        MetaRange::new_total(6, NON_ZERO_2.into())
+                    ]
+                    .with_bounds(WIDTH_10, NON_ZERO_1)
+                )
                 .unwrap(),
             ]
         );
@@ -388,32 +415,26 @@ mod tests {
 
     #[test]
     fn clear_should_remove_overlapping_areas_first() {
-        let history = History::default();
-        let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(1, NON_ZERO_8));
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(4, NON_ZERO_2));
-        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], 10));
+        let mut mask_image = build_mask_10([(1, NON_ZERO_8), (4, NON_ZERO_2)]);
+        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], WIDTH_10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::single_range_total_black(4, NON_ZERO_5),
-                PixelArea::single_range_total_black(4, NON_ZERO_2,),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_5, WIDTH_10),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_2, WIDTH_10),
             ]
         );
     }
 
     #[test]
     fn clear_should_remove_overlapping_areas_last() {
-        let history = History::default();
-        let mut mask_image = MaskImage::new([10, 10], vec![], history);
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(4, NON_ZERO_2));
-        mask_image.add_area_overlapping(PixelArea::single_range_total_black(1, NON_ZERO_8));
-        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], 10));
+        let mut mask_image = build_mask_10([(4, NON_ZERO_2), (1, NON_ZERO_8)]);
+        mask_image.clear_ranges(bounds_to_ranges([[0, 0], [3, 1]], WIDTH_10));
         assert_eq!(
             mask_image.subgroups(),
             vec![
-                PixelArea::single_range_total_black(4, NON_ZERO_2,),
-                PixelArea::single_range_total_black(4, NON_ZERO_5),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_2, WIDTH_10),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_5, WIDTH_10),
             ]
         );
     }
@@ -422,22 +443,28 @@ mod tests {
     fn iter_sorted() {
         let mut history = History::default();
         history.push(HistoryAction::Add(
-            PixelArea::with_black_color(vec![
-                MetaRange::new_total(22, 7.try_into().unwrap()),
-                MetaRange::new_total(39, 1.try_into().unwrap()),
-                MetaRange::new_total(42, 7.try_into().unwrap()),
-            ])
+            PixelArea::with_black_color(
+                [
+                    MetaRange::new_total(22, NON_ZERO_7.into()),
+                    MetaRange::new_total(39, NON_ZERO_1.into()),
+                    MetaRange::new_total(42, NON_ZERO_7.into()),
+                ]
+                .with_bounds(WIDTH_10, NON_ZERO_1),
+            )
             .unwrap(),
         ));
         let x = MaskImage::new(
             [10, 10],
             vec![
-                PixelArea::with_black_color(vec![
-                    MetaRange::new_total(2, 5.try_into().unwrap()),
-                    MetaRange::new_total(12, 5.try_into().unwrap()),
-                ])
+                PixelArea::with_black_color(
+                    [
+                        MetaRange::new_total(2, NON_ZERO_5.into()),
+                        MetaRange::new_total(12, NON_ZERO_5.into()),
+                    ]
+                    .with_bounds(WIDTH_10, NON_ZERO_1),
+                )
                 .unwrap(),
-                PixelArea::single_range_total_black(32, NON_ZERO_5),
+                PixelArea::single_range_total_black(32, 0, NON_ZERO_5, WIDTH_10),
             ],
             history,
         );
@@ -452,17 +479,23 @@ mod tests {
     fn add_to_existing_overlapping_doesnt_fail() {
         let mut history = History::default();
         history.push(HistoryAction::Add(
-            PixelArea::with_black_color(vec![MetaRange::new_total(0, 2.try_into().unwrap())])
-                .unwrap(),
+            PixelArea::with_black_color(
+                [MetaRange::new_total(0, NON_ZERO_2.into())].with_bounds(WIDTH_10, WIDTH_10),
+            )
+            .unwrap(),
         ));
         history.push(HistoryAction::Add(
-            PixelArea::with_black_color(vec![MetaRange::new_total(1, 4.try_into().unwrap())])
-                .unwrap(),
+            PixelArea::with_black_color(
+                [MetaRange::new_total(1, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
+            )
+            .unwrap(),
         ));
         let mut x = MaskImage::new([10, 10], vec![], history);
         x.add_area_non_overlapping_parts(
-            PixelArea::with_black_color(vec![MetaRange::new_total(2, 4.try_into().unwrap())])
-                .unwrap(),
+            PixelArea::with_black_color(
+                [MetaRange::new_total(2, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
+            )
+            .unwrap(),
         );
         let group_sequence: Vec<_> = x
             .subgroups_ordered()

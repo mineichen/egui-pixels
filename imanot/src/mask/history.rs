@@ -4,7 +4,7 @@
 
 use std::ops::RangeInclusive;
 
-use imask::SortedRanges;
+use imask::{ImageDimension, SortedRanges};
 use range_set_blaze::SortedDisjointMap;
 
 use crate::{Meta, PixelArea};
@@ -30,7 +30,11 @@ impl HistoryAction {
             HistoryAction::Clear(s) => rest
                 .into_iter()
                 .filter_map(|area| {
-                    area.map_inplace(|x| x.map_and_set_difference(s.iter::<RangeInclusive<u64>>()))
+                    let width = area.pixels.width();
+                    //let width = area.pixels.bounds();
+                    area.map_inplace(|x| {
+                        x.map_and_set_difference(s.iter_global_with::<RangeInclusive<u64>>(width))
+                    })
                 })
                 .collect(),
         }
@@ -120,6 +124,9 @@ mod tests {
     use super::*;
     use std::num::NonZeroU32;
 
+    const ONE: NonZeroU32 = NonZeroU32::MIN;
+    const TEN: NonZeroU32 = NonZeroU32::new(10).unwrap();
+
     #[test]
     fn undo_empty_returns_none() {
         let mut history = History::default();
@@ -129,7 +136,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, NonZeroU32::MIN));
+        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, 0, ONE, TEN));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -139,8 +146,8 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, NonZeroU32::MIN));
-        let item2 = HistoryAction::Add(PixelArea::single_range_total_black(10, NonZeroU32::MIN));
+        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, 0, ONE, TEN));
+        let item2 = HistoryAction::Add(PixelArea::single_range_total_black(10, 0, ONE, TEN));
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
