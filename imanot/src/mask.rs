@@ -47,6 +47,12 @@ pub struct MaskImage {
     default_opacity_lut: [u8; 256],
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum AffectedLayer {
+    Unspecified,
+    Layer(usize),
+}
+
 impl MaskImage {
     pub fn new(size: [usize; 2], annotations: Vec<PixelArea>, history: History) -> Self {
         let settings = MaskSettings::default();
@@ -124,6 +130,18 @@ impl MaskImage {
 
     pub fn mark_not_dirty(&mut self) {
         self.history.mark_not_dirty();
+    }
+
+    pub fn take_dirty(&mut self) -> Option<AffectedLayer> {
+        if self.is_dirty() {
+            self.mark_not_dirty();
+            Some(match self.history.iter().rev().next()?.layer() {
+                Some(x) => AffectedLayer::Layer(x),
+                None => AffectedLayer::Unspecified,
+            })
+        } else {
+            None
+        }
     }
 
     pub fn reset(&mut self) {

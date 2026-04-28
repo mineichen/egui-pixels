@@ -30,6 +30,13 @@ pub enum HistoryAction {
 }
 
 impl HistoryAction {
+    pub fn layer(&self) -> Option<usize> {
+        match self {
+            HistoryAction::Add(x) => x.layer,
+            HistoryAction::Reset => None,
+            HistoryAction::Clear(x) => x.layer,
+        }
+    }
     pub fn apply(&self, mut rest: Vec<Option<PixelArea>>) -> Vec<Option<PixelArea>> {
         match self {
             HistoryAction::Add(add) => match add.layer {
@@ -45,7 +52,14 @@ impl HistoryAction {
                         Some(existing) => {
                             let new_iter = add.pixel_area.pixels.iter::<RangeInclusive<u64>>();
                             let new_iter = range_set_blaze::CheckSortedDisjointMap::new(
-                                new_iter.map(|(r, m)| (r, *m)),
+                                // Meta will soon be removed, this is a workaround
+                                new_iter.map(|(r, m)| (r, *m)).coalesce(|a, b| {
+                                    if *a.0.end() == b.0.start() - 1 {
+                                        Ok((*a.0.start()..=*b.0.end(), a.1))
+                                    } else {
+                                        Err((a, b))
+                                    }
+                                }),
                             );
                             existing.map_inplace(|existing_iter| {
                                 let r = existing_iter.union(new_iter);
@@ -125,7 +139,7 @@ impl Default for History {
 }
 
 impl History {
-    pub fn iter(&self) -> impl Iterator<Item = &'_ HistoryAction> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &'_ HistoryAction> {
         self.actions.iter().take(self.end)
     }
 
@@ -141,12 +155,10 @@ impl History {
         self.not_dirty_pos = Some(self.end);
     }
 
-    pub fn push(&mut self, a: HistoryAction) {
+    pub fn push(&mut self, new_action: HistoryAction) {
+        let last_action = self.end.checked_sub(1).and_then(|i| self.actions.get(i));
         if matches!(
-            (
-                &a,
-                self.end.checked_sub(1).and_then(|i| self.actions.get(i))
-            ),
+            (&new_action, last_action),
             (HistoryAction::Reset, Some(HistoryAction::Reset))
         ) {
             return;
@@ -160,7 +172,7 @@ impl History {
         }
 
         self.actions.truncate(self.end);
-        self.actions.push(a);
+        self.actions.push(new_action);
         self.end = self.actions.len();
     }
 
