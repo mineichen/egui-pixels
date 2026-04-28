@@ -15,12 +15,31 @@ const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
 #[non_exhaustive]
 pub struct RectTool {
     rect_selection: RectSelection,
+    layer: Option<usize>,
     fix_color: Option<[u8; 3]>,
 }
 
 impl RectTool {
+    pub fn set_layer(&mut self, layer: usize) -> &mut Self {
+        self.layer = Some(layer);
+        self
+    }
+
+    pub fn set_color(&mut self, color: [u8; 3]) -> &mut Self {
+        self.fix_color = Some(color);
+        self
+    }
+
     pub fn create_factory() -> ToolFactory {
         Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool>) }.boxed_local())
+    }
+
+    pub fn create_factory_with(modifier: impl Fn(&mut RectTool) + 'static) -> ToolFactory {
+        Box::new(move |_| {
+            let mut tool = RectTool::default();
+            modifier(&mut tool);
+            async { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()
+        })
     }
 
     pub fn create_fix_color_factory(color: [u8; 3]) -> ToolFactory {
@@ -29,6 +48,7 @@ impl RectTool {
                 Ok(Box::new(RectTool {
                     rect_selection: RectSelection::default(),
                     fix_color: Some(color),
+                    layer: None,
                 }) as Box<dyn Tool>)
             }
             .boxed_local()
@@ -46,7 +66,9 @@ impl Tool for RectTool {
                 .fix_color
                 .unwrap_or_else(|| ctx.image.masks.next_color());
             if let Some(pixel_area) = rect_result.into_pixel_area(Meta::default(), color) {
-                ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+                ctx.image
+                    .masks
+                    .add_area_non_overlapping_parts_at(pixel_area, self.layer);
             }
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
@@ -62,7 +84,9 @@ impl Tool for RectTool {
                 color,
                 image_width,
             );
-            ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+            ctx.image
+                .masks
+                .add_area_non_overlapping_parts_at(pixel_area, self.layer);
         }
     }
 }

@@ -5,38 +5,97 @@
 use std::ops::RangeInclusive;
 
 use imask::{ImageDimension, SortedRanges};
+use itertools::Itertools;
 use range_set_blaze::SortedDisjointMap;
 
 use crate::{Meta, PixelArea};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HistoryActionAdd {
+    pub pixel_area: PixelArea,
+    pub layer: Option<usize>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HistoryActionClear {
+    pub ranges: SortedRanges<u64, u64>,
+    pub layer: Option<usize>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryAction {
-    Add(PixelArea),
+    Add(HistoryActionAdd),
     Reset,
-    Clear(SortedRanges<u64, u64>),
+    Clear(HistoryActionClear),
 }
 
 impl HistoryAction {
-    pub fn apply(&self, mut rest: Vec<PixelArea>) -> Vec<PixelArea> {
+    pub fn apply(&self, mut rest: Vec<Option<PixelArea>>) -> Vec<Option<PixelArea>> {
         match self {
-            HistoryAction::Add(s) => {
-                rest.push(s.clone());
-                rest
-            }
+            HistoryAction::Add(add) => match add.layer {
+                None => {
+                    rest.push(Some(add.pixel_area.clone()));
+                    rest
+                }
+                Some(idx) => {
+                    while rest.len() <= idx {
+                        rest.push(None);
+                    }
+                    rest[idx] = match rest[idx].take() {
+                        Some(existing) => {
+                            let new_iter = add.pixel_area.pixels.iter::<RangeInclusive<u64>>();
+                            let new_iter = range_set_blaze::CheckSortedDisjointMap::new(
+                                new_iter.map(|(r, m)| (r, *m)),
+                            );
+                            existing.map_inplace(|existing_iter| {
+                                let r = existing_iter.union(new_iter);
+                                // Temporary fix until Meta-Removeal: Merge Meta to avoid adjacent
+                                r.coalesce(|a, b| {
+                                    if *a.0.end() == b.0.start() - 1 {
+                                        Ok((*a.0.start()..=*b.0.end(), a.1))
+                                    } else {
+                                        Err((a, b))
+                                    }
+                                })
+                            })
+                        }
+                        None => Some(add.pixel_area.clone()),
+                    };
+                    rest
+                }
+            },
             HistoryAction::Reset => {
                 rest.clear();
                 rest
             }
-            HistoryAction::Clear(s) => rest
-                .into_iter()
-                .filter_map(|area| {
-                    let width = area.pixels.width();
-                    //let width = area.pixels.bounds();
-                    area.map_inplace(|x| {
-                        x.map_and_set_difference(s.iter_global_with::<RangeInclusive<u64>>(width))
+            HistoryAction::Clear(clear) => match clear.layer {
+                None => rest
+                    .into_iter()
+                    .map(|opt_area| {
+                        opt_area.and_then(|area| {
+                            let width = area.pixels.width();
+                            area.map_inplace(|x| {
+                                x.map_and_set_difference(
+                                    clear.ranges.iter_global_with::<RangeInclusive<u64>>(width),
+                                )
+                            })
+                        })
                     })
-                })
-                .collect(),
+                    .collect(),
+                Some(idx) => {
+                    if let Some(opt_area) = rest.get_mut(idx) {
+                        *opt_area = opt_area.take().and_then(|area| {
+                            let width = area.pixels.width();
+                            area.map_inplace(|x| {
+                                x.map_and_set_difference(
+                                    clear.ranges.iter_global_with::<RangeInclusive<u64>>(width),
+                                )
+                            })
+                        });
+                    }
+                    rest
+                }
+            },
         }
     }
 }
@@ -136,7 +195,10 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, 0, ONE, TEN));
+        let item = HistoryAction::Add(HistoryActionAdd {
+            pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
+            layer: None,
+        });
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -146,8 +208,14 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(PixelArea::single_range_total_black(0, 0, ONE, TEN));
-        let item2 = HistoryAction::Add(PixelArea::single_range_total_black(10, 0, ONE, TEN));
+        let item = HistoryAction::Add(HistoryActionAdd {
+            pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
+            layer: None,
+        });
+        let item2 = HistoryAction::Add(HistoryActionAdd {
+            pixel_area: PixelArea::single_range_total_black(10, 0, ONE, TEN),
+            layer: None,
+        });
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
