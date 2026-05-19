@@ -13,33 +13,33 @@ use crate::{Meta, PixelArea};
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionAdd {
     pub pixel_area: PixelArea,
-    pub layer: Option<usize>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionClear {
     pub ranges: SortedRanges<u64, u64>,
-    pub layer: Option<usize>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum HistoryAction {
+pub enum HistoryActionKind {
     Add(HistoryActionAdd),
     Reset,
     Clear(HistoryActionClear),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HistoryAction {
+    pub kind: HistoryActionKind,
+    pub layer: Option<usize>,
+}
+
 impl HistoryAction {
     pub fn layer(&self) -> Option<usize> {
-        match self {
-            HistoryAction::Add(x) => x.layer,
-            HistoryAction::Reset => None,
-            HistoryAction::Clear(x) => x.layer,
-        }
+        self.layer
     }
     pub fn apply(&self, mut rest: Vec<Option<PixelArea>>) -> Vec<Option<PixelArea>> {
-        match self {
-            HistoryAction::Add(add) => match add.layer {
+        match &self.kind {
+            HistoryActionKind::Add(add) => match self.layer {
                 None => {
                     rest.push(Some(add.pixel_area.clone()));
                     rest
@@ -78,11 +78,19 @@ impl HistoryAction {
                     rest
                 }
             },
-            HistoryAction::Reset => {
-                rest.clear();
-                rest
-            }
-            HistoryAction::Clear(clear) => match clear.layer {
+            HistoryActionKind::Reset => match self.layer {
+                None => {
+                    rest.clear();
+                    rest
+                }
+                Some(idx) => {
+                    if let Some(opt) = rest.get_mut(idx) {
+                        *opt = None;
+                    }
+                    rest
+                }
+            },
+            HistoryActionKind::Clear(clear) => match self.layer {
                 None => rest
                     .into_iter()
                     .map(|opt_area| {
@@ -157,10 +165,10 @@ impl History {
 
     pub fn push(&mut self, new_action: HistoryAction) {
         let last_action = self.end.checked_sub(1).and_then(|i| self.actions.get(i));
-        if matches!(
-            (&new_action, last_action),
-            (HistoryAction::Reset, Some(HistoryAction::Reset))
-        ) {
+        if let Some(i) = last_action
+            && i.kind == HistoryActionKind::Reset
+            && i == &new_action
+        {
             return;
         }
 
@@ -207,10 +215,12 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(HistoryActionAdd {
-            pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
+        let item = HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
+            }),
             layer: None,
-        });
+        };
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -220,14 +230,18 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction::Add(HistoryActionAdd {
-            pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
+        let item = HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
+            }),
             layer: None,
-        });
-        let item2 = HistoryAction::Add(HistoryActionAdd {
-            pixel_area: PixelArea::single_range_total_black(10, 0, ONE, TEN),
+        };
+        let item2 = HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::single_range_total_black(10, 0, ONE, TEN),
+            }),
             layer: None,
-        });
+        };
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);

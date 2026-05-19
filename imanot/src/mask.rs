@@ -145,7 +145,10 @@ impl MaskImage {
     }
 
     pub fn reset(&mut self) {
-        self.history.push(HistoryAction::Reset);
+        self.history.push(HistoryAction {
+            kind: HistoryActionKind::Reset,
+            layer: None,
+        });
         self.texture_handle_dirty = true;
     }
 
@@ -153,10 +156,12 @@ impl MaskImage {
         &mut self,
         ranges: impl Iterator<Item = NonZeroRange<u64>> + ImageDimension,
     ) {
-        let action = HistoryAction::Clear(HistoryActionClear {
-            ranges: SortedRanges::try_from_ordered_iter(ranges).unwrap(),
+        let action = HistoryAction {
+            kind: HistoryActionKind::Clear(HistoryActionClear {
+                ranges: SortedRanges::try_from_ordered_iter(ranges).unwrap(),
+            }),
             layer: None,
-        });
+        };
 
         self.add_history_action(action)
     }
@@ -190,22 +195,24 @@ impl MaskImage {
         if let Some((visibility @ false, _, _)) = &mut self.texture_handle {
             *visibility = true;
         }
-        self.add_history_action(HistoryAction::Add(HistoryActionAdd {
-            pixel_area: subgroups,
+        self.add_history_action(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: subgroups,
+            }),
             layer,
-        }))
+        })
     }
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
         if let Some(x) = self.annotations.0.iter().find_map(|a| a.as_ref()) {
-            match &action {
-                HistoryAction::Add(add) => assert_eq!(
+            match &action.kind {
+                HistoryActionKind::Add(add) => assert_eq!(
                     add.pixel_area.pixels.bounds().width,
                     x.pixels.bounds().width,
                     "Imanot cannot handle pixel_area with different sizes yet",
                 ),
-                HistoryAction::Reset => {}
-                HistoryAction::Clear(clear) => assert_eq!(
+                HistoryActionKind::Reset => {}
+                HistoryActionKind::Clear(clear) => assert_eq!(
                     clear.ranges.bounds().width,
                     x.pixels.bounds().width,
                     "Imanot cannot handle pixel_area with different sizes yet",
@@ -506,18 +513,20 @@ mod tests {
     #[test]
     fn iter_sorted() {
         let mut history = History::default();
-        history.push(HistoryAction::Add(HistoryActionAdd {
-            pixel_area: PixelArea::with_black_color(
-                [
-                    MetaRange::new_total(22, NON_ZERO_7.into()),
-                    MetaRange::new_total(39, NON_ZERO_1.into()),
-                    MetaRange::new_total(42, NON_ZERO_7.into()),
-                ]
-                .with_bounds(WIDTH_10, NON_ZERO_1),
-            )
-            .unwrap(),
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::with_black_color(
+                    [
+                        MetaRange::new_total(22, NON_ZERO_7.into()),
+                        MetaRange::new_total(39, NON_ZERO_1.into()),
+                        MetaRange::new_total(42, NON_ZERO_7.into()),
+                    ]
+                    .with_bounds(WIDTH_10, NON_ZERO_1),
+                )
+                .unwrap(),
+            }),
             layer: None,
-        }));
+        });
         let x = MaskImage::new(
             [10, 10],
             vec![
@@ -543,20 +552,24 @@ mod tests {
     #[test]
     fn add_to_existing_overlapping_doesnt_fail() {
         let mut history = History::default();
-        history.push(HistoryAction::Add(HistoryActionAdd {
-            pixel_area: PixelArea::with_black_color(
-                [MetaRange::new_total(0, NON_ZERO_2.into())].with_bounds(WIDTH_10, WIDTH_10),
-            )
-            .unwrap(),
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::with_black_color(
+                    [MetaRange::new_total(0, NON_ZERO_2.into())].with_bounds(WIDTH_10, WIDTH_10),
+                )
+                .unwrap(),
+            }),
             layer: None,
-        }));
-        history.push(HistoryAction::Add(HistoryActionAdd {
-            pixel_area: PixelArea::with_black_color(
-                [MetaRange::new_total(1, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
-            )
-            .unwrap(),
+        });
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::with_black_color(
+                    [MetaRange::new_total(1, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
+                )
+                .unwrap(),
+            }),
             layer: None,
-        }));
+        });
         let mut x = MaskImage::new([10, 10], vec![], history);
         x.add_area_non_overlapping_parts(
             PixelArea::with_black_color(
