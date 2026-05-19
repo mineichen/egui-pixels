@@ -68,7 +68,7 @@ impl Tool for RectTool {
             if let Some(pixel_area) = rect_result.into_pixel_area(Meta::default(), color) {
                 ctx.image
                     .masks
-                    .add_area_non_overlapping_parts_at(pixel_area, self.layer);
+                    .add_area_overlapping_at(pixel_area, self.layer);
             }
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
