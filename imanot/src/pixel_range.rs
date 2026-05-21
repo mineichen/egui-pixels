@@ -1,57 +1,23 @@
-use std::num::{NonZero, NonZeroU32, NonZeroU64};
-use std::ops::RangeInclusive;
+use std::num::{NonZero, NonZeroU32};
 
-use imask::{ImageDimension, ImaskSet, NonZeroRange, SortedRangesMap, SourceIteratorMap};
+use imask::{ImageDimension, ImaskSet, NonZeroRange, SortedRanges, SourceIterator};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[non_exhaustive]
-pub struct Meta {
-    confidence: u8,
-}
-
-impl Meta {
-    pub const fn new(confidence: u8) -> Self {
-        Self { confidence }
-    }
-
-    pub const fn confidence(self) -> u8 {
-        self.confidence
-    }
-}
-
-impl Default for Meta {
-    fn default() -> Self {
-        Self { confidence: 255 }
-    }
-}
-
-pub type MetaRange = imask::MetaRange<NonZeroRange<u64>, Meta>;
-
-pub trait CreateTotal {
-    fn new_total(start: u64, length: NonZeroU64) -> Self;
-}
-impl CreateTotal for MetaRange {
-    fn new_total(start: u64, length: NonZeroU64) -> Self {
-        Self {
-            range: NonZeroRange::from_span(start, length),
-            meta: Default::default(),
-        }
-    }
-}
-
-type MetaRanges = SortedRangesMap<u32, u32, Vec<Meta>>;
+type Ranges = SortedRanges<u32, u32>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PixelArea {
-    pub pixels: MetaRanges,
-    pub color: [u8; 3],
+    pub pixels: Ranges,
+    pub color: [u8; 4],
 }
 
 impl PixelArea {
     pub fn new(
-        pixels: impl IntoIterator<Item = MetaRange, IntoIter: ImageDimension>,
-        color: [u8; 3],
+        pixels: impl IntoIterator<
+            Item = NonZeroRange<u64>,
+            IntoIter: ImageDimension,
+        >,
+        color: [u8; 4],
     ) -> Option<Self> {
         Some(Self {
             pixels: Self::try_from_iter(pixels)?,
@@ -61,8 +27,8 @@ impl PixelArea {
 
     pub fn map_inplace<TIter, TFun>(self, f: TFun) -> Option<Self>
     where
-        TIter: Iterator<Item = (RangeInclusive<u64>, Meta)>,
-        TFun: FnOnce(SourceIteratorMap<u32, u32, Meta>) -> TIter,
+        TIter: Iterator<Item = std::ops::RangeInclusive<u64>>,
+        TFun: FnOnce(SourceIterator<u32, u32>) -> TIter,
     {
         Some(Self {
             pixels: self.pixels.map_inplace(f)?,
@@ -71,11 +37,14 @@ impl PixelArea {
     }
 
     pub fn with_black_color(
-        pixels: impl IntoIterator<Item = MetaRange, IntoIter: ImageDimension>,
+        pixels: impl IntoIterator<
+            Item = NonZeroRange<u64>,
+            IntoIter: ImageDimension,
+        >,
     ) -> Option<Self> {
         Some(Self {
             pixels: Self::try_from_iter(pixels)?,
-            color: [0, 0, 0],
+            color: [0, 0, 0, 255],
         })
     }
 
@@ -83,18 +52,15 @@ impl PixelArea {
         x: u32,
         y: u32,
         len: NonZeroU32,
-        color: [u8; 3],
+        color: [u8; 4],
         image_width: NonZeroU32,
     ) -> Self {
-        // Very ugly, but the project currently depends on all Masks having width == ImageWidth
-
         use imask::Rect;
         let start = x + y * image_width.get();
         let height = NonZero::new(y + 1).expect("Cannot be zero without overflow");
         Self {
-            pixels: MetaRanges::new(
+            pixels: Ranges::new(
                 NonZeroRange::from_span(start, len),
-                Meta::default(),
                 Rect::new(0, 0, image_width, height),
             ),
             color,
@@ -102,22 +68,21 @@ impl PixelArea {
     }
     #[cfg(test)]
     pub fn single_range_total_black(x: u32, y: u32, len: NonZeroU32, width: NonZeroU32) -> Self {
-        Self::single_pixel_total_color(x, y, len, [0, 0, 0], width)
+        Self::single_pixel_total_color(x, y, len, [0, 0, 0, 255], width)
     }
 
     fn try_from_iter(
-        pixels: impl IntoIterator<Item = MetaRange, IntoIter: ImageDimension>,
-    ) -> Option<MetaRanges> {
+        pixels: impl IntoIterator<
+            Item = NonZeroRange<u64>,
+            IntoIter: ImageDimension,
+        >,
+    ) -> Option<Ranges> {
         let iter = pixels.into_iter();
         let roi = iter.bounds();
-        MetaRanges::try_from_ordered_iter(
-            iter.map(|r| (r.range.start..r.range.end, r.meta))
-                .with_roi(roi),
-        )
-        .ok()
+        Ranges::try_from_ordered_iter(iter.map(|r| r.start..r.end).with_roi(roi)).ok()
     }
 
-    pub fn from_ranges(pixels: MetaRanges, color: [u8; 3]) -> Self {
+    pub fn from_ranges(pixels: Ranges, color: [u8; 4]) -> Self {
         Self { pixels, color }
     }
 

@@ -1,14 +1,10 @@
 //! History is a stack of actions that can be aplied to Vec<SubGroups>.
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
-
-use std::ops::RangeInclusive;
-
 use imask::{ImageDimension, SortedRanges};
-use itertools::Itertools;
-use range_set_blaze::SortedDisjointMap;
+use range_set_blaze::SortedDisjoint;
 
-use crate::{Meta, PixelArea};
+use crate::PixelArea;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionAdd {
@@ -31,6 +27,7 @@ pub enum HistoryActionKind {
 pub struct HistoryAction {
     pub kind: HistoryActionKind,
     pub layer: Option<usize>,
+    pub tracked: bool,
 }
 
 impl HistoryAction {
@@ -50,27 +47,12 @@ impl HistoryAction {
                     }
                     rest[idx] = match rest[idx].take() {
                         Some(existing) => {
-                            let new_iter = add.pixel_area.pixels.iter::<RangeInclusive<u64>>();
-                            let new_iter = range_set_blaze::CheckSortedDisjointMap::new(
-                                // Meta will soon be removed, this is a workaround
-                                new_iter.map(|(r, m)| (r, *m)).coalesce(|a, b| {
-                                    if *a.0.end() == b.0.start() - 1 {
-                                        Ok((*a.0.start()..=*b.0.end(), a.1))
-                                    } else {
-                                        Err((a, b))
-                                    }
-                                }),
-                            );
+                            let new_iter = add
+                                .pixel_area
+                                .pixels
+                                .iter_roi::<std::ops::RangeInclusive<u64>>();
                             existing.map_inplace(|existing_iter| {
-                                let r = existing_iter.union(new_iter);
-                                // Temporary fix until Meta-Removeal: Merge Meta to avoid adjacent
-                                r.coalesce(|a, b| {
-                                    if *a.0.end() == b.0.start() - 1 {
-                                        Ok((*a.0.start()..=*b.0.end(), a.1))
-                                    } else {
-                                        Err((a, b))
-                                    }
-                                })
+                                SortedDisjoint::union(new_iter, existing_iter)
                             })
                         }
                         None => Some(add.pixel_area.clone()),
@@ -97,8 +79,10 @@ impl HistoryAction {
                         opt_area.and_then(|area| {
                             let width = area.pixels.width();
                             area.map_inplace(|x| {
-                                x.map_and_set_difference(
-                                    clear.ranges.iter_global_with::<RangeInclusive<u64>>(width),
+                                x.difference(
+                                    clear
+                                        .ranges
+                                        .iter_global_with::<std::ops::RangeInclusive<u64>>(width),
                                 )
                             })
                         })
@@ -109,8 +93,10 @@ impl HistoryAction {
                         *opt_area = opt_area.take().and_then(|area| {
                             let width = area.pixels.width();
                             area.map_inplace(|x| {
-                                x.map_and_set_difference(
-                                    clear.ranges.iter_global_with::<RangeInclusive<u64>>(width),
+                                x.difference(
+                                    clear
+                                        .ranges
+                                        .iter_global_with::<std::ops::RangeInclusive<u64>>(width),
                                 )
                             })
                         });
@@ -119,14 +105,6 @@ impl HistoryAction {
                 }
             },
         }
-    }
-}
-
-impl range_set_blaze::ValueRef for Meta {
-    type Target = Meta;
-
-    fn into_value(self) -> Self::Target {
-        self
     }
 }
 
@@ -167,7 +145,8 @@ impl History {
         let last_action = self.end.checked_sub(1).and_then(|i| self.actions.get(i));
         if let Some(i) = last_action
             && i.kind == HistoryActionKind::Reset
-            && i == &new_action
+            && i.kind == new_action.kind
+            && i.layer == new_action.layer
         {
             return;
         }
@@ -185,16 +164,19 @@ impl History {
     }
 
     pub fn redo(&mut self) -> Option<&HistoryAction> {
-        let item = self.actions.get(self.end)?;
-        self.end += 1;
-        Some(item)
+        let tracked_idx = (self.end..self.actions.len()).find(|&i| self.actions[i].tracked)?;
+        let mut new_end = tracked_idx + 1;
+        while new_end < self.actions.len() && !self.actions[new_end].tracked {
+            new_end += 1;
+        }
+        self.end = new_end;
+        Some(&self.actions[tracked_idx])
     }
-
     pub fn undo(&mut self) -> Option<&HistoryAction> {
-        let item = self.actions.get(self.end.checked_sub(1)?)?;
-        self.end -= 1;
-
-        Some(item)
+        let tracked_idx = (0..self.end).rev().find(|&i| self.actions[i].tracked)?;
+        let action = &self.actions[tracked_idx];
+        self.end = tracked_idx;
+        Some(action)
     }
 }
 
@@ -206,6 +188,26 @@ mod tests {
     const ONE: NonZeroU32 = NonZeroU32::MIN;
     const TEN: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
+    fn tracked_add(x: u32) -> HistoryAction {
+        HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::single_range_total_black(x, 0, ONE, TEN),
+            }),
+            layer: None,
+            tracked: true,
+        }
+    }
+
+    fn untracked_add(x: u32) -> HistoryAction {
+        HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: PixelArea::single_range_total_black(x, 0, ONE, TEN),
+            }),
+            layer: None,
+            tracked: false,
+        }
+    }
+
     #[test]
     fn undo_empty_returns_none() {
         let mut history = History::default();
@@ -215,12 +217,7 @@ mod tests {
     #[test]
     fn insert_undo_and_redo() {
         let mut history = History::default();
-        let item = HistoryAction {
-            kind: HistoryActionKind::Add(HistoryActionAdd {
-                pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
-            }),
-            layer: None,
-        };
+        let item = tracked_add(0);
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
@@ -230,22 +227,105 @@ mod tests {
     #[test]
     fn push_after_undo() {
         let mut history = History::default();
-        let item = HistoryAction {
-            kind: HistoryActionKind::Add(HistoryActionAdd {
-                pixel_area: PixelArea::single_range_total_black(0, 0, ONE, TEN),
-            }),
-            layer: None,
-        };
-        let item2 = HistoryAction {
-            kind: HistoryActionKind::Add(HistoryActionAdd {
-                pixel_area: PixelArea::single_range_total_black(10, 0, ONE, TEN),
-            }),
-            layer: None,
-        };
+        let item = tracked_add(0);
+        let item2 = tracked_add(10);
         history.push(item.clone());
         assert_eq!(history.undo(), Some(&item));
         assert_eq!(history.undo(), None);
         history.push(item2);
         assert_eq!(None, history.redo());
+    }
+
+    #[test]
+    fn undo_redo_group_tracked_and_untracked() {
+        let mut history = History::default();
+        let tracked = tracked_add(0);
+        let untracked = untracked_add(10);
+
+        history.push(tracked.clone());
+        history.push(untracked.clone());
+
+        assert_eq!(history.end, 2);
+
+        history.undo();
+        assert_eq!(history.end, 0);
+
+        history.redo();
+        assert_eq!(history.end, 2);
+    }
+
+    #[test]
+    fn undo_redo_multiple_groups() {
+        let mut history = History::default();
+        let a = tracked_add(0);
+        let b = untracked_add(10);
+        let c = tracked_add(20);
+        let d = untracked_add(30);
+
+        history.push(a.clone());
+        history.push(b.clone());
+        history.push(c.clone());
+        history.push(d.clone());
+        assert_eq!(history.end, 4);
+
+        history.undo();
+        assert_eq!(history.end, 2);
+
+        history.undo();
+        assert_eq!(history.end, 0);
+
+        history.redo();
+        assert_eq!(history.end, 2);
+
+        history.redo();
+        assert_eq!(history.end, 4);
+    }
+
+    #[test]
+    fn redo_stops_at_next_tracked() {
+        let mut history = History::default();
+        let a = tracked_add(0);
+        let b = untracked_add(10);
+
+        history.push(a.clone());
+        history.push(b.clone());
+
+        history.undo();
+        assert_eq!(history.end, 0);
+
+        history.redo();
+        assert_eq!(history.end, 2);
+
+        history.undo();
+        assert_eq!(history.end, 0);
+    }
+
+    #[test]
+    fn only_untracked_actions_cannot_undo() {
+        let mut history = History::default();
+        history.push(untracked_add(0));
+        history.push(untracked_add(10));
+
+        assert_eq!(history.end, 2);
+
+        assert_eq!(None, history.undo());
+        assert_eq!(history.end, 2);
+    }
+
+    #[test]
+    fn consecutive_resets_different_layers_are_not_deduped() {
+        let mut history = History::default();
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Reset,
+            layer: Some(0),
+            tracked: false,
+        });
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Reset,
+            layer: Some(1),
+            tracked: false,
+        });
+
+        assert_eq!(history.actions.len(), 2);
     }
 }

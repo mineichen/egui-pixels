@@ -1,5 +1,5 @@
 /// Generate a random color from a seed using HSV color space
-pub fn random_color_from_seed(seed: u16) -> [u8; 3] {
+pub fn random_color_from_seed(seed: u16) -> [u8; 4] {
     fn pseudo_random_permutation(seed: u16) -> f32 {
         let mut num = (seed & 0xFF) as u8;
 
@@ -10,7 +10,7 @@ pub fn random_color_from_seed(seed: u16) -> [u8; 3] {
         num as f32 / (u8::MAX as f32)
     }
 
-    fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [u8; 3] {
+    fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [u8; 4] {
         let h_i = (h * 6.0).floor() as u32 % 6;
         let f = h * 6.0 - h_i as f32;
         let p = v * (1.0 - s);
@@ -26,7 +26,7 @@ pub fn random_color_from_seed(seed: u16) -> [u8; 3] {
             _ => (v, p, q),
         };
 
-        [(r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8]
+        [(r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, 255]
     }
 
     let hue = pseudo_random_permutation(seed);

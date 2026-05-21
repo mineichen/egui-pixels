@@ -7,11 +7,11 @@ use std::{
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use imask::{ImageDimension, NonZeroRange, SanitizeSortedDisjoint, SortedRanges, SortedRangesMap};
+use imask::{ImageDimension, NonZeroRange, SanitizeSortedDisjoint, SortedRanges, SortedRangesIter};
 use log::{debug, info};
-use range_set_blaze::SortedDisjointMap;
+use range_set_blaze::SortedDisjoint;
 
-use crate::{Meta, MetaRange, PixelArea};
+use crate::PixelArea;
 
 mod history;
 mod random_color;
@@ -41,10 +41,8 @@ pub struct MaskImage {
     annotations: Annotations,
     history: History,
     texture_handle: Option<(bool, TextureHandle, ImageSource<'static>)>,
-    // Cannot remove handle immediately, as it might be used already previously in this epoch.
     texture_handle_dirty: bool,
     settings: MaskSettings,
-    default_opacity_lut: [u8; 256],
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -55,33 +53,25 @@ pub enum AffectedLayer {
 
 impl MaskImage {
     pub fn new(size: [usize; 2], annotations: Vec<PixelArea>, history: History) -> Self {
-        let settings = MaskSettings::default();
         Self {
             size,
             annotations: Annotations(annotations.into_iter().map(Some).collect()),
             history,
             texture_handle: None,
             texture_handle_dirty: false,
-            default_opacity_lut: Self::build_opacity_lut(settings.default_opacity),
             settings: MaskSettings::default(),
         }
     }
 
     pub fn set_settings(&mut self, settings: MaskSettings) {
-        self.default_opacity_lut = Self::build_opacity_lut(settings.default_opacity);
         self.settings = settings;
-    }
-
-    fn build_opacity_lut(opacity: u8) -> [u8; 256] {
-        std::array::from_fn(|i| ((i as f32 / 255.0) * (opacity as f32 / 255.0) * 255.0) as u8)
     }
 
     pub fn random_seed(&self) -> u16 {
         (self.annotations.0.len() as u16).wrapping_add(self.history.random_seed())
     }
 
-    /// Generate the next color based on the current seed
-    pub fn next_color(&self) -> [u8; 3] {
+    pub fn next_color(&self) -> [u8; 4] {
         random_color_from_seed(self.random_seed())
     }
 
@@ -100,10 +90,10 @@ impl MaskImage {
             let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
 
             for subgroups in self.subgroups().into_iter().flatten() {
-                let [r, g, b] = subgroups.color;
-                for (range, meta) in subgroups.pixels.iter::<Range<usize>>() {
-                    let a = self.default_opacity_lut[meta.confidence() as usize];
-                    let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
+                let [r, g, b, a] = subgroups.color;
+                let a = (a as u16 * self.settings.default_opacity as u16 / 255) as u8;
+                let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
+                for range in subgroups.pixels.iter_roi::<Range<usize>>() {
                     pixels[range].fill(group_color);
                 }
             }
@@ -148,6 +138,7 @@ impl MaskImage {
         self.history.push(HistoryAction {
             kind: HistoryActionKind::Reset,
             layer: None,
+            tracked: true,
         });
         self.texture_handle_dirty = true;
     }
@@ -161,6 +152,7 @@ impl MaskImage {
                 ranges: SortedRanges::try_from_ordered_iter(ranges).unwrap(),
             }),
             layer: None,
+            tracked: true,
         };
 
         self.add_history_action(action)
@@ -175,13 +167,14 @@ impl MaskImage {
         layer: Option<usize>,
     ) {
         let remaining = subgroups.map_inplace(|x| {
-            x.map_and_set_difference(SanitizeSortedDisjoint::new(
+            x.difference(SanitizeSortedDisjoint::new(
                 self.subgroups_ordered()
-                    .map(|x| RangeInclusive::<u64>::from(x.1.range)),
+                    .map(|x| RangeInclusive::<u64>::from(x.1)),
             ))
         });
-        if let Some(x) = remaining {
-            self.add_area_overlapping_at(x, layer)
+
+        if let Some(remaining) = remaining {
+            self.add_area_overlapping_at(remaining, layer);
         } else {
             debug!("All Pixels are in a other subgroup already");
         }
@@ -200,6 +193,7 @@ impl MaskImage {
                 pixel_area: subgroups,
             }),
             layer,
+            tracked: true,
         })
     }
 
@@ -256,8 +250,10 @@ impl MaskImage {
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
-    fn subgroups_ordered(&self) -> impl Iterator<Item = (usize, MetaRange)> + FusedIterator + '_ {
-        struct HeapItem<T>(MetaRange, usize, T);
+    fn subgroups_ordered(
+        &self,
+    ) -> impl Iterator<Item = (usize, NonZeroRange<u64>)> + FusedIterator + '_ {
+        struct HeapItem<T>(NonZeroRange<u64>, usize, T);
 
         impl<T> Eq for HeapItem<T> {}
         impl<T> PartialEq for HeapItem<T> {
@@ -272,12 +268,20 @@ impl MaskImage {
         }
         impl<T> Ord for HeapItem<T> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                self.0.range.start.cmp(&other.0.range.start).reverse()
+                self.0.start.cmp(&other.0.start).reverse()
             }
         }
 
         struct GroupIterator(
-            BinaryHeap<HeapItem<<SortedRangesMap<u32, u32, Vec<Meta>> as IntoIterator>::IntoIter>>,
+            BinaryHeap<
+                HeapItem<
+                    SortedRangesIter<
+                        std::vec::IntoIter<u32>,
+                        std::vec::IntoIter<u32>,
+                        NonZeroRange<u64>,
+                    >,
+                >,
+            >,
         );
 
         let x: BinaryHeap<_> = self
@@ -286,13 +290,13 @@ impl MaskImage {
             .enumerate()
             .filter_map(|(group_id, opt_x)| {
                 let x = opt_x?;
-                let mut iter = x.pixels.into_iter();
+                let mut iter = x.pixels.iter_roi_owned::<NonZeroRange<u64>>();
                 Some(HeapItem(iter.next()?, group_id, iter))
             })
             .collect();
 
         impl Iterator for GroupIterator {
-            type Item = (usize, MetaRange);
+            type Item = (usize, NonZeroRange<u64>);
 
             fn next(&mut self) -> Option<Self::Item> {
                 if let Some(HeapItem(subgroup, group_id, mut rest)) = self.0.pop() {
@@ -305,7 +309,6 @@ impl MaskImage {
                 }
             }
         }
-        // self.0.pop() at some point relies on Vec::pop(), which can be called multiple times
         impl FusedIterator for GroupIterator {}
         GroupIterator(x)
     }
@@ -314,8 +317,6 @@ impl MaskImage {
 #[cfg(test)]
 mod tests {
     use imask::{ImaskSet, NonZeroRange};
-
-    use crate::{CreateTotal, MetaRange};
 
     use super::*;
     use std::num::{NonZero, NonZeroU32};
@@ -341,7 +342,6 @@ mod tests {
         mask_image
     }
 
-    // Helper function to convert bounds to an iterator of MetaRange for tests
     fn bounds_to_ranges(
         [[x_top, y_top], [x_bottom, y_bottom]]: [[usize; 2]; 2],
         image_width: NonZero<u32>,
@@ -455,8 +455,8 @@ mod tests {
                 Some(
                     PixelArea::with_black_color(
                         [
-                            MetaRange::new_total(1, NON_ZERO_3.into()),
-                            MetaRange::new_total(6, NON_ZERO_3.into())
+                            NonZeroRange::from_span(1, NON_ZERO_3.into()),
+                            NonZeroRange::from_span(6, NON_ZERO_3.into())
                         ]
                         .with_bounds(WIDTH_10, NON_ZERO_1)
                     )
@@ -465,8 +465,8 @@ mod tests {
                 Some(
                     PixelArea::with_black_color(
                         [
-                            MetaRange::new_total(2, NON_ZERO_2.into()),
-                            MetaRange::new_total(6, NON_ZERO_2.into())
+                            NonZeroRange::from_span(2, NON_ZERO_2.into()),
+                            NonZeroRange::from_span(6, NON_ZERO_2.into())
                         ]
                         .with_bounds(WIDTH_10, NON_ZERO_1)
                     )
@@ -517,23 +517,24 @@ mod tests {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: PixelArea::with_black_color(
                     [
-                        MetaRange::new_total(22, NON_ZERO_7.into()),
-                        MetaRange::new_total(39, NON_ZERO_1.into()),
-                        MetaRange::new_total(42, NON_ZERO_7.into()),
+                        NonZeroRange::from_span(22, NON_ZERO_7.into()),
+                        NonZeroRange::from_span(39, NON_ZERO_1.into()),
+                        NonZeroRange::from_span(42, NON_ZERO_7.into()),
                     ]
                     .with_bounds(WIDTH_10, NON_ZERO_1),
                 )
                 .unwrap(),
             }),
             layer: None,
+            tracked: true,
         });
         let x = MaskImage::new(
             [10, 10],
             vec![
                 PixelArea::with_black_color(
                     [
-                        MetaRange::new_total(2, NON_ZERO_5.into()),
-                        MetaRange::new_total(12, NON_ZERO_5.into()),
+                        NonZeroRange::from_span(2, NON_ZERO_5.into()),
+                        NonZeroRange::from_span(12, NON_ZERO_5.into()),
                     ]
                     .with_bounds(WIDTH_10, NON_ZERO_1),
                 )
@@ -550,30 +551,96 @@ mod tests {
     }
 
     #[test]
+    fn non_overlapping_no_pixel_overlap_with_multiple_layers() {
+        let mut mask_image = MaskImage::new([10, 10], vec![], History::default());
+
+        let layer0 = PixelArea::with_black_color(
+            [
+                NonZeroRange::from_span(0, NON_ZERO_5.into()),
+                NonZeroRange::from_span(12, NON_ZERO_5.into()),
+            ]
+            .with_bounds(WIDTH_10, WIDTH_10),
+        )
+        .unwrap();
+        mask_image.add_area_overlapping(layer0);
+
+        let layer1 = PixelArea::with_black_color(
+            [
+                NonZeroRange::from_span(30, NON_ZERO_5.into()),
+                NonZeroRange::from_span(50, NON_ZERO_3.into()),
+            ]
+            .with_bounds(WIDTH_10, WIDTH_10),
+        )
+        .unwrap();
+        mask_image.add_area_overlapping(layer1);
+
+        let new_mask = PixelArea::with_black_color(
+            [
+                NonZeroRange::from_span(3, NON_ZERO_5.into()),
+                NonZeroRange::from_span(28, NON_ZERO_5.into()),
+                NonZeroRange::from_span(49, NON_ZERO_5.into()),
+            ]
+            .with_bounds(WIDTH_10, WIDTH_10),
+        )
+        .unwrap();
+        mask_image.add_area_non_overlapping_parts(new_mask);
+
+        let subgroups = mask_image.subgroups();
+        assert_eq!(subgroups.len(), 3);
+
+        let all_existing_pixels: Vec<u64> = subgroups[..2]
+            .iter()
+            .flatten()
+            .flat_map(|area| {
+                area.pixels
+                    .iter_roi::<std::ops::Range<u64>>()
+                    .flat_map(|r| r.start..r.end)
+            })
+            .collect();
+
+        let new_layer_pixels: Vec<u64> = subgroups[2]
+            .as_ref()
+            .unwrap()
+            .pixels
+            .iter_roi::<std::ops::Range<u64>>()
+            .flat_map(|r| r.start..r.end)
+            .collect();
+
+        for pixel in &new_layer_pixels {
+            assert!(
+                !all_existing_pixels.contains(pixel),
+                "Pixel {pixel} exists in both new layer and existing layers"
+            );
+        }
+    }
+
+    #[test]
     fn add_to_existing_overlapping_doesnt_fail() {
         let mut history = History::default();
         history.push(HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: PixelArea::with_black_color(
-                    [MetaRange::new_total(0, NON_ZERO_2.into())].with_bounds(WIDTH_10, WIDTH_10),
+                    [NonZeroRange::from_span(0, NON_ZERO_2.into())].with_bounds(WIDTH_10, WIDTH_10),
                 )
                 .unwrap(),
             }),
             layer: None,
+            tracked: true,
         });
         history.push(HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: PixelArea::with_black_color(
-                    [MetaRange::new_total(1, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
+                    [NonZeroRange::from_span(1, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
                 )
                 .unwrap(),
             }),
             layer: None,
+            tracked: true,
         });
         let mut x = MaskImage::new([10, 10], vec![], history);
         x.add_area_non_overlapping_parts(
             PixelArea::with_black_color(
-                [MetaRange::new_total(2, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
+                [NonZeroRange::from_span(2, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
             )
             .unwrap(),
         );

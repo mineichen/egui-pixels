@@ -18,5 +18,5 @@ itertools = "0.14.0"
 log = "0.4.22"
 serde = { version = "1" }
 
-#[patch."https://github.com/mineichen/imask.git"]
-#imask = { path = "../imask" }
+[patch."https://github.com/mineichen/imask.git"]
+imask = { path = "../imask" }

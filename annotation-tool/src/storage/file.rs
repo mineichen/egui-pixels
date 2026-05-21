@@ -8,10 +8,8 @@ use std::{
 };
 
 use futures::{FutureExt, future::BoxFuture};
-use imanot::{
-    CreateTotal, ImageData, ImageId, ImageListTaskItem, MetaRange, PixelArea, load_image,
-};
-use imask::ImaskSet;
+use imanot::{ImageData, ImageId, ImageListTaskItem, PixelArea, load_image};
+use imask::{ImaskSet, NonZeroRange};
 use itertools::Itertools;
 use log::info;
 
@@ -153,7 +151,7 @@ impl Storage for FileStorage {
                                     .iter()
                                     .zip(lens.iter())
                                     .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                        Ok(l) => Ok(MetaRange::new_total(*start as _, l.into())),
+                                        Ok(l) => Ok(NonZeroRange::from_span(*start as u64, l.into())),
                                         Err(e) => Err(std::io::Error::new(
                                             ErrorKind::InvalidData,
                                             format!("position {start},{len}: {e:?}"),
@@ -218,10 +216,10 @@ impl Storage for FileStorage {
                     let sub_len = sub.range_len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
-                    for (subgroup, _) in sub.pixels.iter::<Range<u32>>() {
+                    for subgroup in sub.pixels.iter_roi::<Range<u32>>() {
                         f.write_all(&subgroup.start.to_le_bytes())?;
                     }
-                    for (subgroup, _) in sub.pixels.iter::<Range<u32>>() {
+                    for subgroup in sub.pixels.iter_roi::<Range<u32>>() {
                         f.write_all(&u16::try_from(subgroup.len()).unwrap().to_le_bytes())?;
                     }
                 }

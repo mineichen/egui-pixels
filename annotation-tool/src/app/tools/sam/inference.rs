@@ -4,7 +4,7 @@ use std::{
 };
 
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
-use imanot::{CreateTotal, MetaRange};
+use imask::NonZeroRange;
 use itertools::Itertools;
 use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 
@@ -103,7 +103,7 @@ pub(super) fn prepare_image_input(
 pub(super) fn extract_pixel_ranges(
     iter: impl Iterator<Item = f32>,
     width: NonZeroU32,
-) -> Vec<MetaRange> {
+) -> Vec<NonZeroRange<u64>> {
     let mut result = vec![];
     iter.enumerate()
         .filter_map(|(pos, item)| (item > 0.0).then_some(pos as u64))
@@ -111,13 +111,13 @@ pub(super) fn extract_pixel_ranges(
         .into_iter()
         .for_each(|(_, mut b)| {
             let first = b.next().expect("Doesn't yield if group is empty");
-            result.push(MetaRange::new_total(first, NonZeroU64::MIN));
+            result.push(NonZeroRange::from_span(first, NonZeroU64::MIN));
             b.fold(first, |last, x| {
                 if x - 1 == last {
                     let item = result.last_mut().unwrap();
-                    item.range.increment_length();
+                    item.increment_length();
                 } else {
-                    result.push(MetaRange::new_total(x, NonZeroU64::MIN));
+                    result.push(NonZeroRange::from_span(x, NonZeroU64::MIN));
                 }
                 x
             });
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn extract_pixel_ranges_summarizes_pixels() {
         assert_eq!(
-            vec![MetaRange::new_total(0, NON_ZERO_3.into())],
+            vec![NonZeroRange::from_span(0, NON_ZERO_3.into())],
             extract_pixel_ranges([1., 1., 1.].iter().copied(), NON_ZERO_3)
         );
     }
