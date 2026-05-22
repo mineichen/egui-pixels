@@ -68,7 +68,7 @@ impl Tool for RectTool {
                 if self.layer.is_some() {
                     ctx.image
                         .masks
-                        .add_area_overlapping_at(pixel_area, self.layer);
+                        .add_area_overlapping_at(pixel_area, self.layer, true);
                 } else {
                     ctx.image
                         .masks

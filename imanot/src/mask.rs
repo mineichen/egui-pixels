@@ -142,6 +142,13 @@ impl MaskImage {
         });
         self.texture_handle_dirty = true;
     }
+    pub fn reset_at(&mut self, layer: Option<usize>, tracked: bool) {
+        self.history.push(HistoryAction {
+            kind: HistoryActionKind::Reset,
+            layer,
+            tracked,
+        });
+    }
 
     pub fn clear_ranges(
         &mut self,
@@ -174,17 +181,22 @@ impl MaskImage {
         });
 
         if let Some(remaining) = remaining {
-            self.add_area_overlapping_at(remaining, layer);
+            self.add_area_overlapping_at(remaining, layer, true);
         } else {
             debug!("All Pixels are in a other subgroup already");
         }
     }
 
     pub fn add_area_overlapping(&mut self, subgroups: PixelArea) {
-        self.add_area_overlapping_at(subgroups, None);
+        self.add_area_overlapping_at(subgroups, None, true);
     }
 
-    pub fn add_area_overlapping_at(&mut self, subgroups: PixelArea, layer: Option<usize>) {
+    pub fn add_area_overlapping_at(
+        &mut self,
+        subgroups: PixelArea,
+        layer: Option<usize>,
+        tracked: bool,
+    ) {
         if let Some((visibility @ false, _, _)) = &mut self.texture_handle {
             *visibility = true;
         }
@@ -193,7 +205,7 @@ impl MaskImage {
                 pixel_area: subgroups,
             }),
             layer,
-            tracked: true,
+            tracked,
         })
     }
 
