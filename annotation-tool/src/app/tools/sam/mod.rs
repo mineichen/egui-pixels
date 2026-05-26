@@ -1,5 +1,7 @@
 use futures::FutureExt;
-use imanot::{AsyncRefTask, PixelArea, RectSelection, Tool, ToolContext, ToolFactory};
+use imanot::{
+    AsyncRefTask, MaskActionBuilder, PixelArea, RectSelection, Tool, ToolContext, ToolFactory,
+};
 use imask::ImaskSet;
 use imbuf::Image;
 
@@ -60,7 +62,7 @@ impl Tool for SamTool {
             let height = ctx.image.image.original.height();
             let color = ctx.image.masks.next_color();
             if let Some(pixel_area) = PixelArea::new(new_mask.with_bounds(width, height), color) {
-                ctx.image.masks.add_area_non_overlapping_parts(pixel_area);
+                ctx.image.masks.keep_overlapping(false).add(pixel_area);
             }
             self.last_pos = None;
 

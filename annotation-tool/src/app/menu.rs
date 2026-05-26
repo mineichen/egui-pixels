@@ -1,6 +1,8 @@
 use egui::Key;
 use futures::FutureExt;
-use imanot::{AsyncRefTask, AsyncTask, ImageState, ImageStateLoaded};
+use imanot::{
+    AsyncRefTask, AsyncTask, ImageState, ImageStateLoaded, MaskActionBuilder, MaskDefaultActions,
+};
 use log::info;
 
 // const ICON_SAM: &str = "\u{2728}";
@@ -69,7 +71,7 @@ impl crate::app::ImageViewerApp {
                 if let Some(x) = self.mask_generator.ui(&image.original, ui) {
                     info!("Add {} groups", x.len());
                     for group in x {
-                        masks.add_area_non_overlapping_parts(group);
+                        masks.keep_overlapping(false).add(group);
                     }
                 }
             }

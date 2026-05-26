@@ -134,81 +134,6 @@ impl MaskImage {
         }
     }
 
-    pub fn reset(&mut self) {
-        self.history.push(HistoryAction {
-            kind: HistoryActionKind::Reset,
-            layer: None,
-            tracked: true,
-        });
-        self.texture_handle_dirty = true;
-    }
-    pub fn reset_at(&mut self, layer: Option<usize>, tracked: bool) {
-        self.history.push(HistoryAction {
-            kind: HistoryActionKind::Reset,
-            layer,
-            tracked,
-        });
-    }
-
-    pub fn clear_ranges(
-        &mut self,
-        ranges: impl Iterator<Item = NonZeroRange<u64>> + ImageDimension,
-    ) {
-        let action = HistoryAction {
-            kind: HistoryActionKind::Clear(HistoryActionClear {
-                ranges: SortedRanges::try_from_ordered_iter(ranges).unwrap(),
-            }),
-            layer: None,
-            tracked: true,
-        };
-
-        self.add_history_action(action)
-    }
-
-    pub fn add_area_non_overlapping_parts(&mut self, subgroups: PixelArea) {
-        self.add_area_non_overlapping_parts_at(subgroups, None);
-    }
-    pub fn add_area_non_overlapping_parts_at(
-        &mut self,
-        subgroups: PixelArea,
-        layer: Option<usize>,
-    ) {
-        let remaining = subgroups.map_inplace(|x| {
-            x.difference(SanitizeSortedDisjoint::new(
-                self.subgroups_ordered()
-                    .map(|x| RangeInclusive::<u64>::from(x.1)),
-            ))
-        });
-
-        if let Some(remaining) = remaining {
-            self.add_area_overlapping_at(remaining, layer, true);
-        } else {
-            debug!("All Pixels are in a other subgroup already");
-        }
-    }
-
-    pub fn add_area_overlapping(&mut self, subgroups: PixelArea) {
-        self.add_area_overlapping_at(subgroups, None, true);
-    }
-
-    pub fn add_area_overlapping_at(
-        &mut self,
-        subgroups: PixelArea,
-        layer: Option<usize>,
-        tracked: bool,
-    ) {
-        if let Some((visibility @ false, _, _)) = &mut self.texture_handle {
-            *visibility = true;
-        }
-        self.add_history_action(HistoryAction {
-            kind: HistoryActionKind::Add(HistoryActionAdd {
-                pixel_area: subgroups,
-            }),
-            layer,
-            tracked,
-        })
-    }
-
     pub fn add_history_action(&mut self, action: HistoryAction) {
         if let Some(x) = self.annotations.0.iter().find_map(|a| a.as_ref()) {
             match &action.kind {
@@ -326,40 +251,41 @@ impl MaskImage {
     }
 }
 
-pub struct HistoryActionBuilder<'a> {
+pub struct AddAction {
+    overlapping: bool,
+}
+
+pub struct HistoryActionBuilder<'a, A = ()> {
     mask: &'a mut MaskImage,
     layer: Option<usize>,
     tracked: bool,
+    action: A,
 }
 
 pub trait MaskActionBuilder<'a>: Sized {
+    type Builder;
+    fn on_layer(self, layer: Option<usize>) -> Self::Builder;
+    fn without_tracking(self) -> Self::Builder;
+    fn keep_overlapping(self, overlapping: bool) -> HistoryActionBuilder<'a, AddAction>;
+}
+
+pub trait MaskDefaultActions: Sized {
     fn add(self, subgroups: PixelArea);
     fn clear<I>(self, ranges: I)
     where
         I: Iterator<Item = NonZeroRange<u64>> + ImageDimension;
     fn reset(self);
-    fn on_layer(self, layer: usize) -> HistoryActionBuilder<'a>;
-    fn without_tracking(self) -> HistoryActionBuilder<'a>;
 }
 
 impl<'a> MaskActionBuilder<'a> for &'a mut MaskImage {
-    fn add(self, subgroups: PixelArea) {
-        MaskImage::add_area_overlapping(self, subgroups);
-    }
+    type Builder = HistoryActionBuilder<'a>;
 
-    fn clear<I: Iterator<Item = NonZeroRange<u64>> + ImageDimension>(self, ranges: I) {
-        MaskImage::clear_ranges(self, ranges);
-    }
-
-    fn reset(self) {
-        MaskImage::reset(self);
-    }
-
-    fn on_layer(self, layer: usize) -> HistoryActionBuilder<'a> {
+    fn on_layer(self, layer: Option<usize>) -> HistoryActionBuilder<'a> {
         HistoryActionBuilder {
             mask: self,
-            layer: Some(layer),
+            layer,
             tracked: true,
+            action: (),
         }
     }
 
@@ -368,14 +294,72 @@ impl<'a> MaskActionBuilder<'a> for &'a mut MaskImage {
             mask: self,
             layer: None,
             tracked: false,
+            action: (),
+        }
+    }
+
+    fn keep_overlapping(self, overlapping: bool) -> HistoryActionBuilder<'a, AddAction> {
+        HistoryActionBuilder {
+            mask: self,
+            layer: None,
+            tracked: true,
+            action: AddAction { overlapping },
         }
     }
 }
 
-impl<'a> MaskActionBuilder<'a> for HistoryActionBuilder<'a> {
+impl<'a, A> MaskActionBuilder<'a> for HistoryActionBuilder<'a, A> {
+    type Builder = Self;
+
+    fn on_layer(mut self, layer: Option<usize>) -> Self {
+        self.layer = layer;
+        self
+    }
+
+    fn without_tracking(mut self) -> Self {
+        self.tracked = false;
+        self
+    }
+
+    fn keep_overlapping(self, overlapping: bool) -> HistoryActionBuilder<'a, AddAction> {
+        HistoryActionBuilder {
+            mask: self.mask,
+            layer: self.layer,
+            tracked: self.tracked,
+            action: AddAction { overlapping },
+        }
+    }
+}
+
+impl<'a> MaskDefaultActions for &'a mut MaskImage {
     fn add(self, subgroups: PixelArea) {
-        self.mask
-            .add_area_overlapping_at(subgroups, self.layer, self.tracked);
+        self.keep_overlapping(true).add(subgroups);
+    }
+
+    fn clear<I: Iterator<Item = NonZeroRange<u64>> + ImageDimension>(self, ranges: I) {
+        HistoryActionBuilder {
+            mask: self,
+            layer: None,
+            tracked: true,
+            action: (),
+        }
+        .clear(ranges);
+    }
+
+    fn reset(self) {
+        HistoryActionBuilder {
+            mask: self,
+            layer: None,
+            tracked: true,
+            action: (),
+        }
+        .reset();
+    }
+}
+
+impl<'a> MaskDefaultActions for HistoryActionBuilder<'a, ()> {
+    fn add(self, subgroups: PixelArea) {
+        self.keep_overlapping(true).add(subgroups);
     }
 
     fn clear<I: Iterator<Item = NonZeroRange<u64>> + ImageDimension>(self, ranges: I) {
@@ -395,15 +379,36 @@ impl<'a> MaskActionBuilder<'a> for HistoryActionBuilder<'a> {
             tracked: self.tracked,
         });
     }
+}
 
-    fn on_layer(mut self, layer: usize) -> HistoryActionBuilder<'a> {
-        self.layer = Some(layer);
-        self
-    }
-
-    fn without_tracking(mut self) -> HistoryActionBuilder<'a> {
-        self.tracked = false;
-        self
+impl<'a> HistoryActionBuilder<'a, AddAction> {
+    pub fn add(self, subgroups: PixelArea) {
+        let subgroups = if self.action.overlapping {
+            subgroups
+        } else {
+            let reduced = subgroups.map_inplace(|x| {
+                x.difference(SanitizeSortedDisjoint::new(
+                    self.mask
+                        .subgroups_ordered()
+                        .map(|x| RangeInclusive::<u64>::from(x.1)),
+                ))
+            });
+            let Some(x) = reduced else {
+                debug!("All Pixels are in a other subgroup already");
+                return;
+            };
+            x
+        };
+        if let Some((visibility @ false, _, _)) = &mut self.mask.texture_handle {
+            *visibility = true;
+        }
+        self.mask.add_history_action(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: subgroups,
+            }),
+            layer: self.layer,
+            tracked: self.tracked,
+        });
     }
 }
 
@@ -472,7 +477,7 @@ mod tests {
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
         for (x, len) in items {
             let area = PixelArea::single_range_total_black(x, 0, len, WIDTH_10);
-            mask_image.add_area_non_overlapping_parts(area);
+            mask_image.keep_overlapping(false).add(area);
         }
         assert_eq!(
             mask_image.subgroups(),
@@ -489,7 +494,7 @@ mod tests {
         let mut mask_image = MaskImage::new([10, 10], vec![], history);
         for (x, len) in items {
             let area = PixelArea::single_range_total_black(x, 0, len, WIDTH_10);
-            mask_image.add_area_non_overlapping_parts(area);
+            mask_image.keep_overlapping(false).add(area);
         }
         assert_eq!(
             mask_image.subgroups(),
@@ -676,7 +681,7 @@ mod tests {
             .with_bounds(WIDTH_10, WIDTH_10),
         )
         .unwrap();
-        mask_image.add_area_non_overlapping_parts(new_mask);
+        mask_image.keep_overlapping(false).add(new_mask);
 
         let subgroups = mask_image.subgroups();
         assert_eq!(subgroups.len(), 3);
@@ -731,7 +736,7 @@ mod tests {
             tracked: true,
         });
         let mut x = MaskImage::new([10, 10], vec![], history);
-        x.add_area_non_overlapping_parts(
+        x.keep_overlapping(false).add(
             PixelArea::with_black_color(
                 [NonZeroRange::from_span(2, NON_ZERO_4.into())].with_bounds(WIDTH_10, WIDTH_10),
             )

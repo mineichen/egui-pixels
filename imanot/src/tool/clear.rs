@@ -3,7 +3,7 @@ use std::num::{NonZero, NonZeroU64};
 use futures::FutureExt;
 use imask::{ImaskSet, NonZeroRange};
 
-use crate::{RectSelection, Tool, ToolContext, ToolFactory};
+use crate::{MaskDefaultActions, RectSelection, Tool, ToolContext, ToolFactory};
 
 #[derive(Default)]
 #[non_exhaustive]
@@ -21,7 +21,7 @@ impl Tool for ClearTool {
     fn handle_interaction(&mut self, mut ctx: ToolContext) {
         let selection = self.rect_selection.drag_finished(&mut ctx);
         if let Some(region) = selection {
-            ctx.image.masks.clear_ranges(region.iter_ranges());
+            ctx.image.masks.clear(region.iter_ranges());
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
         {
@@ -32,7 +32,7 @@ impl Tool for ClearTool {
             let width = ctx.image.image.original.width();
             let single_pixel = std::iter::once(range).with_bounds(width, height);
 
-            ctx.image.masks.clear_ranges(single_pixel);
+            ctx.image.masks.clear(single_pixel);
         }
     }
 }
