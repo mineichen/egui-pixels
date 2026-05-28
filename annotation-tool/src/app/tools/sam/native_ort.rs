@@ -3,26 +3,24 @@ use std::{future::Future, path::Path, sync::Arc};
 use imask::NonZeroRange;
 use log::debug;
 use ndarray::Array;
-use ort::{Environment, OrtError, Session, SessionBuilder, Value};
+use ort::{Error as OrtError, session::Session, value::Value};
 
 use super::{InferenceError, RgbImageInterleaved, SamEmbeddings, inference::extract_pixel_ranges};
 
 #[derive(Clone)]
 pub struct SamSession {
-    encoder: Arc<Session>,
-    decoder: Arc<Session>,
+    encoder: Arc<std::sync::Mutex<Session>>,
+    decoder: Arc<std::sync::Mutex<Session>>,
 }
 
 impl SamSession {
     pub fn new(path: &Path) -> Result<Self, InferenceError> {
-        let env = Arc::new(Environment::builder().with_name("SAM").build()?);
-        let encoder =
-            SessionBuilder::new(&env)?.with_model_from_file(path.join("vit_t_encoder.onnx"))?;
-        let decoder =
-            SessionBuilder::new(&env)?.with_model_from_file(path.join("vit_t_decoder.onnx"))?;
+        let encoder = Session::builder()?.commit_from_file(path.join("vit_t_encoder.onnx"))?;
+        let decoder = Session::builder()?.commit_from_file(path.join("vit_t_decoder.onnx"))?;
+
         Ok(Self {
-            encoder: Arc::new(encoder),
-            decoder: Arc::new(decoder),
+            encoder: Arc::new(encoder.into()),
+            decoder: Arc::new(decoder.into()),
         })
     }
 
@@ -34,7 +32,8 @@ impl SamSession {
 
         let session = self.encoder.clone();
         let handle = std::thread::spawn(move || {
-            let r = Self::get_image_embeddings_blocking(session, img);
+            let mut session = session.lock().unwrap();
+            let r = Self::get_image_embeddings_blocking(&mut session, img);
             tx.send(r)
         });
         async move {
@@ -47,13 +46,13 @@ impl SamSession {
         }
     }
     pub fn get_image_embeddings_blocking(
-        encoder: Arc<Session>,
+        encoder: &mut Session,
         img: RgbImageInterleaved<u8>,
     ) -> Result<SamEmbeddings, InferenceError> {
         let image_input = super::inference::prepare_image_input(&img)?;
         // Prepare tensor for the SAM encoder model
-        let input_as_values = &image_input.image_data.as_standard_layout();
-        let encoder_inputs = vec![Value::from_array(encoder.allocator(), input_as_values)?];
+        let input_as_values = image_input.image_data.to_owned();
+        let encoder_inputs = ort::inputs![Value::from_array(input_as_values)?];
 
         // Run encoder to get image embeddings
         let outputs = encoder.run(encoder_inputs)?;
@@ -61,15 +60,18 @@ impl SamSession {
         //     "Testing purpose",
         // ))));
         let embeddings = outputs
-            .first()
+            .into_iter()
+            .next()
             .ok_or_else(|| InferenceError::UnexpectedOutput("Expected a output".into()))?
-            .try_extract::<f32>()
+            .1
+            .try_extract_array::<f32>()
             .map_err(|e| InferenceError::UnexpectedOutput(format!("Expected f32: {e:?}")))?
             .view()
             .t()
             .reversed_axes()
             .into_owned();
 
+        let embeddings = Value::from_array(embeddings)?;
         Ok(image_input.map(|_| embeddings))
     }
 
@@ -88,56 +90,32 @@ impl SamSession {
         let orig_height = embeddings.original_height.get() as f32;
         let resized_width = embeddings.resized_width.get() as f32;
         let resized_height = embeddings.resized_height.get() as f32;
-        let decoder = &self.decoder;
-        let embeddings_as_values = &embeddings.image_data.as_standard_layout();
+        let mut decoder = self.decoder.lock().unwrap();
+        let embeddings_as_values = embeddings.image_data.clone();
 
-        // Encode points prompt
-        // let point_coords = Array::from_shape_vec(
-        //     (1, 2, 2),
-        //     vec![
-        //         x1 * (resized_width / orig_width),
-        //         y1 * (resized_height / orig_height),
-        //         x2 * (resized_height / orig_height),
-        //         y2 * (resized_height / orig_height),
-        //     ],
-        // )
-        // .expect("Shape always matches")
-        // .into_dyn()
-        let point_coords = ndarray::array![[
-            [
-                x1 * (resized_width / orig_width),
-                y1 * (resized_height / orig_height),
-            ],
-            [
-                x2 * (resized_height / orig_height),
-                y2 * (resized_height / orig_height),
-            ]
-        ]]
-        .into_dyn();
-        let point_coords_as_values = &point_coords.as_standard_layout();
+        let x_ratio = resized_width / orig_width;
+        let y_ratio = resized_height / orig_height;
+        let point_coords =
+            ndarray::array![[[x1 * x_ratio, y1 * y_ratio], [x2 * x_ratio, y2 * y_ratio]]];
 
         // Labels
-        let point_labels = ndarray::array![[2.0_f32, 3.0_f32]].into_dyn();
-        let point_labels_as_values = &point_labels.as_standard_layout();
+        let point_labels = ndarray::array![[2.0_f32, 3.0_f32]];
 
         // Encode mask prompt (dummy)
-        let mask_input = Array::<f32, _>::zeros((1, 1, 256, 256)).into_dyn();
-        let mask_input_as_values = &mask_input.as_standard_layout();
-        let has_mask_input = ndarray::array![0.0_f32].into_dyn();
-        let has_mask_input_as_values = &has_mask_input.as_standard_layout();
+        let mask_input = Array::<f32, _>::zeros((1, 1, 256, 256));
+        let has_mask_input = ndarray::array![0.0_f32];
 
         // Add original image size
-        let orig_im_size = ndarray::array![orig_height, orig_width].into_dyn();
-        let orig_im_size_as_values = &orig_im_size.as_standard_layout();
+        let orig_im_size = ndarray::array![orig_height, orig_width];
 
         // Prepare inputs for SAM decoder
-        let decoder_inputs = vec![
-            Value::from_array(decoder.allocator(), embeddings_as_values)?,
-            Value::from_array(decoder.allocator(), point_coords_as_values)?,
-            Value::from_array(decoder.allocator(), point_labels_as_values)?,
-            Value::from_array(decoder.allocator(), mask_input_as_values)?,
-            Value::from_array(decoder.allocator(), has_mask_input_as_values)?,
-            Value::from_array(decoder.allocator(), orig_im_size_as_values)?,
+        let decoder_inputs = ort::inputs![
+            embeddings_as_values,
+            Value::from_array(point_coords)?,
+            Value::from_array(point_labels)?,
+            Value::from_array(mask_input)?,
+            Value::from_array(has_mask_input)?,
+            Value::from_array(orig_im_size)?,
         ];
 
         // Run the SAM decoder
@@ -146,15 +124,18 @@ impl SamSession {
             "Outputs {:?}",
             outputs
                 .iter()
-                .map(|x| x.try_extract::<f32>().map(|x| x.view().len()))
+                .map(|(_, x)| x.try_extract_array::<f32>().map(|x| x.view().len()))
                 .collect::<Vec<_>>()
         );
 
         // Process and return output mask (replace negative pixel values to 0 and positive to 1)
         let pixels = outputs
-            .first()
+            .into_iter()
+            .next()
             .ok_or_else(|| InferenceError::UnexpectedOutput("No output".into()))?
-            .try_extract::<f32>()
+            .1;
+        let pixels = pixels
+            .try_extract_array::<f32>()
             .map_err(|e| InferenceError::UnexpectedOutput(format!("Output of type f32: {e:?}")))?;
         let pixel_view = pixels.view();
 
@@ -167,11 +148,6 @@ impl SamSession {
 
 impl From<OrtError> for InferenceError {
     fn from(value: OrtError) -> Self {
-        match value {
-            e @ OrtError::CreateIoBinding(_) | e @ OrtError::CreateAllocator(_) => {
-                InferenceError::AllocationError(Arc::new(e))
-            }
-            e => InferenceError::Other(Arc::new(e)),
-        }
+        InferenceError::Other(Arc::new(value))
     }
 }

@@ -6,7 +6,8 @@ use std::{
 use image::{DynamicImage, GenericImageView, Rgba, imageops::FilterType};
 use imask::NonZeroRange;
 use itertools::Itertools;
-use ndarray::{Array, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
+use ndarray::{Array, ArrayBase, Dim, IxDynImpl, OwnedRepr};
+use ort::value::{TensorValueType, Value};
 
 use super::RgbImageInterleaved;
 
@@ -16,7 +17,7 @@ impl From<TryFromIntError> for InferenceError {
     }
 }
 
-pub type SamEmbeddings = ResizedImageData<Array<f32, IxDyn>>;
+pub type SamEmbeddings = ResizedImageData<Value<TensorValueType<f32>>>;
 pub type SamInputData = ResizedImageData<ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>>>;
 
 #[derive(Debug, thiserror::Error, Clone)]
