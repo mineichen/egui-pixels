@@ -2,7 +2,7 @@ use std::num::{NonZero, NonZeroU16};
 
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions};
 use futures::FutureExt;
-use imask::{ImaskSet, NonZeroRange, Rect};
+use imask::{BitmapToRangeIter, ImaskSet, NonZeroRange, Rect};
 
 use crate::{ImagePainter, MaskActionBuilder, PixelArea, Tool, ToolContext, ToolFactory};
 
@@ -131,27 +131,9 @@ impl StrokeState {
         image_width: NonZero<u32>,
         image_height: NonZero<u32>,
     ) -> Option<PixelArea> {
-        let w = self.width as u64;
-        let mut ranges: Vec<NonZeroRange<u64>> = Vec::new();
-
-        for y in 0..self.height {
-            let mut x = 0;
-            while x < self.width {
-                if self.mask[y * self.width + x] {
-                    let start_x = x;
-                    while x < self.width && self.mask[y * self.width + x] {
-                        x += 1;
-                    }
-                    let span = NonZero::new((x - start_x) as u64).unwrap();
-                    ranges.push(NonZeroRange::from_span(y as u64 * w + start_x as u64, span));
-                } else {
-                    x += 1;
-                }
-            }
-        }
-
         PixelArea::new(
-            ranges.into_iter().with_bounds(image_width, image_height),
+            BitmapToRangeIter::<_, NonZeroRange<u64>>::from_bool_iter(self.mask.into_iter())
+                .with_bounds(image_width, image_height),
             color,
         )
     }
