@@ -14,27 +14,14 @@
           inherit system;
           config.allowUnfree = true;
         };
-        # ort crate 1.15.2 requires onnxruntime 1.16.0 specifically
-        # Download prebuilt ONNX Runtime 1.16.0
-        onnxruntime_1_16 = pkgs.stdenv.mkDerivation {
-          name = "onnxruntime-1.16.0";
-          src = pkgs.fetchurl {
-            url = "https://github.com/microsoft/onnxruntime/releases/download/v1.16.0/onnxruntime-linux-x64-1.16.0.tgz";
-            sha256 = "sha256-I9hn6yp3jdVMYBd45dK89FzrdsWoLMAUQFPIP10fAAU=";
-          };
-          nativeBuildInputs = [ pkgs.gnutar pkgs.gzip ];
-          installPhase = ''
-            mkdir -p $out/lib
-            tar -xzf $src
-            cp -r onnxruntime-linux-x64-1.16.0/lib/* $out/lib/
-            mkdir -p $out/include
-            cp -r onnxruntime-linux-x64-1.16.0/include/* $out/include/ 2>/dev/null || true
-          '';
-        };
         rust = with fenix.packages.${system}; combine [
           stable.toolchain
           targets.wasm32-unknown-unknown.stable.rust-std
         ];
+        onnxruntime = pkgs.buildEnv {
+          name = "onnxruntime-merged";
+          paths = [ pkgs.onnxruntime pkgs.onnxruntime.dev ];
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -46,6 +33,8 @@
             pkgs.wasm-pack
             pkgs.wayland
             pkgs.mesa
+            onnxruntime
+            pkgs.pkg-config
           ];
 
           shellHook = ''
@@ -56,9 +45,12 @@
             cargo --version
             trunk --version
 
+            export ORT_LIB_PATH=${onnxruntime}/lib
+            export ORT_PREFER_DYNAMIC_LINK=1
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [
               pkgs.wayland
               pkgs.libxkbcommon
+              onnxruntime
             ]}:$LD_LIBRARY_PATH
           '';
         };
@@ -120,7 +112,7 @@
               export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [
                 pkgs.libGL
                 pkgs.mesa
-                onnxruntime_1_16
+                onnxruntime
                 pkgs.stdenv.cc.cc.lib
               ]}:\$LD_LIBRARY_PATH
               export RUST_BACKTRACE=1

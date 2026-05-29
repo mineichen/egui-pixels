@@ -12,7 +12,13 @@ type ToolFactories = Vec<(String, ToolFactory)>;
 #[allow(unused_variables)]
 pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
     #[cfg(feature = "sam")]
-    let session = sam::SamSession::new(&config.sam_path).unwrap();
+    let session = {
+        eprintln!("[DEBUG] Creating SAM session from path: {:?}", config.sam_path);
+        match sam::SamSession::new(&config.sam_path) {
+            Ok(s) => { eprintln!("[DEBUG] SAM session created successfully"); s }
+            Err(e) => { eprintln!("[DEBUG] SAM session FAILED: {:?}", e); panic!("SAM session error: {:?}", e); }
+        }
+    };
     vec![
         ("Clear".to_string(), ClearTool::create_factory()),
         ("Pan".to_string(), PanTool::create_factory()),

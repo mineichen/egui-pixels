@@ -84,9 +84,8 @@ impl StrokeState {
     }
 
     fn update_texture(&mut self, ctx: &egui::Context, color: [u8; 4]) {
-        let dirty = match self.dirty.take() {
-            Some(d) => d,
-            None => return,
+        let Some(dirty) = self.dirty.take() else {
+            return;
         };
 
         if self.texture.is_none() {

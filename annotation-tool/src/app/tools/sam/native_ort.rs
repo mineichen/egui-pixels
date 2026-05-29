@@ -15,8 +15,14 @@ pub struct SamSession {
 
 impl SamSession {
     pub fn new(path: &Path) -> Result<Self, InferenceError> {
-        let encoder = Session::builder()?.commit_from_file(path.join("vit_t_encoder.onnx"))?;
+        eprintln!("[DEBUG] SamSession::new called with path: {:?}", path);
+        eprintln!("[DEBUG] About to create Session::builder()...");
+        let mut builder = Session::builder()?;
+        eprintln!("[DEBUG] Session::builder() succeeded");
+        let encoder = builder.commit_from_file(path.join("vit_t_encoder.onnx"))?;
+        eprintln!("[DEBUG] encoder loaded");
         let decoder = Session::builder()?.commit_from_file(path.join("vit_t_decoder.onnx"))?;
+        eprintln!("[DEBUG] decoder loaded");
 
         Ok(Self {
             encoder: Arc::new(encoder.into()),
