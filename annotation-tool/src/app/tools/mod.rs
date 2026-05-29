@@ -1,4 +1,8 @@
-use imanot::{ClearTool, ImageLoadOk, PanTool, RectTool, ToolFactory};
+use std::num::NonZeroU16;
+
+use std::any::Any;
+
+use imanot::{BrushTool, ClearTool, ImageLoadOk, PanTool, RectTool, ToolFactory};
 
 #[cfg(feature = "sam")]
 mod sam;
@@ -15,6 +19,7 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
         #[cfg(feature = "sam")]
         ("SAM".to_string(), sam::SamTool::create_factory(session)),
         ("Rect".to_string(), RectTool::create_factory()),
+        ("Brush".to_string(), BrushTool::create_factory()),
     ]
 }
 
@@ -38,6 +43,22 @@ pub(super) fn ui(ui: &mut egui::Ui, img: &ImageLoadOk, core: &mut imanot::Tools)
             });
         primary.set_idx(active_idx, img);
     });
+
+    if let Some(Ok(tool)) = primary.data() {
+        let any: &mut dyn Any = &mut **tool;
+        if let Some(brush) = any.downcast_mut::<BrushTool>() {
+            ui.horizontal(|ui| {
+                ui.label("Brush Size:");
+                let mut raw = brush.brush_size.get();
+                if ui
+                    .add(egui::Slider::new(&mut raw, 1..=100).step_by(1.0))
+                    .changed()
+                {
+                    brush.brush_size = NonZeroU16::new(raw).unwrap();
+                }
+            });
+        }
+    }
 
     let mut secondary = core.secondary();
     ui.horizontal(|ui| {

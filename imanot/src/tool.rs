@@ -1,16 +1,20 @@
+mod brush;
 mod clear;
 mod pan;
 mod rect;
 mod rect_selection;
 
+pub use brush::*;
 pub use clear::*;
 pub use pan::*;
 pub use rect::*;
 pub use rect_selection::*;
 
+use std::any::Any;
+
 use crate::{CursorImageSystem, ImageStateLoaded, ImageViewer};
 
-pub trait Tool {
+pub trait Tool: Any {
     fn handle_interaction(&mut self, ctx: ToolContext);
 }
 
