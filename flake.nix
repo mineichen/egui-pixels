@@ -22,37 +22,96 @@
           name = "onnxruntime-merged";
           paths = [ pkgs.onnxruntime pkgs.onnxruntime.dev ];
         };
+        envVars = {
+          ORT_LIB_PATH = "${onnxruntime}/lib";
+          ORT_PREFER_DYNAMIC_LINK = "1";
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.wayland
+            pkgs.libxkbcommon
+            onnxruntime
+            pkgs.stdenv.cc.cc.lib
+          ];
+          SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        };
+        commonBuildInputs = [
+          rust
+          pkgs.stdenv.cc
+          pkgs.trunk
+          pkgs.wasm-pack
+          pkgs.wayland
+          pkgs.mesa
+          onnxruntime
+          pkgs.pkg-config
+        ];
+        greet = ''
+          echo "===================================="
+          echo " Welcome to the deterministic dev shell! "
+          echo "===================================="
+          rustc --version
+          cargo --version
+          trunk --version
+        '';
+        policy = pkgs.writeText "policy.json" ''{"default":[{"type":"insecureAcceptAnything"}]}'';
+        containername = "imanot-isolated-dev";
+        podmanRun = "${pkgs.podman}/bin/podman run --rm -it "
+          + "--network=slirp4netns "
+          + "--tmpfs /tmp "
+          + "-v ..:/workspace:z "
+          + "-e HOME=/root "
+          + "${containername}:latest /bin/entrypoint.sh";
       in
       {
-        devShells.default = pkgs.mkShell {
-          buildInputs = [
-            rust
-            pkgs.trunk
+        devShells.default = pkgs.mkShell ({
+          buildInputs = commonBuildInputs ++ [
             pkgs.bashInteractive
             pkgs.bash-completion
-            pkgs.wasm-pack
-            pkgs.wayland
-            pkgs.mesa
-            onnxruntime
-            pkgs.pkg-config
           ];
+          shellHook = greet;
+        } // envVars);
 
-          shellHook = ''
-            echo "===================================="
-            echo " Welcome to the deterministic dev shell! "
-            echo "===================================="
-            rustc --version
-            cargo --version
-            trunk --version
+        packages.isolated-build = pkgs.dockerTools.buildImage {
+          name = containername;
+          tag = "latest";
+          copyToRoot = pkgs.buildEnv {
+            name = containername;
+            paths = commonBuildInputs ++ [
+              pkgs.bashInteractive
+              pkgs.ripgrep
+              pkgs.git
+              pkgs.opencode
+              pkgs.busybox
+              (pkgs.writeScriptBin "entrypoint.sh" ''
+                #!${pkgs.bashInteractive}/bin/bash
+                ${greet}
+                exec ${pkgs.bashInteractive}/bin/bash
+              '')
+            ];
+            pathsToLink = [ "/bin" "/lib" "/include" "/share" ];
+          };
+          config = {
+            Env = pkgs.lib.mapAttrsToList (k: v: "${k}=${v}") envVars ++ [ "HOME=/root" ];
+            Cmd = [ "/bin/entrypoint.sh" ];
+            WorkingDir = "/workspace/imanot";
+          };
+        };
 
-            export ORT_LIB_PATH=${onnxruntime}/lib
-            export ORT_PREFER_DYNAMIC_LINK=1
-            export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [
-              pkgs.wayland
-              pkgs.libxkbcommon
-              onnxruntime
-            ]}:$LD_LIBRARY_PATH
-          '';
+        apps.isolated-build = {
+          type = "app";
+          program = toString (pkgs.writeShellScript containername ''
+            ${pkgs.podman}/bin/podman rmi ${containername} || true
+            ${pkgs.podman}/bin/podman load \
+              --signature-policy ${policy} \
+              --input ${self.packages.${system}.isolated-build}
+            ${podmanRun}
+          '');
+        };
+
+        apps.isolated-nobuild = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "run-isolated" ''
+            set -euo pipefail
+            ${podmanRun}
+          '');
         };
 
         apps.default = {
@@ -73,7 +132,6 @@
             exec ${pkgs.cargo-outdated}/bin/cargo-outdated outdated
           ''}/bin/outdated";
         };
-
 
         apps.annotationtool-web = {
           type = "app";
@@ -117,9 +175,9 @@
               ]}:\$LD_LIBRARY_PATH
               export RUST_BACKTRACE=1
               if [ \$# -eq 0 ]; then
-                exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" ~/Downloads
+                exec "$PROJECT_ROOT/target/release/annotation-tool-app" ~/Downloads
               else
-                exec \"$PROJECT_ROOT/target/release/annotation-tool-app\" \"\$@\"
+                exec "$PROJECT_ROOT/target/release/annotation-tool-app" "\$@"
               fi
             " _ "$@"
           ''}/bin/annotation-tool-app";
