@@ -187,6 +187,14 @@ impl MaskImage {
         self.history.iter().fold(base, |acc, r| r.apply(acc))
     }
 
+    pub fn base_layer_mut(&mut self, index: usize) -> &mut Option<PixelArea> {
+        self.texture_handle_dirty = true;
+        if self.annotations.0.len() <= index {
+            self.annotations.0.resize_with(index + 1, || None);
+        }
+        &mut self.annotations.0[index]
+    }
+
     fn subgroups_ordered(
         &self,
     ) -> impl Iterator<Item = (usize, NonZeroRange<u64>)> + FusedIterator + '_ {
