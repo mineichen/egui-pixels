@@ -1,6 +1,7 @@
 use std::{
     collections::BinaryHeap,
     iter::FusedIterator,
+    num::NonZeroU32,
     ops::{Range, RangeInclusive},
 };
 
@@ -14,35 +15,57 @@ use range_set_blaze::SortedDisjoint;
 use crate::PixelArea;
 
 mod history;
+mod pixel_area_stack;
 mod random_color;
 
 pub use history::*;
+pub use pixel_area_stack::*;
 pub use random_color::random_color_from_seed;
 
-pub struct Annotations(Vec<Option<PixelArea>>);
 #[derive(Debug, Eq, PartialEq)]
 #[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct MaskSettings {
     pub default_opacity: u8,
+    pub active_opacity: u8,
+}
+
+impl MaskSettings {
+    pub fn opacity(&self, active: bool) -> u8 {
+        if active {
+            self.active_opacity
+        } else {
+            self.default_opacity
+        }
+    }
 }
 
 impl Default for MaskSettings {
     fn default() -> Self {
         Self {
             default_opacity: 128,
+            active_opacity: 200,
         }
     }
 }
 
 pub struct MaskImage {
     size: [usize; 2],
-    annotations: Annotations,
+    // Often the only reference.
+    base: PixelAreaStack,
+    applied: AppliedPixelAreaStack,
     history: History,
-    texture_handle: Option<(bool, TextureHandle, ImageSource<'static>)>,
-    texture_handle_dirty: bool,
+    texture_handle: Option<LoadedMaskImage>,
     settings: MaskSettings,
+    active_subgroup: Option<usize>,
+}
+
+struct LoadedMaskImage {
+    visible: bool,
+    #[allow(dead_code, reason = "Keeps GPU buffer alive")]
+    handle: TextureHandle,
+    source: ImageSource<'static>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -52,14 +75,17 @@ pub enum AffectedLayer {
 }
 
 impl MaskImage {
-    pub fn new(size: [usize; 2], annotations: Vec<PixelArea>, history: History) -> Self {
+    pub fn new(size: [usize; 2], base: impl Into<PixelAreaStack>, history: History) -> Self {
+        let base = base.into();
+        let applied = AppliedPixelAreaStack::new(&base, &history);
         Self {
             size,
-            annotations: Annotations(annotations.into_iter().map(Some).collect()),
+            base: base.clone(),
+            applied,
             history,
             texture_handle: None,
-            texture_handle_dirty: false,
             settings: MaskSettings::default(),
+            active_subgroup: None,
         }
     }
 
@@ -68,7 +94,7 @@ impl MaskImage {
     }
 
     pub fn random_seed(&self) -> u16 {
-        (self.annotations.0.len() as u16).wrapping_add(self.history.random_seed())
+        (self.base.max_layer() as u16).wrapping_add(self.history.random_seed())
     }
 
     pub fn next_color(&self) -> [u8; 4] {
@@ -79,8 +105,8 @@ impl MaskImage {
         &mut self,
         ctx: &egui::Context,
     ) -> impl Iterator<Item = ImageSource<'static>> + '_ {
-        if self.texture_handle.is_none() || self.texture_handle_dirty {
-            self.texture_handle_dirty = false;
+        if self.texture_handle.is_none() || self.applied.requires_redraw {
+            self.applied.requires_redraw = false;
 
             let texture_options = TextureOptions {
                 magnification: egui::TextureFilter::Nearest,
@@ -89,9 +115,11 @@ impl MaskImage {
 
             let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
 
-            for subgroups in self.subgroups().into_iter().flatten() {
+            for (i, subgroups) in self.applied.stack.iter() {
                 let [r, g, b, a] = subgroups.color;
-                let a = (a as u16 * self.settings.default_opacity as u16 / 255) as u8;
+                let is_active = self.active_subgroup == Some(i);
+                let opacity = self.settings.opacity(is_active);
+                let a = (a as u16 * opacity as u16 / 255) as u8;
                 let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
                 for range in subgroups.pixels.iter_roi::<Range<usize>>() {
                     pixels[range].fill(group_color);
@@ -105,11 +133,15 @@ impl MaskImage {
             );
             let source = ImageSource::Texture(SizedTexture::from_handle(&handle));
 
-            self.texture_handle = Some((true, handle, source));
+            self.texture_handle = Some(LoadedMaskImage {
+                visible: true,
+                handle,
+                source,
+            });
         }
 
         match &self.texture_handle {
-            Some((visibility, _, source)) if *visibility => Some(source.clone()).into_iter(),
+            Some(x) if x.visible => Some(x.source.clone()).into_iter(),
             _ => None.into_iter(),
         }
     }
@@ -135,7 +167,7 @@ impl MaskImage {
     }
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
-        if let Some(x) = self.annotations.0.iter().find_map(|a| a.as_ref()) {
+        if let Some((_, x)) = self.base.iter().next() {
             match &action.kind {
                 HistoryActionKind::Add(add) => assert_eq!(
                     add.pixel_area.pixels.bounds().width,
@@ -151,7 +183,7 @@ impl MaskImage {
             }
         }
         self.history.push(action);
-        self.texture_handle_dirty = true;
+        self.applied.mark_redraw(&self.base, &self.history);
     }
 
     pub fn handle_events(&mut self, ctx: &egui::Context) {
@@ -172,27 +204,59 @@ impl MaskImage {
                 self.history.undo().is_some()
             };
             if require_redraw {
-                self.texture_handle_dirty = true;
+                self.applied.mark_redraw(&self.base, &self.history);
             };
         }
-        if let Some((visible, _, _)) = &mut self.texture_handle
+        if let Some(x) = &mut self.texture_handle
             && cmd_d_pressed
         {
-            *visible = !*visible;
+            x.visible = !x.visible;
         }
     }
 
+    pub fn set_active_subgroup(&mut self, index: Option<usize>) {
+        if self.active_subgroup != index {
+            self.active_subgroup = index;
+            self.applied.mark_redraw(&self.base, &self.history);
+        }
+    }
+
+    pub fn active_subgroup_at(
+        &self,
+        cursor_pos: Option<(usize, usize)>,
+        image_width: NonZeroU32,
+    ) -> Option<usize> {
+        let (x, y) = cursor_pos?;
+        let width_usize: usize = image_width.get().try_into().ok()?;
+        let idx = y * width_usize + x;
+
+        self.subgroups_stack().iter().find_map(|(i, area)| {
+            let contains = area
+                .pixels
+                .iter_roi::<Range<u64>>()
+                .any(|range| range.contains(&(idx as u64)));
+            if contains { Some(i) } else { None }
+        })
+    }
+
+    #[deprecated]
     pub fn subgroups(&self) -> Vec<Option<PixelArea>> {
-        let base = self.annotations.0.clone();
-        self.history.iter().fold(base, |acc, r| r.apply(acc))
+        self.applied.stack.to_option_vec()
     }
 
-    pub fn base_layer_mut(&mut self, index: usize) -> &mut Option<PixelArea> {
-        self.texture_handle_dirty = true;
-        if self.annotations.0.len() <= index {
-            self.annotations.0.resize_with(index + 1, || None);
-        }
-        &mut self.annotations.0[index]
+    pub fn subgroups_stack(&self) -> &PixelAreaStack {
+        &self.applied.stack
+    }
+
+    /// Returns the old value
+    pub fn set_base_layer(
+        &mut self,
+        index: usize,
+        mut area: Option<PixelArea>,
+    ) -> Option<PixelArea> {
+        std::mem::swap(&mut area, self.base.make_mut(index));
+        self.applied.mark_redraw(&self.base, &self.history);
+        area
     }
 
     fn subgroups_ordered(
@@ -217,12 +281,12 @@ impl MaskImage {
             }
         }
 
-        struct GroupIterator(
+        struct GroupIterator<'a>(
             BinaryHeap<
                 HeapItem<
                     SortedRangesIter<
-                        std::vec::IntoIter<u32>,
-                        std::vec::IntoIter<u32>,
+                        std::iter::Copied<std::slice::Iter<'a, u32>>,
+                        std::iter::Copied<std::slice::Iter<'a, u32>>,
                         NonZeroRange<u64>,
                     >,
                 >,
@@ -230,17 +294,15 @@ impl MaskImage {
         );
 
         let x: BinaryHeap<_> = self
-            .subgroups()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(group_id, opt_x)| {
-                let x = opt_x?;
-                let mut iter = x.pixels.iter_roi_owned::<NonZeroRange<u64>>();
+            .subgroups_stack()
+            .iter()
+            .filter_map(|(group_id, x)| {
+                let mut iter = x.pixels.iter_roi::<NonZeroRange<u64>>();
                 Some(HeapItem(iter.next()?, group_id, iter))
             })
             .collect();
 
-        impl Iterator for GroupIterator {
+        impl<'a> Iterator for GroupIterator<'a> {
             type Item = (usize, NonZeroRange<u64>);
 
             fn next(&mut self) -> Option<Self::Item> {
@@ -254,8 +316,30 @@ impl MaskImage {
                 }
             }
         }
-        impl FusedIterator for GroupIterator {}
+        impl<'a> FusedIterator for GroupIterator<'a> {}
         GroupIterator(x)
+    }
+}
+
+struct AppliedPixelAreaStack {
+    // Required, because texture musten't be dropped in this frame, as it would cause a use after free
+    requires_redraw: bool,
+    stack: PixelAreaStack,
+}
+
+impl AppliedPixelAreaStack {
+    fn new(base: &PixelAreaStack, history: &History) -> Self {
+        let base = base.to_option_vec();
+        Self {
+            requires_redraw: false,
+            stack: PixelAreaStack::from_option_vec(
+                history.iter().fold(base, |acc, r| r.apply(acc)),
+            ),
+        }
+    }
+    fn mark_redraw(&mut self, base: &PixelAreaStack, history: &History) {
+        *self = Self::new(base, history);
+        self.requires_redraw = true;
     }
 }
 
@@ -407,8 +491,8 @@ impl<'a> HistoryActionBuilder<'a, AddAction> {
             };
             x
         };
-        if let Some((visibility @ false, _, _)) = &mut self.mask.texture_handle {
-            *visibility = true;
+        if let Some(x @ LoadedMaskImage { visible: true, .. }) = &mut self.mask.texture_handle {
+            x.visible = true;
         }
         self.mask.add_history_action(HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
@@ -587,14 +671,14 @@ mod tests {
         let mut mask_image = build_mask_10([(1, NON_ZERO_8), (4, NON_ZERO_2)]);
         mask_image.clear(bounds_to_ranges([[0, 0], [3, 1]], WIDTH_10));
         assert_eq!(
-            mask_image.subgroups(),
+            mask_image
+                .subgroups_stack()
+                .iter()
+                .map(|(_, x)| x.clone())
+                .collect::<Vec<_>>(),
             vec![
-                Some(PixelArea::single_range_total_black(
-                    4, 0, NON_ZERO_5, WIDTH_10
-                )),
-                Some(PixelArea::single_range_total_black(
-                    4, 0, NON_ZERO_2, WIDTH_10
-                )),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_5, WIDTH_10),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_2, WIDTH_10),
             ]
         );
     }
@@ -604,14 +688,14 @@ mod tests {
         let mut mask_image = build_mask_10([(4, NON_ZERO_2), (1, NON_ZERO_8)]);
         mask_image.clear(bounds_to_ranges([[0, 0], [3, 1]], WIDTH_10));
         assert_eq!(
-            mask_image.subgroups(),
+            mask_image
+                .subgroups_stack()
+                .iter()
+                .map(|(_, x)| x.clone())
+                .collect::<Vec<_>>(),
             vec![
-                Some(PixelArea::single_range_total_black(
-                    4, 0, NON_ZERO_2, WIDTH_10
-                )),
-                Some(PixelArea::single_range_total_black(
-                    4, 0, NON_ZERO_5, WIDTH_10
-                )),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_2, WIDTH_10),
+                PixelArea::single_range_total_black(4, 0, NON_ZERO_5, WIDTH_10),
             ]
         );
     }
@@ -627,7 +711,7 @@ mod tests {
                         NonZeroRange::from_span(39, NON_ZERO_1.into()),
                         NonZeroRange::from_span(42, NON_ZERO_7.into()),
                     ]
-                    .with_bounds(WIDTH_10, NON_ZERO_1),
+                    .with_bounds(WIDTH_10, WIDTH_10),
                 )
                 .unwrap(),
             }),
@@ -642,7 +726,7 @@ mod tests {
                         NonZeroRange::from_span(2, NON_ZERO_5.into()),
                         NonZeroRange::from_span(12, NON_ZERO_5.into()),
                     ]
-                    .with_bounds(WIDTH_10, NON_ZERO_1),
+                    .with_bounds(WIDTH_10, WIDTH_10),
                 )
                 .unwrap(),
                 PixelArea::single_range_total_black(32, 0, NON_ZERO_5, WIDTH_10),

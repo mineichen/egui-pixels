@@ -50,14 +50,14 @@ impl std::ops::Deref for ImageId {
 pub struct ImageData {
     pub id: ImageId,
     pub image: ImageLoadOk,
-    pub masks: Vec<PixelArea>,
+    pub masks: PixelAreaStack,
 }
 
 impl ImageData {
     pub fn chessboard() -> impl Iterator<Item = Self> {
         (0..2).map(|i| ImageData {
             id: ImageId::from(format!("image{}", i + 1).as_str()),
-            masks: vec![],
+            masks: PixelAreaStack::default(),
             image: {
                 let width = const { NonZeroU32::new(400).unwrap() };
                 let height = const { NonZeroU32::new(400).unwrap() };

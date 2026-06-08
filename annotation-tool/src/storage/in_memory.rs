@@ -5,7 +5,7 @@ use std::{
 };
 
 use futures::{FutureExt, future::BoxFuture};
-use imanot::{ImageListTaskItem, PixelArea};
+use imanot::{ImageListTaskItem, PixelAreaStack};
 
 use super::{ImageData, ImageId, Storage};
 
@@ -62,11 +62,11 @@ impl Storage for InMemoryStorage {
 
     fn store_masks(
         &self,
-        id: ImageId,
-        masks: Vec<PixelArea>,
+        id: &ImageId,
+        masks: &PixelAreaStack,
     ) -> BoxFuture<'static, io::Result<()>> {
-        if let Some(x) = self.data.lock().unwrap().get_mut(&id) {
-            x.masks = masks;
+        if let Some(x) = self.data.lock().unwrap().get_mut(id) {
+            x.masks = masks.clone();
         };
         async move {
             // Implement storing masks to web storage or IndexedDB

@@ -8,7 +8,7 @@ use std::{
 };
 
 use futures::{FutureExt, future::BoxFuture};
-use imanot::{ImageData, ImageId, ImageListTaskItem, PixelArea, load_image};
+use imanot::{ImageData, ImageId, ImageListTaskItem, PixelArea, PixelAreaStack, load_image};
 use imask::{ImaskSet, NonZeroRange};
 use itertools::Itertools;
 use log::info;
@@ -143,26 +143,22 @@ impl Storage for FileStorage {
                         f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
                         f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
                         // Generate color based on current position (simulating the seed)
+                        let pixels = starts
+                            .iter()
+                            .zip(lens.iter())
+                            .map(|(start, len)| match NonZeroU16::try_from(*len) {
+                                Ok(l) => Ok(NonZeroRange::from_span(*start as u64, l.into())),
+                                Err(e) => Err(std::io::Error::new(
+                                    ErrorKind::InvalidData,
+                                    format!("position {start},{len}: {e:?}"),
+                                )),
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                            .with_bounds(image_width, image_height);
                         let color = imanot::random_color_from_seed(all.len() as u16);
-
-                        all.push(
-                            PixelArea::new(
-                                starts
-                                    .iter()
-                                    .zip(lens.iter())
-                                    .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                        Ok(l) => Ok(NonZeroRange::from_span(*start as u64, l.into())),
-                                        Err(e) => Err(std::io::Error::new(
-                                            ErrorKind::InvalidData,
-                                            format!("position {start},{len}: {e:?}"),
-                                        )),
-                                    })
-                                    .collect::<Result<Vec<_>, _>>()?
-                                    .with_bounds(image_width, image_height),
-                                color,
-                            )
-                            .expect("Group cannot be empty, checked in loop"),
-                        );
+                        let area = PixelArea::new(pixels, color)
+                            .expect("Group cannot be empty, checked in loop");
+                        all.push(area);
                     }
 
                     all
@@ -170,10 +166,9 @@ impl Storage for FileStorage {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Default::default(),
                 Err(e) => return Err(e),
             };
-
             Ok(ImageData {
                 id,
-                masks,
+                masks: PixelAreaStack::from(masks),
                 image: image_load_ok,
             })
         }
@@ -182,11 +177,11 @@ impl Storage for FileStorage {
 
     fn store_masks(
         &self,
-        id: ImageId,
-        masks: Vec<PixelArea>,
+        id: &ImageId,
+        masks: &PixelAreaStack,
     ) -> BoxFuture<'static, io::Result<()>> {
         let path = Self::get_mask_path(&id);
-
+        let masks = masks.clone();
         async move {
             info!("Store at: {path:?}");
             let path = path?;
@@ -202,7 +197,7 @@ impl Storage for FileStorage {
                 f.write_all(&VERSION.to_le_bytes())?;
 
                 let mut f = brotli::CompressorWriter::new(f, 4096, 11, 22);
-                for sub in masks {
+                for (_layer, sub) in masks.iter() {
                     if sub.range_len() > u16::MAX as _ {
                         return Err(std::io::Error::new(
                             ErrorKind::InvalidData,
