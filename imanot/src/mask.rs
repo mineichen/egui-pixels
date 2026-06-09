@@ -227,14 +227,13 @@ impl MaskImage {
 
     pub fn active_subgroup_at(
         &self,
-        cursor_pos: Option<(usize, usize)>,
+        (x, y): (usize, usize),
         image_width: NonZeroU32,
     ) -> Option<usize> {
-        let (x, y) = cursor_pos?;
         let width_usize: usize = image_width.get().try_into().ok()?;
         let idx = y * width_usize + x;
 
-        self.subgroups_stack().iter().find_map(|(i, area)| {
+        self.subgroups_stack().iter().rev().find_map(|(i, area)| {
             area.pixels
                 .iter_roi::<Range<u64>>()
                 .any(|range| range.contains(&(idx as u64)))

@@ -41,9 +41,11 @@ impl PixelAreaStack {
         self.areas.iter().all(Option::is_none)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (usize, &'_ PixelArea)> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (usize, &'_ PixelArea)> {
         PixelAreaStackIter {
-            inner: self.areas.iter().map(|x| x.as_ref()).enumerate(),
+            index: 0,
+            end_index: self.areas.len(),
+            inner: self.areas.iter().map(|x| x.as_ref()),
         }
     }
 
@@ -80,13 +82,17 @@ impl IntoIterator for PixelAreaStack {
         let extracted = std::sync::Arc::make_mut(&mut self.areas);
 
         PixelAreaStackIter {
-            inner: std::mem::take(extracted).into_iter().enumerate(),
+            index: 0,
+            end_index: extracted.len(),
+            inner: std::mem::take(extracted).into_iter(),
         }
     }
 }
 
 pub struct PixelAreaStackIter<T> {
-    inner: std::iter::Enumerate<T>,
+    index: usize,
+    end_index: usize,
+    inner: T,
 }
 
 impl<T: Iterator<Item = Option<TItem>>, TItem> Iterator for PixelAreaStackIter<T> {
@@ -95,8 +101,25 @@ impl<T: Iterator<Item = Option<TItem>>, TItem> Iterator for PixelAreaStackIter<T
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next()?;
-            if let Some(x) = next.1 {
-                return Some((next.0, x));
+            let cur_index = self.index;
+            self.index += 1;
+            if let Some(x) = next {
+                return Some((cur_index, x));
+            }
+        }
+    }
+}
+
+impl<T: DoubleEndedIterator<Item = Option<TItem>>, TItem> DoubleEndedIterator
+    for PixelAreaStackIter<T>
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.inner.next_back()?;
+            self.end_index -= 1;
+
+            if let Some(x) = next {
+                return Some((self.end_index, x));
             }
         }
     }
@@ -122,5 +145,16 @@ mod tests {
         ]);
         assert!(stack.get(1).is_some());
         assert!(stack.get(10).is_some());
+    }
+
+    #[test]
+    fn test_end_index() {
+        let example = PixelArea::single_range_total_black(0, 0, NON_ZERO_10, NON_ZERO_10);
+        let x =
+            PixelAreaStack::from_iter([(1, example.clone()), (3, example.clone()), (5, example)]);
+
+        let mut iter = x.iter().rev().map(|(i, _)| i);
+        assert_eq!(vec![5, 3], (&mut iter).take(2).collect::<Vec<_>>());
+        assert_eq!(vec![1], iter.collect::<Vec<_>>());
     }
 }

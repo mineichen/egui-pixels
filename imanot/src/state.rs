@@ -50,13 +50,11 @@ impl State {
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
         let result = InnerResponse {
             inner: if let Some(mut r) = inner {
-                if let crate::ImageState::Loaded(image) = &mut self.image_state
-                    && r.cursor_image_pos.is_some()
+                if let (crate::ImageState::Loaded(image), Some(cursor_pos)) =
+                    (&mut self.image_state, r.cursor_image_pos)
                 {
                     let image_width = image.image.original.width();
-                    let new_active = image
-                        .masks
-                        .active_subgroup_at(r.cursor_image_pos, image_width);
+                    let new_active = image.masks.active_subgroup_at(cursor_pos, image_width);
                     image.masks.set_active_subgroup(new_active);
                 }
                 self.handle_tool_interaction(&response, ui.ctx(), &mut r.image_painter);
