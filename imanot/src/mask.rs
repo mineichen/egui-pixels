@@ -214,6 +214,10 @@ impl MaskImage {
         }
     }
 
+    pub fn active_subgroup(&self) -> Option<usize> {
+        self.active_subgroup
+    }
+
     pub fn set_active_subgroup(&mut self, index: Option<usize>) {
         if self.active_subgroup != index {
             self.active_subgroup = index;
