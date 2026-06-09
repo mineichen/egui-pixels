@@ -50,7 +50,9 @@ impl State {
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
         let result = InnerResponse {
             inner: if let Some(mut r) = inner {
-                if let crate::ImageState::Loaded(image) = &mut self.image_state {
+                if let crate::ImageState::Loaded(image) = &mut self.image_state
+                    && r.cursor_image_pos.is_some()
+                {
                     let image_width = image.image.original.width();
                     let new_active = image
                         .masks
