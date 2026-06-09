@@ -258,7 +258,7 @@ impl MaskImage {
         self.applied.mark_redraw(&self.base, &self.history);
         area
     }
-
+    /// Gets all ranges of all subgroups ordered together with their group_id
     fn subgroups_ordered(
         &self,
     ) -> impl Iterator<Item = (usize, NonZeroRange<u64>)> + FusedIterator + '_ {
@@ -589,14 +589,16 @@ mod tests {
             mask_image.keep_overlapping(false).add(area);
         }
         assert_eq!(
-            mask_image.subgroups(),
+            mask_image.subgroups_stack().iter().collect::<Vec<_>>(),
             vec![
-                Some(PixelArea::single_range_total_black(
-                    1, 0, NON_ZERO_4, WIDTH_10
-                )),
-                Some(PixelArea::single_range_total_black(
-                    5, 0, NON_ZERO_1, WIDTH_10
-                )),
+                (
+                    0,
+                    &PixelArea::single_range_total_black(1, 0, NON_ZERO_4, WIDTH_10)
+                ),
+                (
+                    1,
+                    &PixelArea::single_range_total_black(5, 0, NON_ZERO_1, WIDTH_10)
+                ),
             ]
         );
     }
@@ -775,22 +777,23 @@ mod tests {
         .unwrap();
         mask_image.keep_overlapping(false).add(new_mask);
 
-        let subgroups = mask_image.subgroups();
-        assert_eq!(subgroups.len(), 3);
+        let subgroups = mask_image.subgroups_stack();
+        assert_eq!(subgroups.max_layer(), 3);
 
-        let all_existing_pixels: Vec<u64> = subgroups[..2]
-            .iter()
-            .flatten()
-            .flat_map(|area| {
+        let mut subgroups_iter = subgroups.iter();
+        let all_existing_pixels: Vec<u64> = (&mut subgroups_iter)
+            .take(2)
+            .flat_map(|(i, area)| {
                 area.pixels
                     .iter_roi::<std::ops::Range<u64>>()
                     .flat_map(|r| r.start..r.end)
             })
             .collect();
 
-        let new_layer_pixels: Vec<u64> = subgroups[2]
-            .as_ref()
+        let new_layer_pixels: Vec<u64> = subgroups_iter
+            .next()
             .unwrap()
+            .1
             .pixels
             .iter_roi::<std::ops::Range<u64>>()
             .flat_map(|r| r.start..r.end)
