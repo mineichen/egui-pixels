@@ -235,11 +235,10 @@ impl MaskImage {
         let idx = y * width_usize + x;
 
         self.subgroups_stack().iter().find_map(|(i, area)| {
-            let contains = area
-                .pixels
+            area.pixels
                 .iter_roi::<Range<u64>>()
-                .any(|range| range.contains(&(idx as u64)));
-            if contains { Some(i) } else { None }
+                .any(|range| range.contains(&(idx as u64)))
+                .then_some(i)
         })
     }
 

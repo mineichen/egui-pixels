@@ -41,9 +41,9 @@ impl PixelAreaStack {
         self.areas.iter().all(Option::is_none)
     }
 
-    pub fn iter(&self) -> PixelAreaStackIter<'_> {
+    pub fn iter(&self) -> impl Iterator<Item = (usize, &'_ PixelArea)> {
         PixelAreaStackIter {
-            inner: self.areas.iter().enumerate(),
+            inner: self.areas.iter().map(|x| x.as_ref()).enumerate(),
         }
     }
 
@@ -71,12 +71,26 @@ impl PixelAreaStack {
     }
 }
 
-pub struct PixelAreaStackIter<'a> {
-    inner: std::iter::Enumerate<std::slice::Iter<'a, Option<PixelArea>>>,
+impl IntoIterator for PixelAreaStack {
+    type Item = (usize, PixelArea);
+
+    type IntoIter = PixelAreaStackIter<std::vec::IntoIter<Option<PixelArea>>>;
+
+    fn into_iter(mut self) -> Self::IntoIter {
+        let extracted = std::sync::Arc::make_mut(&mut self.areas);
+
+        PixelAreaStackIter {
+            inner: std::mem::take(extracted).into_iter().enumerate(),
+        }
+    }
 }
 
-impl<'a> Iterator for PixelAreaStackIter<'a> {
-    type Item = (usize, &'a PixelArea);
+pub struct PixelAreaStackIter<T> {
+    inner: std::iter::Enumerate<T>,
+}
+
+impl<T: Iterator<Item = Option<TItem>>, TItem> Iterator for PixelAreaStackIter<T> {
+    type Item = (usize, TItem);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
