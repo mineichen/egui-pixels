@@ -44,30 +44,28 @@ impl ImageViewerApp {
 }
 
 impl eframe::App for ImageViewerApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Image pixel selector");
-            self.menu_ui(ui);
-            self.selector.update();
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        ui.heading("Image pixel selector");
+        self.menu_ui(ui);
+        self.selector.update();
 
-            let response = ui.reserve_bottom_space(80., |ui| self.state.ui(ui));
-            if let Some(x) = response.inner {
-                let ImageViewerInteraction {
-                    original_image_size,
-                    cursor_image_pos,
-                    ..
-                } = x;
-                ui.label(format!(
-                    "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
-                    original_image_size,
-                    ui.spacing().item_spacing
-                ));
+        let response = ui.reserve_bottom_space(80., |ui| self.state.ui(ui));
+        if let Some(x) = response.inner {
+            let ImageViewerInteraction {
+                original_image_size,
+                cursor_image_pos,
+                ..
+            } = x;
+            ui.label(format!(
+                "Original Size: ({original_image_size:?}), \navail: {:?}, \nspacing: {:?}",
+                original_image_size,
+                ui.spacing().item_spacing
+            ));
 
-                if let Some((x, y)) = cursor_image_pos {
-                    ui.label(format!("Pixel Coordinates: ({}, {})", x, y,));
-                }
+            if let Some((x, y)) = cursor_image_pos {
+                ui.label(format!("Pixel Coordinates: ({}, {})", x, y,));
             }
-        });
+        }
     }
 }
 
