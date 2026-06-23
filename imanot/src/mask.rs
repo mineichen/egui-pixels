@@ -120,7 +120,7 @@ impl MaskImage {
                 let is_active = self.active_subgroup == Some(i);
                 let opacity = self.settings.opacity(is_active);
                 let a = (a as u16 * opacity as u16 / 255) as u8;
-                let group_color = Color32::from_rgba_premultiplied(r, g, b, a);
+                let group_color = Color32::from_rgba_unmultiplied(r, g, b, a);
                 for range in subgroups.pixels.iter_roi::<Range<usize>>() {
                     pixels[range].fill(group_color);
                 }
