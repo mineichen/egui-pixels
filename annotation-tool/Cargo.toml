@@ -14,12 +14,12 @@ path = "src/main.rs"
 [dependencies]
 bytemuck = "1"
 brotli = "8"
-eframe = { version = "0.34", features = [
+eframe = { workspace = true, features = [
     "default_fonts",
 ] }
 imanot = { path = "../imanot", features = ["image-0_25"] }
 egui.workspace = true
-emath = { version = "0.34", features = ["serde"] }
+emath = { workspace = true, features = ["serde"] }
 env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",
     "humantime",

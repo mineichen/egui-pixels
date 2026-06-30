@@ -1,8 +1,7 @@
 //! History is a stack of actions that can be aplied to Vec<SubGroups>.
 //! There is no undo on Vec<SubGroups>, but the original Vec<SubGroup> can be converted multiple times to get the Aggregated result.
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
-use imask::{ImageDimension, SortedRanges};
-use range_set_blaze::SortedDisjoint;
+use imask::{ImaskSet, SortedRanges};
 
 use crate::PixelArea;
 
@@ -47,13 +46,9 @@ impl HistoryAction {
                     }
                     rest[idx] = match rest[idx].take() {
                         Some(existing) => {
-                            let new_iter = add
-                                .pixel_area
-                                .pixels
-                                .iter_roi::<std::ops::RangeInclusive<u64>>();
-                            existing.map_inplace(|existing_iter| {
-                                SortedDisjoint::union(new_iter, existing_iter)
-                            })
+                            let new_spans = add.pixel_area.pixels.spans::<u64>();
+                            existing
+                                .map_span_inplace(|existing_spans| existing_spans.union(new_spans))
                         }
                         None => Some(add.pixel_area.clone()),
                     };
@@ -77,13 +72,9 @@ impl HistoryAction {
                     .into_iter()
                     .map(|opt_area| {
                         opt_area.and_then(|area| {
-                            let width = area.pixels.width();
-                            area.map_inplace(|x| {
-                                x.difference(
-                                    clear
-                                        .ranges
-                                        .iter_global_with::<std::ops::RangeInclusive<u64>>(width),
-                                )
+                            area.map_span_inplace(|existing_spans| {
+                                let clear_spans = clear.ranges.spans();
+                                existing_spans.subtract(clear_spans)
                             })
                         })
                     })
@@ -91,13 +82,8 @@ impl HistoryAction {
                 Some(idx) => {
                     if let Some(opt_area) = rest.get_mut(idx) {
                         *opt_area = opt_area.take().and_then(|area| {
-                            let width = area.pixels.width();
-                            area.map_inplace(|x| {
-                                x.difference(
-                                    clear
-                                        .ranges
-                                        .iter_global_with::<std::ops::RangeInclusive<u64>>(width),
-                                )
+                            area.map_span_inplace(|existing_spans| {
+                                existing_spans.subtract(clear.ranges.spans::<u64>())
                             })
                         });
                     }

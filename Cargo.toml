@@ -7,16 +7,17 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-eframe = { version = "0.34", default-features = false, features = ["wgpu", "default_fonts"] }
-egui = { version = "0.34", default-features = false }
+eframe = { version = "0.35", default-features = false, features = ["wgpu", "default_fonts"] }
+egui = { version = "0.35", default-features = false }
+emath = "0.35"
 futures-core = "0.3"
 image-0_25 = { package = "image", version = "0.25", default-features = false }
 imbuf = "0.3"
-imask = { git = "https://github.com/mineichen/imask.git", features = ["range-set-blaze-0_5"] }
-range-set-blaze = "0.5"
+imask = { git = "https://github.com/mineichen/imask.git" }
 itertools = "0.15"
 log = "0.4"
 serde = { version = "1" }
 
-# [patch."https://github.com/mineichen/imask.git"]
-# imask = { path = "../imask" }
+[patch."https://github.com/mineichen/imask.git"]
+imask = { path = "../imask" }
+

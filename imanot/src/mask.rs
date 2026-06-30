@@ -8,9 +8,10 @@ use std::{
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
 };
-use imask::{ImageDimension, NonZeroRange, SanitizeSortedDisjoint, SortedRanges, SortedRangesIter};
+use imask::{
+    ImageDimension, ImaskSet, NonZeroRange, SortedRanges, SortedRangesIter, SortedRangesSpanIter,
+};
 use log::{debug, info};
-use range_set_blaze::SortedDisjoint;
 
 use crate::PixelArea;
 
@@ -480,12 +481,15 @@ impl<'a> HistoryActionBuilder<'a, AddAction> {
         let subgroups = if self.action.overlapping {
             subgroups
         } else {
-            let reduced = subgroups.map_inplace(|x| {
-                x.difference(SanitizeSortedDisjoint::new(
+            let reduced = subgroups.map_span_inplace(|existing_spans| {
+                let roi = existing_spans.bounds();
+                let b_spans = SortedRangesSpanIter::new(
                     self.mask
                         .subgroups_ordered()
-                        .map(|x| RangeInclusive::<u64>::from(x.1)),
-                ))
+                        .map(|(_layer, x)| x)
+                        .with_roi(roi),
+                );
+                existing_spans.subtract(b_spans)
             });
             let Some(x) = reduced else {
                 debug!("All Pixels are in a other subgroup already");

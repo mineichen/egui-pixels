@@ -15,6 +15,13 @@ impl ClearTool {
     pub fn create_factory() -> ToolFactory {
         Box::new(|_| async { Ok(Box::new(ClearTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
+    pub fn create_factory_with(modifier: impl Fn(&mut ClearTool) + 'static) -> ToolFactory {
+        Box::new(move |_| {
+            let mut tool = ClearTool::default();
+            modifier(&mut tool);
+            async { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()
+        })
+    }
 }
 
 impl Tool for ClearTool {
