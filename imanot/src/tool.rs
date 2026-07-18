@@ -1,11 +1,9 @@
 mod brush;
-mod clear;
 mod pan;
 mod rect;
 mod rect_selection;
 
 pub use brush::*;
-pub use clear::*;
 pub use pan::*;
 pub use rect::*;
 pub use rect_selection::*;
@@ -14,8 +12,32 @@ use std::any::Any;
 
 use crate::{CursorImageSystem, ImageStateLoaded, ImageViewer};
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    #[default]
+    Insert,
+    Clear,
+}
+
 pub trait Tool: Any {
     fn handle_interaction(&mut self, ctx: ToolContext);
+}
+
+#[derive(Default)]
+pub struct DrawTool {
+    mode: Mode,
+    layer: Option<usize>,
+}
+
+impl DrawTool {
+    pub fn set_layer(&mut self, layer: usize) -> &mut Self {
+        self.layer = Some(layer);
+        self
+    }
+    pub fn set_mode(&mut self, mode: Mode) -> &mut Self {
+        self.mode = mode;
+        self
+    }
 }
 
 /// Painter for tools that allows drawing on the image canvas.

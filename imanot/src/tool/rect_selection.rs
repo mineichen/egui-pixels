@@ -1,16 +1,15 @@
 use std::num::{NonZero, NonZeroU32, NonZeroUsize};
 
 use egui::Pos2;
-use imask::{NonZeroRange, RectIterator};
+use imask::Rect;
 
-use crate::{PixelArea, ToolContext};
+use crate::ToolContext;
 
 pub struct RectSelectionResult {
     min_x: usize,
     min_y: usize,
     max_x: usize,
     max_y: usize,
-    image_width: NonZeroU32,
 }
 
 impl RectSelectionResult {
@@ -30,7 +29,6 @@ impl RectSelectionResult {
                 min_y,
                 max_x,
                 max_y,
-                image_width,
             })
         } else {
             None
@@ -50,20 +48,16 @@ impl RectSelectionResult {
     pub fn bounds(&self) -> [[usize; 2]; 2] {
         [[self.min_x, self.min_y], [self.max_x, self.max_y]]
     }
-    pub fn iter_ranges(&self) -> RectIterator<NonZeroRange<u64>> {
-        let width = NonZero::new((self.max_x - self.min_x) as u64 + 1).unwrap();
-        let height = NonZero::new((self.max_y - self.min_y) as u64 + 1).unwrap();
-        let rect = imask::Rect::<u64>::new(
+
+    pub fn rect(&self) -> Rect<u32> {
+        let width = NonZero::new((self.max_x - self.min_x) as u32 + 1).unwrap();
+        let height = NonZero::new((self.max_y - self.min_y) as u32 + 1).unwrap();
+        Rect::new(
             self.min_x.try_into().unwrap(),
             self.min_y.try_into().unwrap(),
             width,
             height,
-        );
-        rect.into_rect_iter(self.image_width.into())
-    }
-
-    pub fn into_pixel_area(self, color: [u8; 4]) -> Option<PixelArea> {
-        PixelArea::new(self.iter_ranges(), color)
+        )
     }
 }
 
@@ -90,9 +84,7 @@ impl RectSelection {
             ctx.painter.draw_dotted_rect(start_screen, current_screen);
         }
 
-        if ctx.response.drag_stopped()
-            && !ctx.egui.input(|i| i.modifiers.command || i.modifiers.ctrl)
-        {
+        if ctx.response.drag_stopped() {
             if let (Some(start_image), Some((end_x, end_y))) =
                 (self.drag_start_image, ctx.cursor_image_pos())
             {

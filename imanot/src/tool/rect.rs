@@ -1,9 +1,11 @@
-use std::num::NonZeroU32;
+use std::ops::{Deref, DerefMut};
 
 use futures::FutureExt;
+use imask::{Rect, SortedRanges, Span};
 
 use crate::{
-    CursorImage, MaskActionBuilder, PixelArea, RectSelection, Tool, ToolContext, ToolFactory,
+    CursorImage, DrawTool, MaskActionBuilder, MaskDefaultActions, Mode, RectSelection, Tool,
+    ToolContext, ToolFactory,
 };
 
 const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
@@ -15,22 +17,25 @@ const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
 #[derive(Default)]
 #[non_exhaustive]
 pub struct RectTool {
+    draw_tool: DrawTool,
     rect_selection: RectSelection,
-    layer: Option<usize>,
-    fix_color: Option<[u8; 4]>,
+}
+
+impl Deref for RectTool {
+    type Target = DrawTool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.draw_tool
+    }
+}
+
+impl DerefMut for RectTool {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.draw_tool
+    }
 }
 
 impl RectTool {
-    pub fn set_layer(&mut self, layer: usize) -> &mut Self {
-        self.layer = Some(layer);
-        self
-    }
-
-    pub fn set_color(&mut self, color: [u8; 4]) -> &mut Self {
-        self.fix_color = Some(color);
-        self
-    }
-
     pub fn create_factory() -> ToolFactory {
         Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
@@ -42,19 +47,6 @@ impl RectTool {
             async { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()
         })
     }
-
-    pub fn create_fix_color_factory(color: [u8; 4]) -> ToolFactory {
-        Box::new(move |_| {
-            async move {
-                Ok(Box::new(RectTool {
-                    rect_selection: RectSelection::default(),
-                    fix_color: Some(color),
-                    layer: None,
-                }) as Box<dyn Tool>)
-            }
-            .boxed_local()
-        })
-    }
 }
 
 impl Tool for RectTool {
@@ -63,35 +55,49 @@ impl Tool for RectTool {
 
         let selection = self.rect_selection.drag_finished(&mut ctx);
         if let Some(rect_result) = selection {
-            let color = self
-                .fix_color
-                .unwrap_or_else(|| ctx.image.masks.next_color());
-            if let Some(pixel_area) = rect_result.into_pixel_area(color) {
-                ctx.image
-                    .masks
-                    .on_layer(self.layer)
-                    .keep_overlapping(self.layer.is_some())
-                    .add(pixel_area);
+            match self.mode {
+                Mode::Insert => {
+                    // let color = self.color(&ctx);
+                    if let Ok(pixel_area) =
+                        SortedRanges::try_from_span_iter(rect_result.rect().into_spans())
+                    {
+                        ctx.image
+                            .masks
+                            .on_layer(self.layer)
+                            .keep_overlapping(self.layer.is_some())
+                            .add(pixel_area);
+                    }
+                }
+                Mode::Clear => {
+                    ctx.image
+                        .masks
+                        .on_layer(self.layer)
+                        .clear(rect_result.rect().into_spans());
+                }
             }
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
         {
-            let color = self
-                .fix_color
-                .unwrap_or_else(|| ctx.image.masks.next_color());
-            let image_width = ctx.image.image.original.width();
-            let pixel_area = PixelArea::single_pixel_total_color(
-                x.try_into().unwrap(),
-                y.try_into().unwrap(),
-                NonZeroU32::MIN,
-                color,
-                image_width,
-            );
-            ctx.image
-                .masks
-                .on_layer(self.layer)
-                .keep_overlapping(false)
-                .add(pixel_area);
+            let x: u32 = x.try_into().unwrap();
+            let y: u32 = y.try_into().unwrap();
+            let span = Span::new(x..x + 1, y);
+            match self.mode {
+                Mode::Insert => {
+                    let ranges = SortedRanges::from(span);
+                    ctx.image
+                        .masks
+                        .on_layer(self.layer)
+                        .keep_overlapping(false)
+                        .add(ranges);
+                }
+                Mode::Clear => {
+                    let rect = Rect::from(span);
+                    ctx.image
+                        .masks
+                        .on_layer(self.layer)
+                        .clear(rect.into_spans());
+                }
+            }
         }
     }
 }

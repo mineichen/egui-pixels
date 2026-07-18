@@ -1,10 +1,16 @@
-use std::num::{NonZero, NonZeroU16};
+use std::{
+    num::{NonZero, NonZeroU16},
+    ops::{Deref, DerefMut},
+};
 
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions};
 use futures::FutureExt;
-use imask::{BitmapToRangeIter, ImaskSet, NonZeroRange, Rect};
+use imask::{BitmapToSpanIter, Rect, SortedRanges};
 
-use crate::{ImagePainter, MaskActionBuilder, PixelArea, Tool, ToolContext, ToolFactory};
+use crate::{
+    DrawTool, ImagePainter, MaskActionBuilder, MaskDefaultActions, Mode, Tool, ToolContext,
+    ToolFactory,
+};
 
 struct StrokeState {
     width: usize,
@@ -83,7 +89,7 @@ impl StrokeState {
         self.last_pos = Some((x, y));
     }
 
-    fn update_texture(&mut self, ctx: &egui::Context, color: [u8; 4]) {
+    fn update_texture(&mut self, ctx: &egui::Context) {
         let Some(dirty) = self.dirty.take() else {
             return;
         };
@@ -105,7 +111,7 @@ impl StrokeState {
             .flat_map(move |py| {
                 (dx..dx + dw).map(move |px| {
                     if mask[py * width + px] {
-                        Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
+                        Color32::from_rgba_premultiplied(0, 0, 0, 128)
                     } else {
                         Color32::TRANSPARENT
                     }
@@ -123,19 +129,6 @@ impl StrokeState {
                 .painter()
                 .image(handle.id(), painter.image_rect(), uv, egui::Color32::WHITE);
         }
-    }
-
-    fn into_pixel_area(
-        self,
-        color: [u8; 4],
-        image_width: NonZero<u32>,
-        image_height: NonZero<u32>,
-    ) -> Option<PixelArea> {
-        PixelArea::new(
-            BitmapToRangeIter::<_, NonZeroRange<u64>>::from_bool_iter(self.mask.into_iter())
-                .with_bounds(image_width, image_height),
-            color,
-        )
     }
 }
 
@@ -163,34 +156,36 @@ const DEFAULT_BRUSH_SIZE: NonZeroU16 = NonZeroU16::new(10).unwrap();
 
 #[non_exhaustive]
 pub struct BrushTool {
+    draw_tool: DrawTool,
     pub brush_size: NonZeroU16,
-    layer: Option<usize>,
-    fix_color: Option<[u8; 4]>,
     stroke: Option<StrokeState>,
+}
+
+impl DerefMut for BrushTool {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.draw_tool
+    }
+}
+
+impl Deref for BrushTool {
+    type Target = DrawTool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.draw_tool
+    }
 }
 
 impl Default for BrushTool {
     fn default() -> Self {
         Self {
             brush_size: DEFAULT_BRUSH_SIZE,
-            layer: None,
-            fix_color: None,
+            draw_tool: DrawTool::default(),
             stroke: None,
         }
     }
 }
 
 impl BrushTool {
-    pub fn set_layer(&mut self, layer: usize) -> &mut Self {
-        self.layer = Some(layer);
-        self
-    }
-
-    pub fn set_color(&mut self, color: [u8; 4]) -> &mut Self {
-        self.fix_color = Some(color);
-        self
-    }
-
     pub fn set_brush_size(&mut self, size: NonZeroU16) -> &mut Self {
         self.brush_size = size;
         self
@@ -209,10 +204,107 @@ impl BrushTool {
     }
 }
 
+impl Tool for BrushTool {
+    fn handle_interaction(&mut self, ctx: ToolContext) {
+        let image_width = ctx.image.image.original.width();
+        let image_height = ctx.image.image.original.height();
+        let width = image_width.get() as usize;
+        let height = image_height.get() as usize;
+        let half_size = self.brush_size.get() as usize;
+
+        let cursor_pos = ctx
+            .response
+            .interact_pointer_pos()
+            .or_else(|| ctx.response.hover_pos())
+            .map(|screen_pos| {
+                let image_pos = ctx.painter.screen_to_image(screen_pos);
+                let x = image_pos.x.round().clamp(0.0, (width - 1) as f32) as usize;
+                let y = image_pos.y.round().clamp(0.0, (height - 1) as f32) as usize;
+                (x, y)
+            });
+
+        if ctx.response.drag_started() {
+            self.stroke = Some(StrokeState::new(width, height));
+
+            if let Some((x, y)) = cursor_pos {
+                self.stroke.as_mut().unwrap().stamp_to(x, y, half_size);
+            }
+        }
+
+        if ctx.response.dragged() {
+            if let Some(stroke) = &mut self.stroke {
+                if let Some((x, y)) = cursor_pos {
+                    stroke.stamp_to(x, y, half_size);
+                }
+            }
+        }
+
+        if let Some(stroke) = &mut self.stroke {
+            stroke.update_texture(ctx.egui);
+            stroke.render(ctx.painter);
+        }
+
+        if let Some((x, y)) = cursor_pos {
+            draw_brush_outline(ctx.painter, x, y, half_size, width, height);
+        }
+
+        if ctx.response.drag_stopped() {
+            if !ctx.egui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
+                if let Some(stroke) = self.stroke.take() {
+                    let spans = BitmapToSpanIter::from_bool_iter(
+                        stroke.mask.iter().copied(),
+                        image_width,
+                        image_height,
+                    );
+                    match self.mode {
+                        Mode::Insert => {
+                            if let Ok(pixel_area) = SortedRanges::try_from_span_iter(spans) {
+                                ctx.image
+                                    .masks
+                                    .on_layer(self.layer)
+                                    .keep_overlapping(self.layer.is_some())
+                                    .add(pixel_area);
+                            }
+                        }
+                        Mode::Clear => {
+                            ctx.image.masks.on_layer(self.layer).clear(spans);
+                        }
+                    }
+                }
+            } else {
+                self.stroke = None;
+            }
+        } else if ctx.response.clicked() {
+            if let Some((x, y)) = cursor_pos {
+                let mut stroke = StrokeState::new(width, height);
+                stroke.stamp_to(x, y, half_size);
+                let spans = BitmapToSpanIter::from_bool_iter(
+                    stroke.mask.iter().copied(),
+                    image_width,
+                    image_height,
+                );
+                match self.mode {
+                    Mode::Insert => {
+                        if let Ok(pixel_area) = SortedRanges::try_from_span_iter(spans) {
+                            ctx.image
+                                .masks
+                                .on_layer(self.layer)
+                                .keep_overlapping(false)
+                                .add(pixel_area);
+                        }
+                    }
+                    Mode::Clear => {
+                        ctx.image.masks.on_layer(self.layer).clear(spans);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::num::NonZero;
 
     fn new_state(w: usize, h: usize) -> StrokeState {
         StrokeState::new(w, h)
@@ -329,11 +421,7 @@ mod tests {
     #[test]
     fn into_pixel_area_empty_mask_returns_none() {
         let s = new_state(10, 10);
-        let result = s.into_pixel_area(
-            [255, 0, 0, 255],
-            NonZero::new(10u32).unwrap(),
-            NonZero::new(10u32).unwrap(),
-        );
+        let result = s.mask.iter().find(|x| **x);
         assert!(result.is_none());
     }
 
@@ -341,39 +429,22 @@ mod tests {
     fn into_pixel_area_single_pixel() {
         let mut s = new_state(10, 10);
         s.stamp_square(5, 5, 0);
-        let result = s.into_pixel_area(
-            [255, 0, 0, 255],
-            NonZero::new(10u32).unwrap(),
-            NonZero::new(10u32).unwrap(),
-        );
+        let result = s.mask.iter().find(|x| **x);
         assert!(result.is_some());
-    }
-
-    #[test]
-    fn into_pixel_area_full_row() {
-        let mut s = new_state(20, 10);
-        s.stamp_square(10, 5, 5);
-        let result = s.into_pixel_area(
-            [255, 0, 0, 255],
-            NonZero::new(20u32).unwrap(),
-            NonZero::new(10u32).unwrap(),
-        );
-        assert!(result.is_some());
-        let area = result.unwrap();
-        assert_eq!(area.color, [255, 0, 0, 255]);
     }
 
     #[test]
     fn into_pixel_area_disconnected_spans() {
-        let mut s = new_state(20, 10);
-        s.stamp_square(3, 5, 1);
-        s.stamp_square(15, 5, 1);
-        let result = s.into_pixel_area(
-            [255, 0, 0, 255],
-            NonZero::new(20u32).unwrap(),
-            NonZero::new(10u32).unwrap(),
-        );
-        assert!(result.is_some());
+        let mut s = new_state(10, 3);
+        s.stamp_square(3, 1, 1);
+        s.stamp_square(6, 0, 1);
+        let result = s.mask.iter().copied().collect::<Vec<_>>();
+        #[rustfmt::skip]
+        assert_eq!(result, vec![
+            false, false, true,  true,  true, true,  true,  true,  false, false,
+            false, false, true,  true,  true, true,  true,  true,  false, false,
+            false, false, true,  true,  true, false, false, false, false, false,
+        ]);
     }
 
     #[test]
@@ -384,85 +455,5 @@ mod tests {
         s.stamp_square(10, 10, 3);
         let count2 = count_mask_true(&s.mask);
         assert_eq!(count1, count2);
-    }
-}
-
-impl Tool for BrushTool {
-    fn handle_interaction(&mut self, ctx: ToolContext) {
-        let image_width = ctx.image.image.original.width();
-        let image_height = ctx.image.image.original.height();
-        let width = image_width.get() as usize;
-        let height = image_height.get() as usize;
-        let half_size = self.brush_size.get() as usize;
-
-        let color = self
-            .fix_color
-            .unwrap_or_else(|| ctx.image.masks.next_color());
-
-        let cursor_pos = ctx
-            .response
-            .interact_pointer_pos()
-            .or_else(|| ctx.response.hover_pos())
-            .map(|screen_pos| {
-                let image_pos = ctx.painter.screen_to_image(screen_pos);
-                let x = image_pos.x.round().clamp(0.0, (width - 1) as f32) as usize;
-                let y = image_pos.y.round().clamp(0.0, (height - 1) as f32) as usize;
-                (x, y)
-            });
-
-        if ctx.response.drag_started() {
-            self.stroke = Some(StrokeState::new(width, height));
-
-            if let Some((x, y)) = cursor_pos {
-                self.stroke.as_mut().unwrap().stamp_to(x, y, half_size);
-            }
-        }
-
-        if ctx.response.dragged() {
-            if let Some(stroke) = &mut self.stroke {
-                if let Some((x, y)) = cursor_pos {
-                    stroke.stamp_to(x, y, half_size);
-                }
-            }
-        }
-
-        if let Some(stroke) = &mut self.stroke {
-            stroke.update_texture(ctx.egui, color);
-            stroke.render(ctx.painter);
-        }
-
-        if let Some((x, y)) = cursor_pos {
-            draw_brush_outline(ctx.painter, x, y, half_size, width, height);
-        }
-
-        if ctx.response.drag_stopped() {
-            if !ctx.egui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
-                if let Some(stroke) = self.stroke.take() {
-                    if let Some(pixel_area) =
-                        stroke.into_pixel_area(color, image_width, image_height)
-                    {
-                        ctx.image
-                            .masks
-                            .on_layer(self.layer)
-                            .keep_overlapping(self.layer.is_some())
-                            .add(pixel_area);
-                    }
-                }
-            } else {
-                self.stroke = None;
-            }
-        } else if ctx.response.clicked() {
-            if let Some((x, y)) = cursor_pos {
-                let mut stroke = StrokeState::new(width, height);
-                stroke.stamp_to(x, y, half_size);
-                if let Some(pixel_area) = stroke.into_pixel_area(color, image_width, image_height) {
-                    ctx.image
-                        .masks
-                        .on_layer(self.layer)
-                        .keep_overlapping(false)
-                        .add(pixel_area);
-                }
-            }
-        }
     }
 }

@@ -1,8 +1,6 @@
 use futures::FutureExt;
-use imanot::{
-    AsyncRefTask, MaskActionBuilder, PixelArea, RectSelection, Tool, ToolContext, ToolFactory,
-};
-use imask::ImaskSet;
+use imanot::{AsyncRefTask, MaskActionBuilder, RectSelection, Tool, ToolContext, ToolFactory};
+use imask::{ImaskSet, SortedRanges};
 use imbuf::Image;
 
 use inference::{InferenceError, SamEmbeddings};
@@ -60,9 +58,9 @@ impl Tool for SamTool {
 
             let width = ctx.image.image.original.width();
             let height = ctx.image.image.original.height();
-            let color = ctx.image.masks.next_color();
-            if let Some(pixel_area) = PixelArea::new(new_mask.with_bounds(width, height), color) {
-                ctx.image.masks.keep_overlapping(false).add(pixel_area);
+            let new_mask = new_mask.with_bounds(width, height);
+            if let Ok(ranges) = SortedRanges::try_from_ordered_iter(new_mask) {
+                ctx.image.masks.keep_overlapping(false).add(ranges);
             }
             self.last_pos = None;
 

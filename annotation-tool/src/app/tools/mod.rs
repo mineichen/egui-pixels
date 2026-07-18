@@ -2,7 +2,7 @@ use std::num::NonZeroU16;
 
 use std::any::Any;
 
-use imanot::{BrushTool, ClearTool, ImageLoadOk, PanTool, RectTool, ToolFactory};
+use imanot::{BrushTool, ImageLoadOk, Mode, PanTool, RectTool, ToolFactory};
 
 #[cfg(feature = "sam")]
 mod sam;
@@ -20,12 +20,23 @@ pub fn default_tools(config: &crate::config::Config) -> ToolFactories {
         }
     };
     vec![
-        ("Clear".to_string(), ClearTool::create_factory()),
         ("Pan".to_string(), PanTool::create_factory()),
         #[cfg(feature = "sam")]
         ("SAM".to_string(), sam::SamTool::create_factory(session)),
         ("Rect".to_string(), RectTool::create_factory()),
         ("Brush".to_string(), BrushTool::create_factory()),
+        (
+            "Brush clear".to_string(),
+            BrushTool::create_factory_with(|t| {
+                t.set_mode(Mode::Clear);
+            }),
+        ),
+        (
+            "Rect clear".to_string(),
+            RectTool::create_factory_with(|t| {
+                t.set_mode(Mode::Clear);
+            }),
+        ),
     ]
 }
 

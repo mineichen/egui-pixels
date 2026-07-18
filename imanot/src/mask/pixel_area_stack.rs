@@ -49,12 +49,6 @@ impl PixelAreaStack {
         }
     }
 
-    pub(super) fn make_mut_if_exists(&mut self, index: usize) -> Option<&mut PixelArea> {
-        self.areas.get(index)?;
-        let inner = Arc::make_mut(&mut self.areas);
-
-        inner.get_mut(index).unwrap().as_mut()
-    }
     pub(super) fn make_mut(&mut self, index: usize) -> &mut Option<PixelArea> {
         let inner = Arc::make_mut(&mut self.areas);
         if inner.len() <= index {
@@ -129,19 +123,15 @@ impl<T: DoubleEndedIterator<Item = Option<TItem>>, TItem> DoubleEndedIterator
 mod tests {
     use std::num::NonZeroU32;
 
+    use imask::{SortedRanges, Span};
+
     use super::*;
     const NON_ZERO_10: NonZeroU32 = NonZeroU32::new(10).unwrap();
     #[test]
     fn allow_unordered() {
         let stack = PixelAreaStack::from_iter([
-            (
-                10,
-                PixelArea::single_range_total_black(0, 0, NON_ZERO_10, NON_ZERO_10),
-            ),
-            (
-                1,
-                PixelArea::single_range_total_black(0, 0, NON_ZERO_10, NON_ZERO_10),
-            ),
+            (10, PixelArea::single_range_total_black(0, 0, NON_ZERO_10)),
+            (1, PixelArea::single_range_total_black(0, 0, NON_ZERO_10)),
         ]);
         assert!(stack.get(1).is_some());
         assert!(stack.get(10).is_some());
@@ -149,12 +139,12 @@ mod tests {
 
     #[test]
     fn test_end_index() {
-        let example = PixelArea::single_range_total_black(0, 0, NON_ZERO_10, NON_ZERO_10);
+        let ranges = SortedRanges::from(Span::new(0..10, 0));
+        let example = PixelArea::from_ranges(ranges, [0, 0, 0, 255]);
         let x =
             PixelAreaStack::from_iter([(1, example.clone()), (3, example.clone()), (5, example)]);
 
-        let mut iter = x.iter().rev().map(|(i, _)| i);
-        assert_eq!(vec![5, 3], (&mut iter).take(2).collect::<Vec<_>>());
-        assert_eq!(vec![1], iter.collect::<Vec<_>>());
+        let iter = x.iter().map(|(i, _)| i);
+        assert_eq!(vec![1, 3, 5], iter.collect::<Vec<_>>());
     }
 }

@@ -1,5 +1,6 @@
 use egui::ComboBox;
-use imanot::{OriginalImage, PixelArea};
+use imanot::OriginalImage;
+use imask::SortedRanges;
 
 use crate::ImageCallbackMap;
 
@@ -17,7 +18,7 @@ impl MaskGenerator {
         &mut self,
         image: &OriginalImage,
         ui: &mut egui::Ui,
-    ) -> Option<Vec<PixelArea>> {
+    ) -> Option<Vec<SortedRanges<u32, u32>>> {
         if !self.map.is_empty() {
             ComboBox::from_id_salt("algo_selector")
                 .show_index(ui, &mut self.pos, self.map.len(), |x| {
@@ -28,7 +29,7 @@ impl MaskGenerator {
                 (ui.button("annotate").clicked(), self.map.get_mut(self.pos))
             {
                 let dyn_img = image.to_dynamic_image();
-                return Some(algo(&dyn_img));
+                return Some(algo(&dyn_img).into_iter().map(|x| x.pixels).collect());
             }
         }
         None

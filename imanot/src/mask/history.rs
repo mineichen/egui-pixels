@@ -7,7 +7,7 @@ use crate::PixelArea;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionAdd {
-    pub pixel_area: PixelArea,
+    pub pixel_area: SortedRanges<u32, u32>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -37,7 +37,9 @@ impl HistoryAction {
         match &self.kind {
             HistoryActionKind::Add(add) => match self.layer {
                 None => {
-                    rest.push(Some(add.pixel_area.clone()));
+                    let color = crate::random_color_from_seed(rest.len() as u16);
+                    let pixel_area = PixelArea::from_ranges(add.pixel_area.clone(), color);
+                    rest.push(Some(pixel_area));
                     rest
                 }
                 Some(idx) => {
@@ -46,11 +48,15 @@ impl HistoryAction {
                     }
                     rest[idx] = match rest[idx].take() {
                         Some(existing) => {
-                            let new_spans = add.pixel_area.pixels.spans::<u64>();
+                            let new_spans = add.pixel_area.spans::<u64>();
                             existing
                                 .map_span_inplace(|existing_spans| existing_spans.union(new_spans))
                         }
-                        None => Some(add.pixel_area.clone()),
+                        None => {
+                            let color = crate::random_color_from_seed(rest.len() as u16);
+                            let pixel_area = PixelArea::from_ranges(add.pixel_area.clone(), color);
+                            Some(pixel_area)
+                        }
                     };
                     rest
                 }
@@ -168,16 +174,14 @@ impl History {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::num::NonZeroU32;
+    use imask::Span;
 
-    const ONE: NonZeroU32 = NonZeroU32::MIN;
-    const TEN: NonZeroU32 = NonZeroU32::new(10).unwrap();
+    use super::*;
 
     fn tracked_add(x: u32) -> HistoryAction {
         HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
-                pixel_area: PixelArea::single_range_total_black(x, 0, ONE, TEN),
+                pixel_area: Span::new(x..x + 1, 0).into(),
             }),
             layer: None,
             tracked: true,
@@ -187,7 +191,7 @@ mod tests {
     fn untracked_add(x: u32) -> HistoryAction {
         HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
-                pixel_area: PixelArea::single_range_total_black(x, 0, ONE, TEN),
+                pixel_area: Span::new(x..x + 1, 0).into(),
             }),
             layer: None,
             tracked: false,

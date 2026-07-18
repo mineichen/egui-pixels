@@ -1,15 +1,16 @@
 use std::{
     fs::DirEntry,
     io::{self, ErrorKind, Read, Write},
-    num::NonZeroU16,
+    num::{NonZero, NonZeroU32},
     ops::Range,
     path::PathBuf,
     str::FromStr,
 };
 
+use bytemuck::{AnyBitPattern, NoUninit};
 use futures::{FutureExt, future::BoxFuture};
 use imanot::{ImageData, ImageId, ImageListTaskItem, PixelArea, PixelAreaStack, load_image};
-use imask::{ImaskSet, NonZeroRange};
+use imask::{ImageDimension, ImaskSet, Rect, SignedNonZeroable, Span};
 use itertools::Itertools;
 use log::info;
 
@@ -104,6 +105,79 @@ impl Storage for FileStorage {
     }
 
     fn load_image(&self, id: &ImageId) -> BoxFuture<'static, std::io::Result<ImageData>> {
+        fn load_internal<
+            TLen: SignedNonZeroable + Copy + NoUninit + AnyBitPattern + Default + std::fmt::Debug,
+        >(
+            f: std::fs::File,
+            image_width: NonZeroU32,
+            image_height: NonZeroU32,
+            file_version: u16,
+        ) -> io::Result<Vec<PixelArea>>
+        where
+            u32: From<TLen>,
+        {
+            let mut f = brotli::Decompressor::new(f, 4096);
+            let mut pixel_range_bytes = [0; 2];
+            let mut all = Vec::new();
+            let mut starts = Vec::<u32>::new();
+            let mut lens = Vec::<TLen>::new();
+
+            fn read_u32<T: Read>(mut r: T) -> io::Result<u32> {
+                let mut buf = [0; 4];
+                r.read_exact(&mut buf)?;
+                Ok(u32::from_le_bytes(buf))
+            }
+            fn read_nz_u32<T: Read>(r: T, reason: &str) -> io::Result<NonZero<u32>> {
+                let data = read_u32(r)?;
+                NonZero::new(data).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, reason))
+            }
+
+            while f.read_exact(&mut pixel_range_bytes).is_ok() {
+                let pixel_range_len = u16::from_le_bytes(pixel_range_bytes) as usize;
+                if pixel_range_len == 0 {
+                    continue;
+                }
+                let (bounds, color) = if file_version == 1 {
+                    let color = imanot::random_color_from_seed(all.len() as u16);
+                    (Rect::new(0u32, 0, image_width, image_height), color)
+                } else {
+                    let offset_x = read_u32(&mut f)?;
+                    let offset_y = read_u32(&mut f)?;
+                    let width = read_nz_u32(&mut f, "NonZero width")?;
+                    let height = read_nz_u32(&mut f, "NonZero height")?;
+                    let color = imanot::random_color_from_seed(all.len() as u16);
+                    (Rect::new(offset_x, offset_y, width, height), color)
+                };
+
+                starts.resize(pixel_range_len, 0);
+                lens.resize(pixel_range_len, Default::default());
+                f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
+                f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
+                // Generate color based on current position (simulating the seed)
+                let pixels = starts
+                    .iter()
+                    .zip(lens.iter())
+                    .map(|(start, len)| match TLen::create_non_zero(*len) {
+                        Some(l) => {
+                            let x = *start % bounds.width.get() + bounds.x;
+                            let y = *start / bounds.width.get() + bounds.y;
+                            Ok(Span::new(x..x + u32::from(l.into()), y))
+                        }
+                        None => Err(std::io::Error::new(
+                            ErrorKind::InvalidData,
+                            format!("position {start},{len:?}: Found ZeroValue"),
+                        )),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .with_roi(bounds);
+                let area =
+                    PixelArea::new(pixels, color).expect("Group cannot be empty, checked in loop");
+                all.push(area);
+            }
+
+            Ok(all)
+        }
+
         let id = id.clone();
         async move {
             let image_bytes = std::fs::read(&*id)?;
@@ -124,44 +198,17 @@ impl Storage for FileStorage {
                     }
                     let mut version_bytes = [0; 2];
                     f.read_exact(&mut version_bytes)?;
-                    assert_eq!(VERSION, u16::from_le_bytes(version_bytes));
-
-                    let mut f = brotli::Decompressor::new(f, 4096);
-                    let mut pixel_range_bytes = [0; 2];
-                    let mut all = Vec::new();
-                    let mut starts = Vec::<u32>::new();
-                    let mut lens = Vec::new();
-
-                    while f.read_exact(&mut pixel_range_bytes).is_ok() {
-                        let pixel_range_len = u16::from_le_bytes(pixel_range_bytes) as usize;
-                        if pixel_range_len == 0 {
-                            continue;
+                    let file_version = u16::from_le_bytes(version_bytes);
+                    match file_version {
+                        1 => load_internal::<u16>(f, image_width, image_height, file_version)?,
+                        2 => load_internal::<u32>(f, image_width, image_height, file_version)?,
+                        x => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::Unsupported,
+                                format!("Unsupported version {x}"),
+                            ));
                         }
-
-                        starts.resize(pixel_range_len, 0);
-                        lens.resize(pixel_range_len, 0);
-                        f.read_exact(bytemuck::cast_slice_mut(&mut starts))?;
-                        f.read_exact(bytemuck::cast_slice_mut(&mut lens))?;
-                        // Generate color based on current position (simulating the seed)
-                        let pixels = starts
-                            .iter()
-                            .zip(lens.iter())
-                            .map(|(start, len)| match NonZeroU16::try_from(*len) {
-                                Ok(l) => Ok(NonZeroRange::from_span(*start as u64, l.into())),
-                                Err(e) => Err(std::io::Error::new(
-                                    ErrorKind::InvalidData,
-                                    format!("position {start},{len}: {e:?}"),
-                                )),
-                            })
-                            .collect::<Result<Vec<_>, _>>()?
-                            .with_bounds(image_width, image_height);
-                        let color = imanot::random_color_from_seed(all.len() as u16);
-                        let area = PixelArea::new(pixels, color)
-                            .expect("Group cannot be empty, checked in loop");
-                        all.push(area);
                     }
-
-                    all
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Default::default(),
                 Err(e) => return Err(e),
@@ -211,11 +258,16 @@ impl Storage for FileStorage {
                     let sub_len = sub.range_len() as u16;
 
                     f.write_all(&sub_len.to_le_bytes())?;
+                    let bounds = sub.pixels.bounds();
+                    f.write_all(&bounds.x.to_le_bytes())?;
+                    f.write_all(&bounds.y.to_le_bytes())?;
+                    f.write_all(&bounds.width.get().to_le_bytes())?;
+                    f.write_all(&bounds.height.get().to_le_bytes())?;
                     for subgroup in sub.pixels.iter_roi::<Range<u32>>() {
                         f.write_all(&subgroup.start.to_le_bytes())?;
                     }
                     for subgroup in sub.pixels.iter_roi::<Range<u32>>() {
-                        f.write_all(&u16::try_from(subgroup.len()).unwrap().to_le_bytes())?;
+                        f.write_all(&u32::try_from(subgroup.len()).unwrap().to_le_bytes())?;
                     }
                 }
 

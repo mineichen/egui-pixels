@@ -11,7 +11,7 @@ pub mod file;
 pub mod in_memory;
 
 const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
-const VERSION: u16 = 1;
+const VERSION: u16 = 2;
 
 pub trait Storage {
     fn list_images(&self) -> BoxFuture<'static, std::io::Result<Vec<ImageListTaskItem>>>;

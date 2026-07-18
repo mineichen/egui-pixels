@@ -1,6 +1,6 @@
-use std::num::{NonZero, NonZeroU32};
+use std::num::NonZeroU32;
 
-use imask::{ImageDimension, ImaskSet, NonZeroRange, SortedRanges, SortedRangesSpanIter, SourceIterator, Span};
+use imask::{ImageDimension, SortedRanges, SortedRangesSpanIter, SourceIterator, Span};
 
 type Ranges = SortedRanges<u32, u32>;
 
@@ -13,14 +13,11 @@ pub struct PixelArea {
 
 impl PixelArea {
     pub fn new(
-        pixels: impl IntoIterator<
-            Item = NonZeroRange<u64>,
-            IntoIter: ImageDimension,
-        >,
+        pixels: impl IntoIterator<Item = Span<u32>, IntoIter: ImageDimension>,
         color: [u8; 4],
     ) -> Option<Self> {
         Some(Self {
-            pixels: Self::try_from_iter(pixels)?,
+            pixels: Self::try_from_spans(pixels)?,
             color,
         })
     }
@@ -48,49 +45,30 @@ impl PixelArea {
     }
 
     pub fn with_black_color(
-        pixels: impl IntoIterator<
-            Item = NonZeroRange<u64>,
-            IntoIter: ImageDimension,
-        >,
+        pixels: impl IntoIterator<Item = Span<u32>, IntoIter: ImageDimension>,
     ) -> Option<Self> {
         Some(Self {
-            pixels: Self::try_from_iter(pixels)?,
+            pixels: Self::try_from_spans(pixels)?,
             color: [0, 0, 0, 255],
         })
     }
 
-    pub fn single_pixel_total_color(
-        x: u32,
-        y: u32,
-        len: NonZeroU32,
-        color: [u8; 4],
-        image_width: NonZeroU32,
-    ) -> Self {
-        use imask::Rect;
-        let start = x + y * image_width.get();
-        let height = NonZero::new(y + 1).expect("Cannot be zero without overflow");
+    pub fn single_pixel_total_color(x: u32, y: u32, len: NonZeroU32, color: [u8; 4]) -> Self {
         Self {
-            pixels: Ranges::new(
-                NonZeroRange::from_span(start, len),
-                Rect::new(0, 0, image_width, height),
-            ),
+            pixels: Ranges::from(Span::new(x..x + len.get(), y)),
             color,
         }
     }
     #[cfg(test)]
-    pub fn single_range_total_black(x: u32, y: u32, len: NonZeroU32, width: NonZeroU32) -> Self {
-        Self::single_pixel_total_color(x, y, len, [0, 0, 0, 255], width)
+    pub fn single_range_total_black(x: u32, y: u32, len: NonZeroU32) -> Self {
+        Self::single_pixel_total_color(x, y, len, [0, 0, 0, 255])
     }
 
-    fn try_from_iter(
-        pixels: impl IntoIterator<
-            Item = NonZeroRange<u64>,
-            IntoIter: ImageDimension,
-        >,
+    fn try_from_spans(
+        pixels: impl IntoIterator<Item = Span<u32>, IntoIter: ImageDimension>,
     ) -> Option<Ranges> {
         let iter = pixels.into_iter();
-        let roi = iter.bounds();
-        Ranges::try_from_ordered_iter(iter.map(|r| r.start..r.end).with_roi(roi)).ok()
+        Ranges::try_from_span_iter(iter).ok()
     }
 
     pub fn from_ranges(pixels: Ranges, color: [u8; 4]) -> Self {
