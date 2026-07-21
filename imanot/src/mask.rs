@@ -224,24 +224,34 @@ impl MaskImage {
         })
     }
 
-    #[deprecated]
-    pub fn subgroups(&self) -> Vec<Option<PixelArea>> {
-        self.applied.stack.to_option_vec()
-    }
-
     pub fn subgroups_stack(&self) -> &PixelAreaStack {
         &self.applied.stack
     }
 
     /// Returns the old value
-    pub fn set_base_layer(
+    #[deprecated(note = "Use set_base_layer_ranges instead")]
+    pub fn set_base_layer(&mut self, index: usize, area: Option<PixelArea>) -> Option<PixelArea> {
+        self.set_base_layer_ranges(index, area)
+    }
+
+    /// Returns the old `PixelArea` if the layer was `Filled`, otherwise `None`.
+    pub fn set_base_layer_ranges(
         &mut self,
         index: usize,
-        mut area: Option<PixelArea>,
+        area: Option<PixelArea>,
     ) -> Option<PixelArea> {
-        std::mem::swap(&mut area, self.base.make_mut(index));
+        let old = self.base.set_layer(index, area);
         self.applied.mark_redraw(&self.base, &self.history);
-        area
+        old
+    }
+
+    pub fn set_layer_color(&mut self, index: usize, color: [u8; 4]) {
+        self.base.set_layer_color(index, color);
+        self.applied.mark_redraw(&self.base, &self.history);
+    }
+
+    pub fn layer_color(&self, index: usize) -> Option<[u8; 4]> {
+        self.base.layer_color(index)
     }
     fn subgroups_ordered_spans(
         &self,
@@ -317,12 +327,10 @@ struct AppliedPixelAreaStack {
 
 impl AppliedPixelAreaStack {
     fn new(base: &PixelAreaStack, history: &History) -> Self {
-        let base = base.to_option_vec();
+        let base = base.to_layer_vec();
         Self {
             requires_redraw: false,
-            stack: PixelAreaStack::from_option_vec(
-                history.iter().fold(base, |acc, r| r.apply(acc)),
-            ),
+            stack: PixelAreaStack::from_layer_vec(history.iter().fold(base, |acc, r| r.apply(acc))),
         }
     }
     fn mark_redraw(&mut self, base: &PixelAreaStack, history: &History) {
@@ -491,6 +499,15 @@ impl<'a> HistoryActionBuilder<'a, AddAction> {
             tracked: self.tracked,
         });
     }
+}
+
+fn prepare_layer_space(layers: &mut Vec<Layer>, idx: usize) -> &mut Layer {
+    while layers.len() <= idx {
+        let i = layers.len();
+        layers.push(Layer::Empty(crate::random_color_from_seed(i as u16)));
+    }
+
+    &mut layers[idx]
 }
 
 #[cfg(test)]

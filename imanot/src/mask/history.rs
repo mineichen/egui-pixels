@@ -5,6 +5,16 @@ use imask::{ImaskSet, SortedRanges};
 
 use crate::PixelArea;
 
+use super::pixel_area_stack::Layer;
+
+fn take_layer_ranges(
+    layers: &mut Vec<Layer>,
+    idx: usize,
+) -> (&mut Layer, Option<SortedRanges<u32>>) {
+    let target = super::prepare_layer_space(layers, idx);
+    let ranges = target.clear_ranges();
+    (target, ranges)
+}
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionAdd {
     pub pixel_area: SortedRanges<u32, u32>,
@@ -33,30 +43,26 @@ impl HistoryAction {
     pub fn layer(&self) -> Option<usize> {
         self.layer
     }
-    pub fn apply(&self, mut rest: Vec<Option<PixelArea>>) -> Vec<Option<PixelArea>> {
+    pub(in crate::mask) fn apply(&self, mut rest: Vec<Layer>) -> Vec<Layer> {
         match &self.kind {
             HistoryActionKind::Add(add) => match self.layer {
                 None => {
                     let color = crate::random_color_from_seed(rest.len() as u16);
                     let pixel_area = PixelArea::from_ranges(add.pixel_area.clone(), color);
-                    rest.push(Some(pixel_area));
+                    rest.push(Layer::Filled(pixel_area));
                     rest
                 }
                 Some(idx) => {
-                    while rest.len() <= idx {
-                        rest.push(None);
-                    }
-                    rest[idx] = match rest[idx].take() {
-                        Some(existing) => {
-                            let new_spans = add.pixel_area.spans::<u64>();
-                            existing
-                                .map_span_inplace(|existing_spans| existing_spans.union(new_spans))
+                    let (target, maybe_existing) = take_layer_ranges(&mut rest, idx);
+                    if let Some(existing) = maybe_existing {
+                        let new_spans = add.pixel_area.spans::<u64>();
+                        let mapped = existing
+                            .map_span_inplace(|existing_spans| existing_spans.union(new_spans));
+                        if let Some(new_area) = mapped {
+                            target.set_ranges(new_area);
                         }
-                        None => {
-                            let color = crate::random_color_from_seed(rest.len() as u16);
-                            let pixel_area = PixelArea::from_ranges(add.pixel_area.clone(), color);
-                            Some(pixel_area)
-                        }
+                    } else {
+                        target.set_ranges(add.pixel_area.clone());
                     };
                     rest
                 }
@@ -67,31 +73,33 @@ impl HistoryAction {
                     rest
                 }
                 Some(idx) => {
-                    if let Some(opt) = rest.get_mut(idx) {
-                        *opt = None;
+                    if let Some(layer) = rest.get_mut(idx) {
+                        layer.clear_ranges();
                     }
                     rest
                 }
             },
             HistoryActionKind::Clear(clear) => match self.layer {
-                None => rest
-                    .into_iter()
-                    .map(|opt_area| {
-                        opt_area.and_then(|area| {
-                            area.map_span_inplace(|existing_spans| {
-                                let clear_spans = clear.ranges.spans();
-                                existing_spans.subtract(clear_spans)
-                            })
-                        })
-                    })
-                    .collect(),
-                Some(idx) => {
-                    if let Some(opt_area) = rest.get_mut(idx) {
-                        *opt_area = opt_area.take().and_then(|area| {
-                            area.map_span_inplace(|existing_spans| {
+                None => {
+                    rest.iter_mut().for_each(|target| {
+                        if let Some(ranges) = target.clear_ranges()
+                            && let Some(new_area) = ranges.map_span_inplace(|existing_spans| {
                                 existing_spans.subtract(clear.ranges.spans::<u64>())
                             })
-                        });
+                        {
+                            target.set_ranges(new_area);
+                        }
+                    });
+                    rest
+                }
+                Some(idx) => {
+                    if rest.get_mut(idx).is_some()
+                        && let (target, Some(ranges)) = take_layer_ranges(&mut rest, idx)
+                        && let Some(new_area) = ranges.map_span_inplace(|existing_spans| {
+                            existing_spans.subtract(clear.ranges.spans::<u64>())
+                        })
+                    {
+                        target.set_ranges(new_area);
                     }
                     rest
                 }
