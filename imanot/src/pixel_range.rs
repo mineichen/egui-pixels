@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use imask::{ImageDimension, SortedRanges, SortedRangesSpanIter, SourceIterator, Span};
+use imask::{ImageDimension, SortedRanges, Span};
 
 type Ranges = SortedRanges<u32, u32>;
 
@@ -19,28 +19,6 @@ impl PixelArea {
         Some(Self {
             pixels: Self::try_from_spans(pixels)?,
             color,
-        })
-    }
-
-    pub fn map_inplace<TIter, TFun>(self, f: TFun) -> Option<Self>
-    where
-        TIter: Iterator<Item = std::ops::RangeInclusive<u64>>,
-        TFun: FnOnce(SourceIterator<u32, u32>) -> TIter,
-    {
-        Some(Self {
-            pixels: self.pixels.map_inplace(f)?,
-            color: self.color,
-        })
-    }
-
-    pub fn map_span_inplace<TIter, TFun>(self, f: TFun) -> Option<Self>
-    where
-        TIter: Iterator<Item = Span<u64>>,
-        TFun: FnOnce(SortedRangesSpanIter<SourceIterator<u32, u32>>) -> TIter,
-    {
-        Some(Self {
-            pixels: self.pixels.map_span_inplace(f)?,
-            color: self.color,
         })
     }
 

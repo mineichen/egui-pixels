@@ -229,17 +229,7 @@ impl MaskImage {
     }
 
     /// Returns the old value
-    #[deprecated(note = "Use set_base_layer_ranges instead")]
     pub fn set_base_layer(&mut self, index: usize, area: Option<PixelArea>) -> Option<PixelArea> {
-        self.set_base_layer_ranges(index, area)
-    }
-
-    /// Returns the old `PixelArea` if the layer was `Filled`, otherwise `None`.
-    pub fn set_base_layer_ranges(
-        &mut self,
-        index: usize,
-        area: Option<PixelArea>,
-    ) -> Option<PixelArea> {
         let old = self.base.set_layer(index, area);
         self.applied.mark_redraw(&self.base, &self.history);
         old
