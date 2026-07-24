@@ -3,7 +3,7 @@
 //! This way, a we don't need to implement undo, which would require additional infos in HistoryAction
 use imask::{ImaskSet, SortedRanges};
 
-use crate::PixelArea;
+use crate::{AffectedLayer, PixelArea};
 
 use super::pixel_area_stack::Layer;
 
@@ -112,6 +112,7 @@ pub struct History {
     actions: Vec<HistoryAction>,
     end: usize,
     not_dirty_pos: Option<usize>,
+    undo_redo_layer: Option<Option<usize>>,
 }
 
 impl Default for History {
@@ -120,6 +121,7 @@ impl Default for History {
             actions: Default::default(),
             end: Default::default(),
             not_dirty_pos: Some(0),
+            undo_redo_layer: None,
         }
     }
 }
@@ -136,12 +138,28 @@ impl History {
     pub fn is_dirty(&self) -> bool {
         self.not_dirty_pos != Some(self.end)
     }
+    pub fn take_dirty(&mut self) -> Option<AffectedLayer> {
+        if self.is_dirty() {
+            self.mark_not_dirty();
+            let layer = self
+                .undo_redo_layer
+                .or_else(|| self.iter().rev().next().map(|a| a.layer))?;
+            Some(match layer {
+                Some(x) => AffectedLayer::Layer(x),
+                None => AffectedLayer::Unspecified,
+            })
+        } else {
+            None
+        }
+    }
 
     pub fn mark_not_dirty(&mut self) {
         self.not_dirty_pos = Some(self.end);
     }
 
     pub fn push(&mut self, new_action: HistoryAction) {
+        self.undo_redo_layer = None;
+
         let last_action = self.end.checked_sub(1).and_then(|i| self.actions.get(i));
         if let Some(i) = last_action
             && i.kind == HistoryActionKind::Reset
@@ -170,12 +188,14 @@ impl History {
             new_end += 1;
         }
         self.end = new_end;
+        self.undo_redo_layer = Some(self.actions[tracked_idx].layer);
         Some(&self.actions[tracked_idx])
     }
     pub fn undo(&mut self) -> Option<&HistoryAction> {
         let tracked_idx = (0..self.end).rev().find(|&i| self.actions[i].tracked)?;
         let action = &self.actions[tracked_idx];
         self.end = tracked_idx;
+        self.undo_redo_layer = Some(action.layer);
         Some(action)
     }
 }
@@ -325,5 +345,28 @@ mod tests {
         });
 
         assert_eq!(history.actions.len(), 2);
+    }
+
+    #[test]
+    fn undo_affected_layer() {
+        let mut history = History::default();
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: Span::new(0..1, 0).into(),
+            }),
+            layer: Some(0),
+            tracked: true,
+        });
+        history.push(HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: Span::new(1..2, 0).into(),
+            }),
+            layer: Some(1),
+            tracked: true,
+        });
+
+        assert_eq!(history.take_dirty(), Some(AffectedLayer::Layer(1)));
+        history.undo();
+        assert_eq!(history.take_dirty(), Some(AffectedLayer::Layer(1)));
     }
 }

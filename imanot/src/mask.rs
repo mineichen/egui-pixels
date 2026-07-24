@@ -153,15 +153,7 @@ impl MaskImage {
     }
 
     pub fn take_dirty(&mut self) -> Option<AffectedLayer> {
-        if self.is_dirty() {
-            self.mark_not_dirty();
-            Some(match self.history.iter().rev().next()?.layer() {
-                Some(x) => AffectedLayer::Layer(x),
-                None => AffectedLayer::Unspecified,
-            })
-        } else {
-            None
-        }
+        self.history.take_dirty()
     }
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
