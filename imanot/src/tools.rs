@@ -1,107 +1,96 @@
+use std::sync::Arc;
+
 use futures::FutureExt;
 
 use crate::{AsyncRefTask, ImageLoadOk, PanTool, Tool, ToolTask};
 
-/// Tool factory function that creates a tool for a given image
+/// Tool factory function that creates a tool for a given image.
+/// Cheaply cloneable (`Arc`) so it can live in a tool registry while also being
+/// handed to the active primary/secondary slots.
 pub type ToolFactory =
-    Box<dyn Fn(&ImageLoadOk) -> crate::LocalBoxFuture<'static, Result<Box<dyn Tool>, String>>>;
-type ToolFactories = Vec<(String, ToolFactory)>;
+    Arc<dyn Fn(&ImageLoadOk) -> crate::LocalBoxFuture<'static, Result<Box<dyn Tool>, String>>>;
 
-/// Core tool management without UI concerns
+/// Core tool management without UI concerns.
+///
+/// Holds a single [`ToolFactory`] per slot (primary/secondary) so tools can be
+/// recreated whenever the underlying image changes. The registry of available
+/// tools and their display names lives in the embedding application.
 pub struct Tools {
-    tool_factories: ToolFactories,
-    primary_idx: usize,
+    primary_factory: ToolFactory,
     primary_tool: ToolTask,
-    secondary_idx: usize,
+    secondary_factory: ToolFactory,
     secondary_tool: ToolTask,
 }
 
 pub struct ToolHandle<'a> {
-    idx: &'a mut usize,
+    factory: &'a mut ToolFactory,
     tool: &'a mut ToolTask,
-    tool_factories: &'a mut ToolFactories,
 }
 
 impl<'a> ToolHandle<'a> {
+    /// (Re)create the tool from its factory for the given image.
     pub fn load(&mut self, img: &ImageLoadOk) {
-        let (name, factory) = &mut self.tool_factories[*self.idx];
-        log::debug!("Loading tool: {name}");
-        *self.tool = AsyncRefTask::new(factory(img));
+        log::debug!("Loading tool");
+        *self.tool = AsyncRefTask::new((self.factory)(img));
     }
-    /// Get the index of the currently active primary tool
-    pub fn idx(&self) -> usize {
-        *self.idx
-    }
-    /// Set the active tool by index
-    /// Returns true if the tool changed and needs to be loaded
-    pub fn set_idx(&mut self, idx: usize, img: &ImageLoadOk) {
-        if idx < self.tool_factories.len() && idx != *self.idx {
-            *self.idx = idx;
-            self.load(img);
+    /// Replace the slot's factory and immediately (re)load with the given image.
+    /// Returns true if the factory actually changed.
+    pub fn set_factory(&mut self, factory: ToolFactory, img: &ImageLoadOk) -> bool {
+        if Arc::ptr_eq(self.factory, &factory) {
+            return false;
         }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.tool_factories[*self.idx].0
+        *self.factory = factory;
+        self.load(img);
+        true
     }
     pub fn data(&mut self) -> Option<&mut Result<Box<dyn Tool + 'static>, String>> {
         self.tool.data()
-    }
-    /// Get the list of available tool names
-    pub fn tool_names(&self) -> impl Iterator<Item = &str> {
-        self.tool_factories.iter().map(|(name, _)| name.as_str())
     }
 }
 
 impl Default for Tools {
     fn default() -> Self {
-        Self::new(vec![])
+        Self::new(nop_factory(), PanTool::create_factory())
     }
 }
 
 impl Tools {
-    /// Create a new Tools instance with the given tool factories
-    /// The first non-Pan tool will be selected as primary, and Pan as secondary
-    pub fn new(tool_factories: Vec<(String, ToolFactory)>) -> Self {
-        let tool_factories: ToolFactories = match tool_factories.len() {
-            0 => vec![
-                (
-                    "nop".to_string(),
-                    Box::new(|_| async { Ok(Box::new(NopTool) as Box<dyn Tool>) }.boxed_local()),
-                ),
-                ("pan".to_string(), PanTool::create_factory()),
-            ],
-            1 => {
-                let mut tool_factories = tool_factories;
-                tool_factories.push(("pan".to_string(), PanTool::create_factory()));
-                tool_factories
-            }
-            _ => tool_factories,
-        };
-
+    /// Create a new Tools instance with the given primary and secondary factories.
+    /// The actual tool instances are created lazily on the first [`ToolHandle::load`]
+    /// (e.g. when an image becomes available); until then placeholder tools are used.
+    pub fn new(primary_factory: ToolFactory, secondary_factory: ToolFactory) -> Self {
         Self {
-            tool_factories,
-            primary_idx: 0,
+            primary_factory,
             primary_tool: AsyncRefTask::new_ready(Ok(Box::new(NopTool))),
-            secondary_idx: 1,
+            secondary_factory,
             secondary_tool: AsyncRefTask::new_ready(Ok(Box::new(PanTool::default()))),
         }
     }
 
     pub fn primary(&mut self) -> ToolHandle<'_> {
-        ToolHandle {
-            idx: &mut self.primary_idx,
-            tool: &mut self.primary_tool,
-            tool_factories: &mut self.tool_factories,
-        }
+        let [p, _s] = self.handles();
+        p
     }
     pub fn secondary(&mut self) -> ToolHandle<'_> {
-        ToolHandle {
-            idx: &mut self.secondary_idx,
-            tool: &mut self.secondary_tool,
-            tool_factories: &mut self.tool_factories,
-        }
+        let [_p, s] = self.handles();
+        s
     }
+    pub fn handles(&mut self) -> [ToolHandle<'_>; 2] {
+        [
+            ToolHandle {
+                factory: &mut self.primary_factory,
+                tool: &mut self.primary_tool,
+            },
+            ToolHandle {
+                factory: &mut self.secondary_factory,
+                tool: &mut self.secondary_tool,
+            },
+        ]
+    }
+}
+
+fn nop_factory() -> ToolFactory {
+    Arc::new(|_| async { Ok(Box::new(NopTool) as Box<dyn Tool>) }.boxed_local())
 }
 
 /// A no-operation tool used as placeholder

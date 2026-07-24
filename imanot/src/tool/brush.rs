@@ -1,6 +1,7 @@
 use std::{
     num::{NonZero, NonZeroU16},
     ops::{Deref, DerefMut},
+    sync::Arc,
 };
 
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions};
@@ -192,11 +193,11 @@ impl BrushTool {
     }
 
     pub fn create_factory() -> ToolFactory {
-        Box::new(|_| async { Ok(Box::new(BrushTool::default()) as Box<dyn Tool>) }.boxed_local())
+        Arc::new(|_| async { Ok(Box::new(BrushTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
 
     pub fn create_factory_with(modifier: impl Fn(&mut BrushTool) + 'static) -> ToolFactory {
-        Box::new(move |_| {
+        Arc::new(move |_| {
             let mut tool = BrushTool::default();
             modifier(&mut tool);
             async { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()

@@ -1,7 +1,8 @@
 use log::info;
 
+use crate::app::ToolRegistry;
 use crate::{ImageCallbackMap, config::Config};
-use imanot::{CursorImage, Tools};
+use imanot::CursorImage;
 
 pub fn run_web(mappers: ImageCallbackMap) {
     use eframe::wasm_bindgen::JsCast as _;
@@ -31,7 +32,7 @@ pub fn run_web(mappers: ImageCallbackMap) {
                 Box::new(|_cc| {
                     let mut app = crate::app::ImageViewerApp::new(
                         Box::new(crate::InMemoryStorage::chessboard()),
-                        Tools::from(&Config::default()),
+                        ToolRegistry::from(&Config::default()),
                         super::MaskGenerator::new(mappers),
                     );
                     app.state.cursor_image.enable_web(canvas);

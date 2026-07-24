@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::FutureExt;
 use imanot::{AsyncRefTask, MaskActionBuilder, RectSelection, Tool, ToolContext, ToolFactory};
 use imask::{ImaskSet, SortedRanges};
@@ -30,7 +32,7 @@ impl SamTool {
         }
     }
     pub fn create_factory(session: SamSession) -> ToolFactory {
-        Box::new(move |img| {
+        Arc::new(move |img| {
             let tool = SamTool::new(session.clone(), img.adjust.clone());
             async move { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()
         })

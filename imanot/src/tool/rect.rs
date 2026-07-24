@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use futures::FutureExt;
 use imask::{Rect, SortedRanges, Span};
@@ -37,11 +40,11 @@ impl DerefMut for RectTool {
 
 impl RectTool {
     pub fn create_factory() -> ToolFactory {
-        Box::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool>) }.boxed_local())
+        Arc::new(|_| async { Ok(Box::new(RectTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
 
     pub fn create_factory_with(modifier: impl Fn(&mut RectTool) + 'static) -> ToolFactory {
-        Box::new(move |_| {
+        Arc::new(move |_| {
             let mut tool = RectTool::default();
             modifier(&mut tool);
             async { Ok(Box::new(tool) as Box<dyn Tool>) }.boxed_local()

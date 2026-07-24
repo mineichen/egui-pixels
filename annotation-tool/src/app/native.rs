@@ -3,7 +3,7 @@ use std::io;
 use log::info;
 
 use super::ImageViewerApp;
-use crate::{ImageCallbackMap, app::Tools};
+use crate::{ImageCallbackMap, app::ToolRegistry};
 
 pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
     env_logger::init();
@@ -35,7 +35,7 @@ pub fn run_native(mappers: ImageCallbackMap) -> Result<(), eframe::Error> {
         Box::new(|_cc| {
             Ok(Box::new(ImageViewerApp::new(
                 Box::new(crate::FileStorage::new(image_dir)),
-                Tools::from(&config),
+                ToolRegistry::from(&config),
                 super::MaskGenerator::new(mappers),
             )))
         }),

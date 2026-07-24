@@ -3,6 +3,7 @@ use egui::{self, InnerResponse, UiBuilder};
 use imanot::{AsyncRefTask, AsyncTask, ImageViewerInteraction, State, Tools};
 
 use image_selector::ImageSelector;
+use tools::ToolRegistry;
 
 mod config;
 mod image_selector;
@@ -25,18 +26,27 @@ pub(crate) struct ImageViewerApp {
     storage: Box<dyn Storage>,
     selector: ImageSelector,
     state: State,
+    tool_registry: ToolRegistry,
     save_job: AsyncRefTask<Result<(), String>>,
     mask_generator: MaskGenerator,
 }
 impl ImageViewerApp {
-    pub fn new(storage: Box<dyn Storage>, tools: Tools, mask_generator: MaskGenerator) -> Self {
+    pub fn new(
+        storage: Box<dyn Storage>,
+        tool_registry: ToolRegistry,
+        mask_generator: MaskGenerator,
+    ) -> Self {
         let url_loader = Some(AsyncTask::new(storage.list_images()));
-        let state = State::new(tools);
+        let state = State::new(Tools::new(
+            tool_registry.primary_factory(),
+            tool_registry.secondary_factory(),
+        ));
 
         Self {
             storage,
             selector: ImageSelector::new(url_loader),
             state,
+            tool_registry,
             save_job: AsyncRefTask::new_ready(Ok(())),
             mask_generator,
         }

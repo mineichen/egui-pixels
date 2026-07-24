@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use egui::Vec2;
 use futures::FutureExt;
 
@@ -10,7 +12,7 @@ pub struct PanTool;
 
 impl PanTool {
     pub fn create_factory() -> ToolFactory {
-        Box::new(|_| async { Ok(Box::new(PanTool::default()) as Box<dyn Tool>) }.boxed_local())
+        Arc::new(|_| async { Ok(Box::new(PanTool::default()) as Box<dyn Tool>) }.boxed_local())
     }
 }
 

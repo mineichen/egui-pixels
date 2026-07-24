@@ -75,7 +75,7 @@ impl crate::app::ImageViewerApp {
 
             match &mut self.state.image_state {
                 ImageState::Loaded(ImageStateLoaded { image, .. }) => {
-                    super::tools::ui(ui, image, &mut self.state.tools);
+                    super::tools::ui(ui, image, &mut self.tool_registry, &mut self.state.tools);
                 }
                 ImageState::Error(error) => {
                     ui.label(format!("Error: {error}"));
