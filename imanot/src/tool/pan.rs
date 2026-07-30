@@ -22,15 +22,32 @@ impl Tool for PanTool {
         let viewer = ctx.viewer;
         let response = &ctx.response;
 
+        let original_image_size = Vec2::new(
+            ctx.image.image.original.width().get() as f32,
+            ctx.image.image.original.height().get() as f32,
+        );
+        let viewport_rect = response.rect;
+        let viewport_size = viewport_rect.size();
+        let fit_scale = (viewport_size.x / original_image_size.x)
+            .min(viewport_size.y / original_image_size.y);
+
+        if let Some(hover) = response.hover_pos() {
+            let delta = ctx.egui.input(|i| i.smooth_scroll_delta.y)
+                * ctx.egui.options(|o| o.input_options.scroll_zoom_speed);
+
+            if delta != 0.0 {
+                let cursor_img = ctx.painter.screen_to_image(hover);
+                viewer.modify_zoom(|x| x / delta.exp());
+                let render_scale_new = fit_scale / viewer.zoom();
+
+                // Keep the image point under the cursor fixed while zooming
+                let center = cursor_img.to_vec2() + (viewport_rect.center() - hover) / render_scale_new;
+                viewer.set_pan_offset(center / original_image_size);
+            }
+        }
+
         let drag_delta = response.drag_delta();
         if drag_delta != Vec2::default() {
-            let original_image_size = Vec2::new(
-                ctx.image.image.original.width().get() as f32,
-                ctx.image.image.original.height().get() as f32,
-            );
-            let viewport_size = response.rect.size();
-            let fit_scale = (viewport_size.x / original_image_size.x)
-                .min(viewport_size.y / original_image_size.y);
             let render_scale = fit_scale / viewer.zoom();
 
             let delta_norm = drag_delta / (render_scale * original_image_size);
