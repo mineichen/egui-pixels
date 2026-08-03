@@ -137,19 +137,6 @@ impl ImageViewer {
                 let rel_zoom = self.zoom / fit_scale;
                 let p = (screen_rel - pixel_offset) * rel_zoom;
 
-                let delta = ui.input(|i| i.zoom_delta());
-                if delta != 1.0 {
-                    self.modify_zoom(|x| x / delta);
-                    let rel_zoom_new = self.zoom / fit_scale;
-                    let render_scale_new = fit_scale / self.zoom;
-                    let desired_pixel_offset = screen_rel - (p / rel_zoom_new);
-
-                    let pan = (viewport_size * 0.5 - desired_pixel_offset)
-                        / (original_image_size * render_scale_new);
-
-                    self.pan_offset = pan;
-                }
-
                 // log::info!(
                 //     "Hover: {:?}, pan_offset: {:?}, zoom: {:?}, pixel_offset: {:?}, rel: {:?}",
                 //     (p.x, p.y),
