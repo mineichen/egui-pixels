@@ -8,6 +8,7 @@ use imask::{
     SortedRangesSpanIter, Span,
 };
 use log::{debug, info};
+use pulp::{Arch, Simd, WithSimd};
 
 use crate::PixelArea;
 
@@ -110,23 +111,41 @@ impl MaskImage {
                 ..Default::default()
             };
 
-            let mut pixels = vec![Color32::TRANSPARENT; self.size[0] * self.size[1]];
+            // One u32 per pixel holding premultiplied RGBA bytes in little-endian order.
+            let mut pixels = vec![0u32; self.size[0] * self.size[1]];
             let size = NonZeroU32::new(self.size[0].try_into().expect("Size can be u32"))
                 .expect("Size is not zero");
+            let mut first = true;
             for (i, subgroups) in self.applied.stack.iter() {
                 let [r, g, b, a] = subgroups.color;
                 let is_active = self.active_subgroup == Some(i);
                 let opacity = self.settings.opacity(is_active);
                 let a = (a as u16 * opacity as u16 / 255) as u8;
-                let group_color = Color32::from_rgba_unmultiplied(r, g, b, a);
-                for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
-                    pixels[range].fill(group_color);
+                if a == 0 {
+                    continue;
                 }
+                // Source-over compositing in premultiplied space: `acc = layer + acc * (1 - alpha)`.
+                let t = 255 - a;
+                let layer = Color32::from_rgba_unmultiplied(r, g, b, a).to_array();
+                // Fast path: an opaque layer (t == 0) overwrites the destination, and the
+                // first drawn layer lands on still-transparent pixels, so in both cases the
+                // result is exactly the layer color and the blending can be skipped.
+                if first || t == 0 {
+                    let color = u32::from_le_bytes(layer);
+                    for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
+                        pixels[range].fill(color);
+                    }
+                } else {
+                    for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
+                        composite_layer_over(&mut pixels[range], t, layer);
+                    }
+                }
+                first = false;
             }
 
             let handle = ctx.load_texture(
                 "Overlays",
-                ColorImage::new(self.size, pixels),
+                ColorImage::from_rgba_premultiplied(self.size, pulp::bytemuck::cast_slice(&pixels)),
                 texture_options,
             );
             let source = ImageSource::Texture(SizedTexture::from_handle(&handle));
@@ -483,6 +502,96 @@ impl<'a> HistoryActionBuilder<'a, AddAction> {
     }
 }
 
+/// Composites the constant layer color (in premultiplied space) over the given
+/// pixel range using source-over blending: `acc = layer + acc * (1 - alpha)`.
+///
+/// Each pixel is one `u32` holding the premultiplied RGBA bytes in little-endian
+/// order. The math is dispatched through [`pulp`], which picks the best available
+/// vector implementation at runtime (and falls back to scalar where there is none).
+fn composite_layer_over(pixels: &mut [u32], t: u8, layer: [u8; 4]) {
+    Arch::new().dispatch(CompositeLayerOver { pixels, t, layer });
+}
+
+struct CompositeLayerOver<'a> {
+    pixels: &'a mut [u32],
+    t: u8,
+    layer: [u8; 4],
+}
+
+impl WithSimd for CompositeLayerOver<'_> {
+    type Output = ();
+
+    #[inline(always)]
+    fn with_simd<S: Simd>(self, simd: S) -> Self::Output {
+        let (head, tail) = S::as_mut_simd_u32s(self.pixels);
+
+        let t32 = simd.splat_u32s(self.t as u32);
+        // `floor((c * t) / 255) = (((c * t) + 1) * 257) >> 16`, exact for c, t <= 255.
+        let one = simd.splat_u32s(1);
+        let c257 = simd.splat_u32s(257);
+        let s16 = simd.splat_u32s(16);
+        let low = simd.splat_u32s(0xFF);
+        let s8 = simd.splat_u32s(8);
+        let s24 = simd.splat_u32s(24);
+        let layer16 = (
+            simd.splat_u32s(self.layer[0] as u32),
+            simd.splat_u32s(self.layer[1] as u32),
+            simd.splat_u32s(self.layer[2] as u32),
+            simd.splat_u32s(self.layer[3] as u32),
+        );
+
+        for pixel in head {
+            let r = simd.and_u32s(*pixel, low);
+            let g = simd.and_u32s(simd.wrapping_dyn_shr_u32s(*pixel, s8), low);
+            let b = simd.and_u32s(simd.wrapping_dyn_shr_u32s(*pixel, s16), low);
+            let a = simd.wrapping_dyn_shr_u32s(*pixel, s24);
+            let r = composite_channel(simd, r, t32, one, c257, s16, layer16.0);
+            let g = composite_channel(simd, g, t32, one, c257, s16, layer16.1);
+            let b = composite_channel(simd, b, t32, one, c257, s16, layer16.2);
+            let a = composite_channel(simd, a, t32, one, c257, s16, layer16.3);
+            // Truncate to 8 bits per channel (like scalar's `as u8`) and pack back
+            // into a little-endian RGBA pixel.
+            let r = simd.and_u32s(r, low);
+            let g = simd.and_u32s(simd.wrapping_dyn_shl_u32s(g, s8), simd.splat_u32s(0xFF00));
+            let b = simd.and_u32s(
+                simd.wrapping_dyn_shl_u32s(b, s16),
+                simd.splat_u32s(0xFF0000),
+            );
+            let a = simd.wrapping_dyn_shl_u32s(a, s24);
+            *pixel = simd.or_u32s(simd.or_u32s(r, g), simd.or_u32s(b, a));
+        }
+
+        composite_scalar(tail, self.t, self.layer);
+    }
+}
+
+#[inline(always)]
+fn composite_channel<S: Simd>(
+    simd: S,
+    c: S::u32s,
+    t: S::u32s,
+    one: S::u32s,
+    c257: S::u32s,
+    s16: S::u32s,
+    l: S::u32s,
+) -> S::u32s {
+    let x = simd.mul_u32s(c, t);
+    let y = simd.mul_u32s(simd.add_u32s(x, one), c257);
+    let q = simd.wrapping_dyn_shr_u32s(y, s16);
+    simd.add_u32s(q, l)
+}
+
+fn composite_scalar(pixels: &mut [u32], t: u8, layer: [u8; 4]) {
+    for pixel in pixels {
+        let d = pixel.to_le_bytes();
+        let mut o = [0u8; 4];
+        for (channel, &l) in layer.iter().enumerate() {
+            o[channel] = ((d[channel] as u16 * t as u16) / 255 + l as u16) as u8;
+        }
+        *pixel = u32::from_le_bytes(o);
+    }
+}
+
 fn prepare_layer_space(layers: &mut Vec<Layer>, idx: usize) -> &mut Layer {
     while layers.len() <= idx {
         let i = layers.len();
@@ -517,6 +626,49 @@ mod tests {
                 .map(|(i, x)| (i, &x.pixels))
                 .flat_map(|(i, x)| x.spans::<u32>().map(move |s| (i, s)))
         }
+    }
+
+    #[test]
+    fn composite_matches_scalar() {
+        let mut rng = 0x9E3779B97F4A7C15u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let mut pixels: Vec<u32> = (0..1000)
+            .map(|_| {
+                let x = next();
+                let a = x as u8;
+                u32::from_le_bytes([
+                    ((x >> 24) as u8).min(a),
+                    ((x >> 16) as u8).min(a),
+                    ((x >> 8) as u8).min(a),
+                    a,
+                ])
+            })
+            .collect();
+        let expected = {
+            let mut e = pixels.clone();
+            let a = ((next() >> 8) % 256) as u8;
+            let t = 255 - a;
+            let layer = [
+                (next() as u8).min(a),
+                ((next() >> 8) as u8).min(a),
+                ((next() >> 16) as u8).min(a),
+                a,
+            ];
+            composite_scalar(&mut e, t, layer);
+            (e, t, layer)
+        };
+        composite_layer_over(&mut pixels, expected.1, expected.2);
+        assert_eq!(
+            pixels,
+            expected.0,
+            "first mismatch at {:?}",
+            pixels.iter().zip(&expected.0).position(|(a, b)| a != b)
+        );
     }
 
     #[test]
