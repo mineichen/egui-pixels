@@ -81,6 +81,9 @@ impl Tool for RectTool {
         } else if ctx.response.clicked()
             && let Some((x, y)) = ctx.cursor_image_pos()
         {
+            let (image_width, image_height) = ctx.image.image.adjust.dimensions();
+            let x = x.min(image_width.get() as usize - 1);
+            let y = y.min(image_height.get() as usize - 1);
             let x: u32 = x.try_into().unwrap();
             let y: u32 = y.try_into().unwrap();
             let span = Span::new(x..x + 1, y);

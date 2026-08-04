@@ -133,10 +133,18 @@ impl MaskImage {
                 if first || t == 0 {
                     let color = u32::from_le_bytes(layer);
                     for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
+                        #[cfg(debug_assertions)]
+                        assert!((0..pixels.len()).contains(&range.end));
+                        #[cfg(not(debug_assertions))]
+                        let range = range.start.min(pixels.len())..range.end.min(pixels.len());
                         pixels[range].fill(color);
                     }
                 } else {
                     for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
+                        #[cfg(debug_assertions)]
+                        assert!((0..pixels.len()).contains(&range.end));
+                        #[cfg(not(debug_assertions))]
+                        let range = range.start.min(pixels.len())..range.end.min(pixels.len());
                         composite_layer_over(&mut pixels[range], t, layer);
                     }
                 }
@@ -176,6 +184,25 @@ impl MaskImage {
     }
 
     pub fn add_history_action(&mut self, action: HistoryAction) {
+        #[cfg(debug_assertions)]
+        {
+            let max_x = self.size[0] as u32;
+            let max_y = self.size[1] as u32;
+            let ranges_bounds = match &action.kind {
+                HistoryActionKind::Add(add) => Some(add.pixel_area.bounds()),
+                HistoryActionKind::Clear(clear) => Some(clear.ranges.bounds()),
+                HistoryActionKind::Reset => None,
+            };
+            if let Some(b) = ranges_bounds {
+                assert!(
+                    b.x + b.width.get() <= max_x && b.y + b.height.get() <= max_y,
+                    "Tool wrote SortedRanges at {:?} exceeding image bounds {}x{}",
+                    b,
+                    max_x,
+                    max_y
+                );
+            }
+        }
         self.history.push(action);
         self.applied.mark_redraw(&self.base, &self.history);
     }
