@@ -55,6 +55,19 @@ impl ImageViewerApp {
 
 impl eframe::App for ImageViewerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Ctrl/Cmd+Plus/Minus is reserved for image zoom
+        // so disable egui's own global UI-scale shortcut on the same keys.
+        ui.ctx().options_mut(|o| o.zoom_with_keyboard = false);
+        ui.input(|i| {
+            if i.modifiers.command {
+                if i.key_pressed(egui::Key::Plus) {
+                    self.state.viewer.modify_zoom(|x| x / 1.1);
+                } else if i.key_pressed(egui::Key::Minus) {
+                    self.state.viewer.modify_zoom(|x| x / (1.0 / 1.1));
+                }
+            }
+        });
+
         ui.heading("Image pixel selector");
         self.menu_ui(ui);
         self.selector.update();
