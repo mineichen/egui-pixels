@@ -7,7 +7,7 @@ use imask::{
     CreateRange, ImageDimension, ImaskSet, NonZeroRange, SortedRanges, SortedRangesIter,
     SortedRangesSpanIter, Span,
 };
-use log::{debug, info};
+use log::{debug, info, warn};
 use pulp::{Arch, Simd, WithSimd};
 
 use crate::PixelArea;
@@ -127,25 +127,34 @@ impl MaskImage {
                 // Source-over compositing in premultiplied space: `acc = layer + acc * (1 - alpha)`.
                 let t = 255 - a;
                 let layer = Color32::from_rgba_unmultiplied(r, g, b, a).to_array();
+                let pixels_len = pixels.len();
                 // Fast path: an opaque layer (t == 0) overwrites the destination, and the
                 // first drawn layer lands on still-transparent pixels, so in both cases the
                 // result is exactly the layer color and the blending can be skipped.
                 if first || t == 0 {
                     let color = u32::from_le_bytes(layer);
                     for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
-                        #[cfg(debug_assertions)]
-                        assert!((0..pixels.len()).contains(&range.end));
-                        #[cfg(not(debug_assertions))]
-                        let range = range.start.min(pixels.len())..range.end.min(pixels.len());
-                        pixels[range].fill(color);
+                        let Some(target) = pixels.get_mut(range.clone()) else {
+                            if let Some(target) = pixels.get_mut(range.start..pixels_len) {
+                                target.fill(color);
+                            }
+                            #[cfg(debug_assertions)]
+                            warn!("Range {range:?} not contained in pixels 0..{pixels_len}");
+                            break;
+                        };
+                        target.fill(color);
                     }
                 } else {
                     for range in subgroups.pixels.iter_global_with::<Range<usize>>(size) {
-                        #[cfg(debug_assertions)]
-                        assert!((0..pixels.len()).contains(&range.end));
-                        #[cfg(not(debug_assertions))]
-                        let range = range.start.min(pixels.len())..range.end.min(pixels.len());
-                        composite_layer_over(&mut pixels[range], t, layer);
+                        let Some(target) = pixels.get_mut(range.clone()) else {
+                            if let Some(target) = pixels.get_mut(range.start..pixels_len) {
+                                composite_layer_over(target, t, layer);
+                            }
+                            #[cfg(debug_assertions)]
+                            warn!("Range {range:?} not contained in pixels 0..{pixels_len}");
+                            break;
+                        };
+                        composite_layer_over(target, t, layer);
                     }
                 }
                 first = false;
