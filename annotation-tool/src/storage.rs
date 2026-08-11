@@ -4,7 +4,9 @@ use std::{
 };
 
 use futures::future::BoxFuture;
-use imanot::{ImageData, ImageId, ImageListTaskItem, PixelAreaStack};
+use imanot::{ImageData, ImageId, PixelAreaStack};
+
+use crate::ImageListTaskItem;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;

@@ -1,7 +1,8 @@
 use egui::{InnerResponse, Sense};
 
 use crate::{
-    CursorImage, CursorImageSystem, ImageLoadOk, ImageViewer, ImageViewerInteraction, Tools,
+    CursorImage, CursorImageSystem, ImageData, ImageLoadOk, ImageState, ImageViewer,
+    ImageViewerInteraction, Tools,
 };
 
 /// State container for handling tool interactions with the image viewer.
@@ -13,6 +14,12 @@ pub struct State {
     pub tools: Tools,
     pub cursor_image: CursorImageSystem,
     pub config: StateConfig,
+    /// Set to `true` by the active tool to suspend loading of the next image.
+    /// Reset to `false` before tools are called each frame.
+    postpone_new_images: bool,
+    /// Image whose loading was postponed by a tool, waiting until no tool
+    /// requests suspension anymore. Overridden by each incoming image.
+    pending_image: Option<ImageData>,
 }
 
 #[derive(Default)]
@@ -34,6 +41,22 @@ impl State {
                 );
             })),
             config: StateConfig::default(),
+            postpone_new_images: false,
+            pending_image: None,
+        }
+    }
+    /// If a tool currently requests image postpone, the load is
+    /// postponed and stored in a pending slot instead. Each incoming image
+    /// overrides the pending one. The pending image is loaded as soon as no
+    /// tool requests suspension anymore.
+    pub fn set_image(&mut self, data: ImageData) {
+        // Can only inherit stuff from current if Loaded()
+        // Maybe, the History should be extracted from ImageState
+        if matches!(self.image_state, ImageState::Loaded(_)) {
+            log::debug!("Set image: postponeed: {:?}", self.postpone_new_images);
+            self.pending_image = Some(data);
+        } else {
+            self.image_state = ImageState::new_with_image_data(data);
         }
     }
 
@@ -42,8 +65,7 @@ impl State {
             if self.config.reset_viewport_on_image_load {
                 self.viewer.reset();
             }
-            self.tools.primary().load(i);
-            self.tools.secondary().load(i);
+            self.tools.load(i);
         });
         let InnerResponse { inner, response } =
             self.viewer
@@ -57,7 +79,20 @@ impl State {
                     let new_active = image.masks.active_subgroup_at(cursor_pos, image_width);
                     image.masks.set_active_subgroup(new_active);
                 }
+                // Reset the suspension flag before tools are called, so that only atool actively setting it to `true` will cause image loading to be delayed.
+                self.postpone_new_images = response.is_pointer_button_down_on();
                 self.handle_tool_interaction(&response, ui.ctx(), &mut r.image_painter);
+                // If no tool requested suspension, load any image that was
+                // postponed while a tool held the mouse button down.
+                if !self.postpone_new_images
+                    && let Some(p) = self.pending_image.take()
+                {
+                    let tools = &mut self.tools;
+                    let sr = self.image_state.set_image_data(p, ui.ctx(), tools);
+                    if let Err(e) = sr {
+                        self.image_state = ImageState::Error(e.to_string());
+                    }
+                }
                 Some(r)
             } else {
                 None
@@ -102,6 +137,7 @@ impl State {
                     tool_painter,
                     &mut self.viewer,
                     &mut self.cursor_image,
+                    &mut self.postpone_new_images,
                 ));
             }
         }

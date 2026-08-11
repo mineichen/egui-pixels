@@ -1,3 +1,5 @@
+use imanot::ImageId;
+
 mod app;
 mod config;
 mod storage;
@@ -15,3 +17,10 @@ type ImageCallbackMap = Vec<(
     String,
     Box<dyn Fn(&image::DynamicImage) -> Vec<imanot::PixelArea>>,
 )>;
+
+#[derive(Debug)]
+pub struct ImageListTaskItem {
+    pub id: ImageId,
+    pub name: String,
+    pub has_masks: bool,
+}

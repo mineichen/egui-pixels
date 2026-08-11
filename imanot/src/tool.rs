@@ -140,6 +140,7 @@ pub struct ToolContext<'a> {
     pub painter: &'a mut ImagePainter,
     pub viewer: &'a mut ImageViewer,
     pub cursor_image: &'a mut CursorImageSystem,
+    pub postpone_new_images: &'a mut bool,
 }
 
 impl<'a> ToolContext<'a> {
@@ -150,6 +151,7 @@ impl<'a> ToolContext<'a> {
         painter: &'a mut ImagePainter,
         viewer: &'a mut ImageViewer,
         cursor_image: &'a mut CursorImageSystem,
+        postpone_new_images: &'a mut bool,
     ) -> Self {
         Self {
             image,
@@ -158,6 +160,7 @@ impl<'a> ToolContext<'a> {
             painter,
             viewer,
             cursor_image,
+            postpone_new_images,
         }
     }
 

@@ -1,9 +1,10 @@
 use std::io;
 
-use crate::storage::Storage;
 use egui::{self, ComboBox, Key};
-use imanot::{AsyncTask, ImageId, ImageListTaskItem};
+use imanot::{AsyncTask, ImageId};
 use log::info;
+
+use crate::{ImageListTaskItem, storage::Storage};
 
 const ICON_RELOAD: &str = "\u{21BB}";
 const ICON_PREV_ANNOTATED: &str = "\u{23EA}";

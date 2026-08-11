@@ -9,12 +9,12 @@ use std::{
 
 use bytemuck::{AnyBitPattern, NoUninit};
 use futures::{FutureExt, future::BoxFuture};
-use imanot::{ImageData, ImageId, ImageListTaskItem, PixelArea, PixelAreaStack, load_image};
+use imanot::{ImageData, ImageId, PixelArea, PixelAreaStack, load_image};
 use imask::{ImageDimension, ImaskSet, Rect, SignedNonZeroable, Span};
 use itertools::Itertools;
 use log::info;
 
-use super::{Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
+use super::{ImageListTaskItem, Kind, MaybeOneOrMany, PREAMBLE, Storage, VERSION};
 
 pub struct FileStorage {
     base: String,
@@ -213,11 +213,12 @@ impl Storage for FileStorage {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Default::default(),
                 Err(e) => return Err(e),
             };
-            Ok(ImageData {
+            Ok(ImageData::new(
                 id,
-                masks: PixelAreaStack::from(masks),
-                image: image_load_ok,
-            })
+                image_load_ok,
+                PixelAreaStack::from(masks),
+                imanot::HistoryStrategy::Reset,
+            ))
         }
         .boxed()
     }

@@ -5,9 +5,9 @@ use std::{
 };
 
 use futures::{FutureExt, future::BoxFuture};
-use imanot::{ImageListTaskItem, PixelAreaStack};
+use imanot::PixelAreaStack;
 
-use super::{ImageData, ImageId, Storage};
+use super::{ImageData, ImageId, ImageListTaskItem, Storage};
 
 pub struct InMemoryStorage {
     data: Arc<Mutex<HashMap<ImageId, ImageData>>>,

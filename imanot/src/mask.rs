@@ -47,7 +47,6 @@ impl Default for MaskSettings {
         }
     }
 }
-
 pub struct MaskImage {
     size: [usize; 2],
     // Often the only reference.
@@ -58,7 +57,6 @@ pub struct MaskImage {
     settings: MaskSettings,
     active_subgroup: Option<usize>,
 }
-
 struct LoadedMaskImage {
     visible: bool,
     #[allow(dead_code, reason = "Keeps GPU buffer alive")]
@@ -273,6 +271,14 @@ impl MaskImage {
 
     pub fn subgroups_stack(&self) -> &PixelAreaStack {
         &self.applied.stack
+    }
+
+    pub(crate) fn replace_base_layers(&mut self, mut x: PixelAreaStack) -> PixelAreaStack {
+        if self.base != x {
+            std::mem::swap(&mut self.base, &mut x);
+            self.applied.mark_redraw(&self.base, &self.history);
+        }
+        x
     }
 
     /// Returns the old value

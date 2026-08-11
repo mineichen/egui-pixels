@@ -67,6 +67,11 @@ impl Tools {
         }
     }
 
+    pub(crate) fn load(&mut self, i: &ImageLoadOk) {
+        self.primary().load(i);
+        self.secondary().load(i);
+    }
+
     pub fn primary(&mut self) -> ToolHandle<'_> {
         let [p, _s] = self.handles();
         p

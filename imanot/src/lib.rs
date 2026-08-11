@@ -46,14 +46,36 @@ impl std::ops::Deref for ImageId {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum HistoryStrategy {
+    Keep,
+    Reset,
+}
+
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct ImageData {
     pub id: ImageId,
     pub image: ImageLoadOk,
     pub masks: PixelAreaStack,
+    pub history_strategy: HistoryStrategy,
 }
 
 impl ImageData {
+    pub fn new(
+        id: ImageId,
+        image: ImageLoadOk,
+        masks: PixelAreaStack,
+        history_strategy: HistoryStrategy,
+    ) -> Self {
+        Self {
+            id,
+            image,
+            masks,
+            history_strategy,
+        }
+    }
     pub fn chessboard() -> impl Iterator<Item = Self> {
         (0..2).map(|i| ImageData {
             id: ImageId::from(format!("image{}", i + 1).as_str()),
@@ -81,13 +103,7 @@ impl ImageData {
                     adjust: buffer,
                 }
             },
+            history_strategy: HistoryStrategy::Reset,
         })
     }
-}
-
-#[derive(Debug)]
-pub struct ImageListTaskItem {
-    pub id: ImageId,
-    pub name: String,
-    pub has_masks: bool,
 }
