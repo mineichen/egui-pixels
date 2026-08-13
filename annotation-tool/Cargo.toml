@@ -18,7 +18,7 @@ eframe = { workspace = true, features = [
     "default_fonts",
 ] }
 imanot = { path = "../imanot", features = ["image-0_25"] }
-egui.workspace = true
+egui = { workspace = true, features = ["glow", "default_fonts"] }
 emath = { workspace = true, features = ["serde"] }
 env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",

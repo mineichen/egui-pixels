@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-eframe = { version = "0.35", default-features = false, features = ["wgpu", "default_fonts"] }
+eframe = { version = "0.35", default-features = false }
 egui = { version = "0.35", default-features = false }
 emath = "0.35"
 futures-core = "0.3"
@@ -20,4 +20,3 @@ serde = { version = "1" }
 
 # [patch."https://github.com/mineichen/imask.git"]
 # imask = { path = "../imask" }
-
