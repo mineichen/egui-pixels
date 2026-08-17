@@ -16,9 +16,10 @@ bytemuck = "1"
 brotli = "8"
 eframe = { workspace = true, features = [
     "default_fonts",
+    "glow"
 ] }
 imanot = { path = "../imanot", features = ["image-0_25"] }
-egui = { workspace = true, features = ["glow", "default_fonts"] }
+egui = { workspace = true, features = ["default_fonts"] }
 emath = { workspace = true, features = ["serde"] }
 env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",

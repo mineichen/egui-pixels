@@ -7,9 +7,9 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-eframe = { version = "0.35", default-features = false }
-egui = { version = "0.35", default-features = false }
-emath = "0.35"
+eframe = { version = "0.36", default-features = false }
+egui = { version = "0.36", default-features = false }
+emath = "0.36"
 futures-core = "0.3"
 image-0_25 = { package = "image", version = "0.25", default-features = false }
 imbuf = "0.3"
