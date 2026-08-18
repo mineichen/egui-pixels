@@ -263,7 +263,10 @@ impl Tool for BrushTool {
                                 ctx.image
                                     .masks
                                     .on_layer(self.layer)
-                                    .keep_overlapping(matches!(self.layer, AffectedLayer::Layer(_)))
+                                    .keep_overlapping(!matches!(
+                                        self.layer,
+                                        AffectedLayer::Unspecified
+                                    ))
                                     .add(pixel_area);
                             }
                         }

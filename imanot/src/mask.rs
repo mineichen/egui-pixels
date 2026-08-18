@@ -69,6 +69,21 @@ pub enum AffectedLayer {
     #[default]
     Unspecified,
     Layer(usize),
+    /// Layers in the half-open range `start..end`, or `start..` when `end` is `None`.
+    Range(usize, Option<usize>),
+}
+
+impl AffectedLayer {
+    pub fn affects(&self, layer: usize) -> bool {
+        match self {
+            AffectedLayer::Unspecified => true,
+            AffectedLayer::Layer(idx) => *idx == layer,
+            AffectedLayer::Range(start, end) => match end {
+                Some(end) => *start <= layer && layer < *end,
+                None => *start <= layer,
+            },
+        }
+    }
 }
 
 impl MaskImage {
@@ -669,6 +684,76 @@ mod tests {
                 .map(|(i, x)| (i, &x.pixels))
                 .flat_map(|(i, x)| x.spans::<u32>().map(move |s| (i, s)))
         }
+    }
+
+    #[test]
+    fn affected_layer_affects() {
+        assert!(AffectedLayer::Unspecified.affects(0));
+        assert!(AffectedLayer::Unspecified.affects(10));
+        assert!(AffectedLayer::Layer(2).affects(2));
+        assert!(!AffectedLayer::Layer(2).affects(3));
+        assert!(AffectedLayer::Range(1, Some(4)).affects(1));
+        assert!(AffectedLayer::Range(1, Some(4)).affects(3));
+        assert!(!AffectedLayer::Range(1, Some(4)).affects(4));
+        assert!(!AffectedLayer::Range(1, Some(4)).affects(0));
+        assert!(AffectedLayer::Range(2, None).affects(2));
+        assert!(AffectedLayer::Range(2, None).affects(100));
+        assert!(!AffectedLayer::Range(2, None).affects(1));
+    }
+
+    #[test]
+    fn add_to_range_of_layers() {
+        let mut mask_image = mask_10(Vec::new());
+        mask_image
+            .on_layer(AffectedLayer::Range(0, Some(2)))
+            .add(SortedRanges::from(Span::new(1..3, 0)));
+        assert_eq!(
+            mask_image.subgroup_spans_flat().collect::<Vec<_>>(),
+            vec![(0, Span::new(1..3, 0)), (1, Span::new(1..3, 0)),]
+        );
+    }
+
+    #[test]
+    fn add_to_open_ended_range_of_layers() {
+        let mut mask_image = mask_10(Vec::new());
+        mask_image.add(SortedRanges::from(Span::new(1..3, 0)));
+        mask_image.add(SortedRanges::from(Span::new(4..6, 0)));
+        mask_image
+            .on_layer(AffectedLayer::Range(1, None))
+            .add(SortedRanges::from(Span::new(2..5, 0)));
+        assert_eq!(
+            mask_image.subgroup_spans_flat().collect::<Vec<_>>(),
+            vec![(0, Span::new(1..3, 0)), (1, Span::new(2..6, 0)),]
+        );
+    }
+
+    #[test]
+    fn clear_range_of_layers() {
+        let mut mask_image = mask_10(Vec::new());
+        mask_image.add(SortedRanges::from(Span::new(1..9, 0)));
+        mask_image.add(SortedRanges::from(Span::new(2..8, 0)));
+        mask_image
+            .on_layer(AffectedLayer::Range(0, Some(2)))
+            .clear(Rect::new(0u32, 0, NON_ZERO_4, NON_ZERO_1).into_spans());
+        assert_eq!(
+            mask_image.subgroup_spans_flat().collect::<Vec<_>>(),
+            vec![(0, Span::new(4..9, 0)), (1, Span::new(4..8, 0)),]
+        );
+    }
+
+    #[test]
+    fn reset_range_of_layers() {
+        let mut mask_image = mask_10(Vec::new());
+        mask_image.add(SortedRanges::from(Span::new(1..9, 0)));
+        mask_image.add(SortedRanges::from(Span::new(2..8, 0)));
+        mask_image.add(SortedRanges::from(Span::new(3..7, 0)));
+        mask_image
+            .on_layer(AffectedLayer::Range(0, Some(2)))
+            .reset();
+        assert_eq!(
+            mask_image.subgroup_spans_flat().collect::<Vec<_>>(),
+            vec![(2, Span::new(3..7, 0))]
+        );
     }
 
     #[test]

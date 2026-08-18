@@ -15,6 +15,19 @@ fn take_layer_ranges(
     let ranges = target.clear_ranges();
     (target, ranges)
 }
+
+fn apply_add(layers: &mut Vec<Layer>, idx: usize, add: &HistoryActionAdd) {
+    let (target, maybe_existing) = take_layer_ranges(layers, idx);
+    if let Some(existing) = maybe_existing {
+        let new_spans = add.pixel_area.spans::<u64>();
+        let mapped = existing.map_span_inplace(|existing_spans| existing_spans.union(new_spans));
+        if let Some(new_area) = mapped {
+            target.set_ranges(new_area);
+        }
+    } else {
+        target.set_ranges(add.pixel_area.clone());
+    };
+}
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionAdd {
     pub pixel_area: SortedRanges<u32, u32>,
@@ -53,17 +66,19 @@ impl HistoryAction {
                     rest
                 }
                 AffectedLayer::Layer(idx) => {
-                    let (target, maybe_existing) = take_layer_ranges(&mut rest, idx);
-                    if let Some(existing) = maybe_existing {
-                        let new_spans = add.pixel_area.spans::<u64>();
-                        let mapped = existing
-                            .map_span_inplace(|existing_spans| existing_spans.union(new_spans));
-                        if let Some(new_area) = mapped {
-                            target.set_ranges(new_area);
-                        }
-                    } else {
-                        target.set_ranges(add.pixel_area.clone());
-                    };
+                    apply_add(&mut rest, idx, add);
+                    rest
+                }
+                AffectedLayer::Range(start, Some(end)) => {
+                    for idx in start..end {
+                        apply_add(&mut rest, idx, add);
+                    }
+                    rest
+                }
+                AffectedLayer::Range(start, None) => {
+                    for idx in start..rest.len() {
+                        apply_add(&mut rest, idx, add);
+                    }
                     rest
                 }
             },
@@ -72,38 +87,28 @@ impl HistoryAction {
                     rest.clear();
                     rest
                 }
-                AffectedLayer::Layer(idx) => {
-                    if let Some(layer) = rest.get_mut(idx) {
-                        layer.clear_ranges();
+                affected => {
+                    for (idx, target) in rest.iter_mut().enumerate() {
+                        if affected.affects(idx) {
+                            target.clear_ranges();
+                        }
                     }
                     rest
                 }
             },
-            HistoryActionKind::Clear(clear) => match self.layer {
-                AffectedLayer::Unspecified => {
-                    rest.iter_mut().for_each(|target| {
-                        if let Some(ranges) = target.clear_ranges()
-                            && let Some(new_area) = ranges.map_span_inplace(|existing_spans| {
-                                existing_spans.subtract(clear.ranges.spans::<u64>())
-                            })
-                        {
-                            target.set_ranges(new_area);
-                        }
-                    });
-                    rest
-                }
-                AffectedLayer::Layer(idx) => {
-                    if rest.get_mut(idx).is_some()
-                        && let (target, Some(ranges)) = take_layer_ranges(&mut rest, idx)
+            HistoryActionKind::Clear(clear) => {
+                for (idx, target) in rest.iter_mut().enumerate() {
+                    if self.layer.affects(idx)
+                        && let Some(ranges) = target.clear_ranges()
                         && let Some(new_area) = ranges.map_span_inplace(|existing_spans| {
                             existing_spans.subtract(clear.ranges.spans::<u64>())
                         })
                     {
                         target.set_ranges(new_area);
                     }
-                    rest
                 }
-            },
+                rest
+            }
         }
     }
 }
