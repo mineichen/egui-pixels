@@ -30,8 +30,8 @@ pub struct DrawTool {
 }
 
 impl DrawTool {
-    pub fn set_layer(&mut self, layer: usize) -> &mut Self {
-        self.layer = AffectedLayer::Layer(layer);
+    pub fn set_layer(&mut self, layer: impl Into<AffectedLayer>) -> &mut Self {
+        self.layer = layer.into();
         self
     }
     pub fn set_mode(&mut self, mode: Mode) -> &mut Self {

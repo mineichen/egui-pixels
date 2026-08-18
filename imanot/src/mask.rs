@@ -1,4 +1,9 @@
-use std::{collections::BinaryHeap, iter::FusedIterator, num::NonZeroU32, ops::Range};
+use std::{
+    collections::BinaryHeap,
+    iter::FusedIterator,
+    num::NonZeroU32,
+    ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
+};
 
 use egui::{
     self, Color32, ColorImage, ImageSource, TextureHandle, TextureOptions, load::SizedTexture,
@@ -83,6 +88,49 @@ impl AffectedLayer {
                 None => *start <= layer,
             },
         }
+    }
+}
+
+impl From<usize> for AffectedLayer {
+    fn from(layer: usize) -> Self {
+        AffectedLayer::Layer(layer)
+    }
+}
+
+impl From<Range<usize>> for AffectedLayer {
+    fn from(range: Range<usize>) -> Self {
+        AffectedLayer::Range(range.start, Some(range.end))
+    }
+}
+
+impl From<RangeFrom<usize>> for AffectedLayer {
+    fn from(range: RangeFrom<usize>) -> Self {
+        AffectedLayer::Range(range.start, None)
+    }
+}
+
+impl From<RangeInclusive<usize>> for AffectedLayer {
+    fn from(range: RangeInclusive<usize>) -> Self {
+        let (start, end) = range.into_inner();
+        AffectedLayer::Range(start, end.checked_add(1))
+    }
+}
+
+impl From<RangeTo<usize>> for AffectedLayer {
+    fn from(range: RangeTo<usize>) -> Self {
+        AffectedLayer::Range(0, Some(range.end))
+    }
+}
+
+impl From<RangeToInclusive<usize>> for AffectedLayer {
+    fn from(range: RangeToInclusive<usize>) -> Self {
+        AffectedLayer::Range(0, range.end.checked_add(1))
+    }
+}
+
+impl From<RangeFull> for AffectedLayer {
+    fn from(_: RangeFull) -> Self {
+        AffectedLayer::Range(0, None)
     }
 }
 
