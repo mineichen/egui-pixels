@@ -10,7 +10,7 @@ pub use rect_selection::*;
 
 use std::any::Any;
 
-use crate::{CursorImageSystem, ImageStateLoaded, ImageViewer};
+use crate::{AffectedLayer, CursorImageSystem, ImageStateLoaded, ImageViewer};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -26,12 +26,12 @@ pub trait Tool: Any {
 #[derive(Default)]
 pub struct DrawTool {
     mode: Mode,
-    layer: Option<usize>,
+    layer: AffectedLayer,
 }
 
 impl DrawTool {
     pub fn set_layer(&mut self, layer: usize) -> &mut Self {
-        self.layer = Some(layer);
+        self.layer = AffectedLayer::Layer(layer);
         self
     }
     pub fn set_mode(&mut self, mode: Mode) -> &mut Self {

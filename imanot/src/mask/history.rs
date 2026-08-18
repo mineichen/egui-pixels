@@ -35,24 +35,24 @@ pub enum HistoryActionKind {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryAction {
     pub kind: HistoryActionKind,
-    pub layer: Option<usize>,
+    pub layer: AffectedLayer,
     pub tracked: bool,
 }
 
 impl HistoryAction {
-    pub fn layer(&self) -> Option<usize> {
+    pub fn layer(&self) -> AffectedLayer {
         self.layer
     }
     pub(in crate::mask) fn apply(&self, mut rest: Vec<Layer>) -> Vec<Layer> {
         match &self.kind {
             HistoryActionKind::Add(add) => match self.layer {
-                None => {
+                AffectedLayer::Unspecified => {
                     let color = crate::random_color_from_seed(rest.len() as u16);
                     let pixel_area = PixelArea::from_ranges(add.pixel_area.clone(), color);
                     rest.push(Layer::Filled(pixel_area));
                     rest
                 }
-                Some(idx) => {
+                AffectedLayer::Layer(idx) => {
                     let (target, maybe_existing) = take_layer_ranges(&mut rest, idx);
                     if let Some(existing) = maybe_existing {
                         let new_spans = add.pixel_area.spans::<u64>();
@@ -68,11 +68,11 @@ impl HistoryAction {
                 }
             },
             HistoryActionKind::Reset => match self.layer {
-                None => {
+                AffectedLayer::Unspecified => {
                     rest.clear();
                     rest
                 }
-                Some(idx) => {
+                AffectedLayer::Layer(idx) => {
                     if let Some(layer) = rest.get_mut(idx) {
                         layer.clear_ranges();
                     }
@@ -80,7 +80,7 @@ impl HistoryAction {
                 }
             },
             HistoryActionKind::Clear(clear) => match self.layer {
-                None => {
+                AffectedLayer::Unspecified => {
                     rest.iter_mut().for_each(|target| {
                         if let Some(ranges) = target.clear_ranges()
                             && let Some(new_area) = ranges.map_span_inplace(|existing_spans| {
@@ -92,7 +92,7 @@ impl HistoryAction {
                     });
                     rest
                 }
-                Some(idx) => {
+                AffectedLayer::Layer(idx) => {
                     if rest.get_mut(idx).is_some()
                         && let (target, Some(ranges)) = take_layer_ranges(&mut rest, idx)
                         && let Some(new_area) = ranges.map_span_inplace(|existing_spans| {
@@ -112,7 +112,7 @@ pub struct History {
     actions: Vec<HistoryAction>,
     end: usize,
     not_dirty_pos: Option<usize>,
-    undo_redo_layer: Option<Option<usize>>,
+    undo_redo_layer: Option<AffectedLayer>,
 }
 
 impl Default for History {
@@ -141,13 +141,8 @@ impl History {
     pub fn take_dirty(&mut self) -> Option<AffectedLayer> {
         if self.is_dirty() {
             self.mark_not_dirty();
-            let layer = self
-                .undo_redo_layer
-                .or_else(|| self.iter().rev().next().map(|a| a.layer))?;
-            Some(match layer {
-                Some(x) => AffectedLayer::Layer(x),
-                None => AffectedLayer::Unspecified,
-            })
+            self.undo_redo_layer
+                .or_else(|| self.iter().rev().next().map(|a| a.layer))
         } else {
             None
         }
@@ -211,7 +206,7 @@ mod tests {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: Span::new(x..x + 1, 0).into(),
             }),
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: true,
         }
     }
@@ -221,7 +216,7 @@ mod tests {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: Span::new(x..x + 1, 0).into(),
             }),
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: false,
         }
     }
@@ -335,12 +330,12 @@ mod tests {
         let mut history = History::default();
         history.push(HistoryAction {
             kind: HistoryActionKind::Reset,
-            layer: Some(0),
+            layer: AffectedLayer::Layer(0),
             tracked: false,
         });
         history.push(HistoryAction {
             kind: HistoryActionKind::Reset,
-            layer: Some(1),
+            layer: AffectedLayer::Layer(1),
             tracked: false,
         });
 
@@ -354,14 +349,14 @@ mod tests {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: Span::new(0..1, 0).into(),
             }),
-            layer: Some(0),
+            layer: AffectedLayer::Layer(0),
             tracked: true,
         });
         history.push(HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: Span::new(1..2, 0).into(),
             }),
-            layer: Some(1),
+            layer: AffectedLayer::Layer(1),
             tracked: true,
         });
 

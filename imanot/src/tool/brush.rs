@@ -9,8 +9,8 @@ use futures::FutureExt;
 use imask::{BitmapToSpanIter, Rect, SortedRanges};
 
 use crate::{
-    DrawTool, ImagePainter, MaskActionBuilder, MaskDefaultActions, Mode, Tool, ToolContext,
-    ToolFactory,
+    AffectedLayer, DrawTool, ImagePainter, MaskActionBuilder, MaskDefaultActions, Mode, Tool,
+    ToolContext, ToolFactory,
 };
 
 struct StrokeState {
@@ -263,7 +263,7 @@ impl Tool for BrushTool {
                                 ctx.image
                                     .masks
                                     .on_layer(self.layer)
-                                    .keep_overlapping(self.layer.is_some())
+                                    .keep_overlapping(matches!(self.layer, AffectedLayer::Layer(_)))
                                     .add(pixel_area);
                             }
                         }

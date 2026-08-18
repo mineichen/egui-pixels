@@ -64,8 +64,9 @@ struct LoadedMaskImage {
     source: ImageSource<'static>,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum AffectedLayer {
+    #[default]
     Unspecified,
     Layer(usize),
 }
@@ -388,14 +389,14 @@ pub struct AddAction {
 
 pub struct HistoryActionBuilder<'a, A = ()> {
     mask: &'a mut MaskImage,
-    layer: Option<usize>,
+    layer: AffectedLayer,
     tracked: bool,
     action: A,
 }
 
 pub trait MaskActionBuilder<'a>: Sized {
     type Builder;
-    fn on_layer(self, layer: Option<usize>) -> Self::Builder;
+    fn on_layer(self, layer: AffectedLayer) -> Self::Builder;
     fn without_tracking(self) -> Self::Builder;
     fn keep_overlapping(self, overlapping: bool) -> HistoryActionBuilder<'a, AddAction>;
 }
@@ -411,7 +412,7 @@ pub trait MaskDefaultActions: Sized {
 impl<'a> MaskActionBuilder<'a> for &'a mut MaskImage {
     type Builder = HistoryActionBuilder<'a>;
 
-    fn on_layer(self, layer: Option<usize>) -> HistoryActionBuilder<'a> {
+    fn on_layer(self, layer: AffectedLayer) -> HistoryActionBuilder<'a> {
         HistoryActionBuilder {
             mask: self,
             layer,
@@ -423,7 +424,7 @@ impl<'a> MaskActionBuilder<'a> for &'a mut MaskImage {
     fn without_tracking(self) -> HistoryActionBuilder<'a> {
         HistoryActionBuilder {
             mask: self,
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: false,
             action: (),
         }
@@ -432,7 +433,7 @@ impl<'a> MaskActionBuilder<'a> for &'a mut MaskImage {
     fn keep_overlapping(self, overlapping: bool) -> HistoryActionBuilder<'a, AddAction> {
         HistoryActionBuilder {
             mask: self,
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: true,
             action: AddAction { overlapping },
         }
@@ -442,7 +443,7 @@ impl<'a> MaskActionBuilder<'a> for &'a mut MaskImage {
 impl<'a, A> MaskActionBuilder<'a> for HistoryActionBuilder<'a, A> {
     type Builder = Self;
 
-    fn on_layer(mut self, layer: Option<usize>) -> Self {
+    fn on_layer(mut self, layer: AffectedLayer) -> Self {
         self.layer = layer;
         self
     }
@@ -470,7 +471,7 @@ impl<'a> MaskDefaultActions for &'a mut MaskImage {
     fn clear<I: Iterator<Item = Span<u32>> + ImageDimension>(self, ranges: I) {
         HistoryActionBuilder {
             mask: self,
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: true,
             action: (),
         }
@@ -480,7 +481,7 @@ impl<'a> MaskDefaultActions for &'a mut MaskImage {
     fn reset(self) {
         HistoryActionBuilder {
             mask: self,
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: true,
             action: (),
         }
@@ -908,14 +909,14 @@ mod tests {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: SortedRanges::from(Span::new(0u32..2, 0)),
             }),
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: true,
         });
         history.push(HistoryAction {
             kind: HistoryActionKind::Add(HistoryActionAdd {
                 pixel_area: SortedRanges::from(Span::new(1..5, 0)),
             }),
-            layer: None,
+            layer: AffectedLayer::Unspecified,
             tracked: true,
         });
         let mut x = MaskImage::new([10, 10], vec![], history);

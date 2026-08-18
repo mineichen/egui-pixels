@@ -7,8 +7,8 @@ use futures::FutureExt;
 use imask::{Rect, SortedRanges, Span};
 
 use crate::{
-    CursorImage, DrawTool, MaskActionBuilder, MaskDefaultActions, Mode, RectSelection, Tool,
-    ToolContext, ToolFactory,
+    AffectedLayer, CursorImage, DrawTool, MaskActionBuilder, MaskDefaultActions, Mode,
+    RectSelection, Tool, ToolContext, ToolFactory,
 };
 
 const RECT_CURSOR_IMAGE: CursorImage = CursorImage {
@@ -67,7 +67,7 @@ impl Tool for RectTool {
                         ctx.image
                             .masks
                             .on_layer(self.layer)
-                            .keep_overlapping(self.layer.is_some())
+                            .keep_overlapping(matches!(self.layer, AffectedLayer::Layer(_)))
                             .add(pixel_area);
                     }
                 }
