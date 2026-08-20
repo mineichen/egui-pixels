@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use imask::{ImageDimension, SortedRanges, Span};
 
-type Ranges = SortedRanges<u32, u32>;
+type Ranges = SortedRanges<u32>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

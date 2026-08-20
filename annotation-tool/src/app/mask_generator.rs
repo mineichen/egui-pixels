@@ -18,7 +18,7 @@ impl MaskGenerator {
         &mut self,
         image: &OriginalImage,
         ui: &mut egui::Ui,
-    ) -> Option<Vec<SortedRanges<u32, u32>>> {
+    ) -> Option<Vec<SortedRanges<u32>>> {
         if !self.map.is_empty() {
             ComboBox::from_id_salt("algo_selector")
                 .show_index(ui, &mut self.pos, self.map.len(), |x| {

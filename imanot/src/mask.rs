@@ -465,7 +465,7 @@ pub trait MaskActionBuilder<'a>: Sized {
 }
 
 pub trait MaskDefaultActions: Sized {
-    fn add(self, ranges: SortedRanges<u32, u32>);
+    fn add(self, ranges: SortedRanges<u32>);
     fn clear<I>(self, ranges: I)
     where
         I: Iterator<Item = Span<u32>> + ImageDimension;
@@ -527,7 +527,7 @@ impl<'a, A> MaskActionBuilder<'a> for HistoryActionBuilder<'a, A> {
 }
 
 impl<'a> MaskDefaultActions for &'a mut MaskImage {
-    fn add(self, subgroups: SortedRanges<u32, u32>) {
+    fn add(self, subgroups: SortedRanges<u32>) {
         self.keep_overlapping(true).add(subgroups);
     }
 
@@ -553,7 +553,7 @@ impl<'a> MaskDefaultActions for &'a mut MaskImage {
 }
 
 impl<'a> MaskDefaultActions for HistoryActionBuilder<'a, ()> {
-    fn add(self, subgroups: SortedRanges<u32, u32>) {
+    fn add(self, subgroups: SortedRanges<u32>) {
         self.keep_overlapping(true).add(subgroups);
     }
 
@@ -577,7 +577,7 @@ impl<'a> MaskDefaultActions for HistoryActionBuilder<'a, ()> {
 }
 
 impl<'a> HistoryActionBuilder<'a, AddAction> {
-    pub fn add(self, subgroups: SortedRanges<u32, u32>) {
+    pub fn add(self, subgroups: SortedRanges<u32>) {
         let subgroups = if self.action.overlapping {
             subgroups
         } else {

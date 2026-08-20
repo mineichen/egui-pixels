@@ -30,7 +30,7 @@ fn apply_add(layers: &mut Vec<Layer>, idx: usize, add: &HistoryActionAdd) {
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HistoryActionAdd {
-    pub pixel_area: SortedRanges<u32, u32>,
+    pub pixel_area: SortedRanges<u32>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
