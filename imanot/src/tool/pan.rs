@@ -23,15 +23,16 @@ impl Tool for PanTool {
         let response = &ctx.response;
 
         let drag_delta = response.drag_delta();
+        let drag_delta = (drag_delta.x.abs() > f32::EPSILON || drag_delta.y.abs() > f32::EPSILON).then_some(drag_delta);
         let zoom = response.hover_pos().and_then(|hover| {
             let speed = ctx.egui.options(|o| o.input_options.scroll_zoom_speed);
             let factor = ctx
                 .egui
                 .input(|i| i.zoom_delta() * (i.smooth_scroll_delta.y * speed).exp());
-            (factor != 1.0).then_some((hover, factor))
+            ((factor - 1.0).abs() > f32::EPSILON).then_some((hover, factor))
         });
 
-        if drag_delta == Vec2::default() && zoom.is_none() {
+        if drag_delta.is_none() && zoom.is_none() {
             return;
         }
 
@@ -54,7 +55,7 @@ impl Tool for PanTool {
             viewer.set_pan_offset(center / original_image_size);
         }
 
-        if drag_delta != Vec2::default() {
+        if let Some(drag_delta) = drag_delta {
             let render_scale = fit_scale / viewer.zoom();
 
             let delta_norm = drag_delta / (render_scale * original_image_size);
