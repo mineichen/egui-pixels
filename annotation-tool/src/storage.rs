@@ -12,7 +12,7 @@ use crate::ImageListTaskItem;
 pub mod file;
 pub mod in_memory;
 
-const PREAMBLE: [u8; 5] = [b'a', b'n', b'n', b'o', b't'];
+const PREAMBLE: [u8; 5] = *b"annot";
 const VERSION: u16 = 2;
 
 pub trait Storage {

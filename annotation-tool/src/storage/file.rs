@@ -228,7 +228,7 @@ impl Storage for FileStorage {
         id: &ImageId,
         masks: &PixelAreaStack,
     ) -> BoxFuture<'static, io::Result<()>> {
-        let path = Self::get_mask_path(&id);
+        let path = Self::get_mask_path(id);
         let masks = masks.clone();
         async move {
             info!("Store at: {path:?}");

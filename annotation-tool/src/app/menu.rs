@@ -54,7 +54,7 @@ impl crate::app::ImageViewerApp {
                         masks.mark_not_dirty();
                         self.save_job = AsyncRefTask::new(
                             self.storage
-                                .store_masks(&id, masks.subgroups_stack())
+                                .store_masks(id, masks.subgroups_stack())
                                 .map(|x| x.map_err(|e| format!("Error during save: {e}")))
                                 .boxed(),
                         );
