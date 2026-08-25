@@ -60,7 +60,7 @@ pub struct MaskImage {
     history: History,
     texture_handle: Option<LoadedMaskImage>,
     settings: MaskSettings,
-    active_subgroup: Option<usize>,
+    active_layer: Option<usize>,
 }
 struct LoadedMaskImage {
     visible: bool,
@@ -145,7 +145,7 @@ impl MaskImage {
             history,
             texture_handle: None,
             settings: MaskSettings::default(),
-            active_subgroup: None,
+            active_layer: None,
         }
     }
 
@@ -180,7 +180,7 @@ impl MaskImage {
             let mut first = true;
             for (i, subgroups) in self.applied.stack.iter() {
                 let [r, g, b, a] = subgroups.color;
-                let is_active = self.active_subgroup == Some(i);
+                let is_active = self.active_layer == Some(i);
                 let opacity = self.settings.opacity(is_active);
                 let a = (a as u16 * opacity as u16 / 255) as u8;
                 if a == 0 {
@@ -306,30 +306,34 @@ impl MaskImage {
         }
     }
 
+    #[deprecated = "Use Self::active_layer"]
     pub fn active_subgroup(&self) -> Option<usize> {
-        self.active_subgroup
+        self.active_layer()
     }
 
+    pub fn active_layer(&self) -> Option<usize> {
+        self.active_layer
+    }
+
+    #[deprecated = "Use Self::active_layer"]
     pub fn set_active_subgroup(&mut self, index: Option<usize>) {
-        if self.active_subgroup != index {
-            self.active_subgroup = index;
+        self.set_active_layer(index);
+    }
+    pub fn set_active_layer(&mut self, index: Option<usize>) {
+        if self.active_layer != index {
+            self.active_layer = index;
             self.applied.mark_redraw(&self.base, &self.history);
         }
     }
 
-    pub fn active_subgroup_at(
-        &self,
-        (x, y): (usize, usize),
-        image_width: NonZeroU32,
-    ) -> Option<usize> {
-        let width_usize: usize = image_width.get().try_into().ok()?;
-        let idx = y * width_usize + x;
-
+    pub fn active_subgroup_at(&self, (x, y): (u32, u32)) -> Option<usize> {
         self.subgroups_stack().iter().rev().find_map(|(i, area)| {
-            area.pixels
-                .iter_global_with::<Range<u64>>(image_width)
-                .any(|range| range.contains(&(idx as u64)))
-                .then_some(i)
+            (area.pixels.bounds().contains(&x, &y)
+                && area
+                    .pixels
+                    .spans::<u32>()
+                    .any(|s| s.y == y && s.x.contains(&(x))))
+            .then_some(i)
         })
     }
 
