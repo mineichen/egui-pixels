@@ -6,7 +6,7 @@ use std::{
 
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions};
 use futures::FutureExt;
-use imask::{BitmapToSpanIter, Rect, SortedRanges};
+use imask::{BitmapToSpanIter, Rect, SortedRanges, WithRoi};
 
 use crate::{
     AffectedLayer, DrawTool, ImagePainter, MaskActionBuilder, MaskDefaultActions, Mode, Tool,
@@ -16,6 +16,10 @@ use crate::{
 struct StrokeState {
     width: usize,
     height: usize,
+    min_x: usize,
+    max_x: usize,
+    min_y: usize,
+    max_y: usize,
     mask: Vec<bool>,
     last_pos: Option<(usize, usize)>,
     texture: Option<TextureHandle>,
@@ -23,15 +27,36 @@ struct StrokeState {
 }
 
 impl StrokeState {
-    fn new(width: usize, height: usize) -> Self {
+    fn new(width: usize, height: usize, x: usize, y: usize) -> Self {
         Self {
             width,
             height,
+            min_x: x,
+            max_x: x,
+            min_y: y,
+            max_y: y,
             mask: vec![false; width * height],
             last_pos: None,
             texture: None,
             dirty: None,
         }
+    }
+
+    fn bounded_spans(
+        &self,
+        image_width: NonZero<u32>,
+        image_height: NonZero<u32>,
+    ) -> WithRoi<BitmapToSpanIter<std::iter::Copied<std::slice::Iter<'_, bool>>>> {
+        let bounds = Rect::new(
+            self.min_x as u32,
+            self.min_y as u32,
+            NonZero::new((self.max_x - self.min_x + 1) as u32).unwrap(),
+            NonZero::new((self.max_y - self.min_y + 1) as u32).unwrap(),
+        );
+        WithRoi::new(
+            BitmapToSpanIter::from_bool_iter(self.mask.iter().copied(), image_width, image_height),
+            bounds,
+        )
     }
 
     fn stamp_square(&mut self, cx: usize, cy: usize, half_size: usize) {
@@ -48,6 +73,11 @@ impl StrokeState {
                 }
             }
         }
+
+        self.min_x = self.min_x.min(x_min);
+        self.max_x = self.max_x.max(x_max);
+        self.min_y = self.min_y.min(y_min);
+        self.max_y = self.max_y.max(y_max);
 
         let stamp_rect = Rect::new(
             x_min,
@@ -225,11 +255,11 @@ impl Tool for BrushTool {
             });
 
         if ctx.response.drag_started() {
-            self.stroke = Some(StrokeState::new(width, height));
-
-            if let Some((x, y)) = cursor_pos {
-                self.stroke.as_mut().unwrap().stamp_to(x, y, half_size);
-            }
+            self.stroke = cursor_pos.map(|(x, y)| {
+                let mut stroke = StrokeState::new(width, height, x, y);
+                stroke.stamp_to(x, y, half_size);
+                stroke
+            });
         }
 
         if ctx.response.dragged() {
@@ -252,11 +282,7 @@ impl Tool for BrushTool {
         if ctx.response.drag_stopped() {
             if !ctx.egui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
                 if let Some(stroke) = self.stroke.take() {
-                    let spans = BitmapToSpanIter::from_bool_iter(
-                        stroke.mask.iter().copied(),
-                        image_width,
-                        image_height,
-                    );
+                    let spans = stroke.bounded_spans(image_width, image_height);
                     match self.mode {
                         Mode::Insert => {
                             if let Ok(pixel_area) = SortedRanges::try_from_span_iter(spans) {
@@ -280,13 +306,9 @@ impl Tool for BrushTool {
             }
         } else if ctx.response.clicked() {
             if let Some((x, y)) = cursor_pos {
-                let mut stroke = StrokeState::new(width, height);
+                let mut stroke = StrokeState::new(width, height, x, y);
                 stroke.stamp_to(x, y, half_size);
-                let spans = BitmapToSpanIter::from_bool_iter(
-                    stroke.mask.iter().copied(),
-                    image_width,
-                    image_height,
-                );
+                let spans = stroke.bounded_spans(image_width, image_height);
                 match self.mode {
                     Mode::Insert => {
                         if let Ok(pixel_area) = SortedRanges::try_from_span_iter(spans) {
@@ -311,7 +333,7 @@ mod tests {
     use super::*;
 
     fn new_state(w: usize, h: usize) -> StrokeState {
-        StrokeState::new(w, h)
+        StrokeState::new(w, h, w / 2, h / 2)
     }
 
     fn count_mask_true(mask: &[bool]) -> usize {
