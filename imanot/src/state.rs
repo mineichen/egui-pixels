@@ -72,16 +72,15 @@ impl State {
                 .ui(ui, self.image_state.sources(ui.ctx()), Some(Sense::click()));
         let result = InnerResponse {
             inner: if let Some(mut r) = inner {
-                if let crate::ImageState::Loaded(image) = &mut self.image_state {
-                    let new_active = r.cursor_image_pos.and_then(|cursor_pos| {
-                        if let (Ok(x), Ok(y)) =
-                            (u32::try_from(cursor_pos.0), u32::try_from(cursor_pos.1))
-                        {
-                            image.masks.active_subgroup_at((x, y))
-                        } else {
-                            None
-                        }
-                    });
+                let cursor_pos_u32 = r.cursor_image_pos.and_then(|cursor_pos| {
+                    let x = u32::try_from(cursor_pos.0).ok()?;
+                    let y = u32::try_from(cursor_pos.1).ok()?;
+                    Some((x, y))
+                });
+                if let crate::ImageState::Loaded(image) = &mut self.image_state
+                    && let Some(cursor_pos) = cursor_pos_u32
+                {
+                    let new_active = image.masks.find_layer_at(cursor_pos);
                     image.masks.set_active_layer(new_active);
                 }
                 // Reset the suspension flag before tools are called, so that only atool actively setting it to `true` will cause image loading to be delayed.

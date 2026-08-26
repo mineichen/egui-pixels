@@ -325,8 +325,11 @@ impl MaskImage {
             self.applied.mark_redraw(&self.base, &self.history);
         }
     }
-
-    pub fn active_subgroup_at(&self, (x, y): (u32, u32)) -> Option<usize> {
+    #[deprecated = "Use active_layer_at instead"]
+    pub fn active_subgroup_at(&self, p: (u32, u32)) -> Option<usize> {
+        self.find_layer_at(p)
+    }
+    pub fn find_layer_at(&self, (x, y): (u32, u32)) -> Option<usize> {
         self.subgroups_stack().iter().rev().find_map(|(i, area)| {
             (area.pixels.bounds().contains(&x, &y)
                 && area
