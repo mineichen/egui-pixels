@@ -61,6 +61,7 @@ pub struct MaskImage {
     texture_handle: Option<LoadedMaskImage>,
     settings: MaskSettings,
     active_layer: Option<usize>,
+    hover_layer: Option<usize>,
 }
 struct LoadedMaskImage {
     visible: bool,
@@ -146,6 +147,7 @@ impl MaskImage {
             texture_handle: None,
             settings: MaskSettings::default(),
             active_layer: None,
+            hover_layer: None,
         }
     }
 
@@ -324,6 +326,24 @@ impl MaskImage {
             self.active_layer = index;
             self.applied.mark_redraw(&self.base, &self.history);
         }
+    }
+    pub(crate) fn update_hover_layer(&mut self, pos: Option<(usize, usize)>) {
+        let cursor_pos_u32 = pos.and_then(|cursor_pos| {
+            let x = u32::try_from(cursor_pos.0).ok()?;
+            let y = u32::try_from(cursor_pos.1).ok()?;
+            Some((x, y))
+        });
+        self.hover_layer = if let Some(pos) = cursor_pos_u32 {
+            let new_active = self.find_layer_at(pos);
+            self.set_active_layer(new_active);
+            new_active
+        } else {
+            let mouse_just_left_canvas = self.hover_layer.is_some();
+            if mouse_just_left_canvas {
+                self.set_active_layer(None);
+            }
+            None
+        };
     }
     #[deprecated = "Use active_layer_at instead"]
     pub fn active_subgroup_at(&self, p: (u32, u32)) -> Option<usize> {
