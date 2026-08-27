@@ -317,6 +317,10 @@ impl MaskImage {
         self.active_layer
     }
 
+    pub fn hover_layer(&self) -> Option<usize> {
+        self.hover_layer
+    }
+
     #[deprecated = "Use Self::active_layer"]
     pub fn set_active_subgroup(&mut self, index: Option<usize>) {
         self.set_active_layer(index);
