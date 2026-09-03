@@ -264,6 +264,7 @@ impl MaskImage {
             let ranges_bounds = match &action.kind {
                 HistoryActionKind::Add(add) => Some(add.pixel_area.bounds()),
                 HistoryActionKind::Clear(clear) => Some(clear.ranges.bounds()),
+                HistoryActionKind::Replace(replace) => Some(replace.pixel_area.bounds()),
                 HistoryActionKind::Reset => None,
             };
             if let Some(b) = ranges_bounds {

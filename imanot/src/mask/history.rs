@@ -39,10 +39,32 @@ pub struct HistoryActionClear {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HistoryActionReplace {
+    pub pixel_area: SortedRanges<u32>,
+}
+
+fn apply_replace(
+    layers: &mut Vec<Layer>,
+    idxs: impl IntoIterator<Item = usize>,
+    replace: &HistoryActionReplace,
+) {
+    let source = replace.pixel_area.clone();
+    let mut idxs = idxs.into_iter();
+    let Some(first) = idxs.next() else {
+        return;
+    };
+    idxs.for_each(|idx| {
+        super::prepare_layer_space(layers, idx).set_ranges(source.clone());
+    });
+    super::prepare_layer_space(layers, first).set_ranges(source);
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HistoryActionKind {
     Add(HistoryActionAdd),
     Reset,
     Clear(HistoryActionClear),
+    Replace(HistoryActionReplace),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -109,6 +131,26 @@ impl HistoryAction {
                 }
                 rest
             }
+            HistoryActionKind::Replace(replace) => match self.layer {
+                AffectedLayer::Unspecified => {
+                    let idxs = 0..rest.len();
+                    apply_replace(&mut rest, idxs, replace);
+                    rest
+                }
+                AffectedLayer::Layer(idx) => {
+                    apply_replace(&mut rest, std::iter::once(idx), replace);
+                    rest
+                }
+                AffectedLayer::Range(start, Some(end)) => {
+                    apply_replace(&mut rest, start..end, replace);
+                    rest
+                }
+                AffectedLayer::Range(start, None) => {
+                    let idxs = start..rest.len();
+                    apply_replace(&mut rest, idxs, replace);
+                    rest
+                }
+            },
         }
     }
 }
@@ -205,6 +247,7 @@ mod tests {
     use imask::Span;
 
     use super::*;
+    use crate::PixelAreaStack;
 
     fn tracked_add(x: u32) -> HistoryAction {
         HistoryAction {
@@ -368,5 +411,87 @@ mod tests {
         assert_eq!(history.take_dirty(), Some(AffectedLayer::Layer(1)));
         history.undo();
         assert_eq!(history.take_dirty(), Some(AffectedLayer::Layer(1)));
+    }
+
+    fn untracked_add_area(x: u32, y: u32) -> HistoryAction {
+        HistoryAction {
+            kind: HistoryActionKind::Add(HistoryActionAdd {
+                pixel_area: Span::new(x..x + 2, y).into(),
+            }),
+            layer: AffectedLayer::Unspecified,
+            tracked: false,
+        }
+    }
+
+    fn replace_action(pixel_area: SortedRanges<u32>, layer: AffectedLayer) -> HistoryAction {
+        HistoryAction {
+            kind: HistoryActionKind::Replace(HistoryActionReplace { pixel_area }),
+            layer,
+            tracked: true,
+        }
+    }
+
+    fn applied_spans(history: &History) -> Vec<(usize, Vec<Span<u32>>)> {
+        PixelAreaStack::from_layer_vec(
+            history
+                .iter()
+                .fold(Vec::new(), |acc: Vec<Layer>, r| r.apply(acc)),
+        )
+        .iter()
+        .map(|(i, area)| (i, area.pixels.spans::<u32>().collect()))
+        .collect()
+    }
+
+    #[test]
+    fn replace_specific_layer() {
+        let mut history = History::default();
+        history.push(untracked_add_area(0, 0));
+        history.push(untracked_add_area(0, 1));
+        history.push(replace_action(
+            Span::new(4..6, 3).into(),
+            AffectedLayer::Layer(1),
+        ));
+
+        assert_eq!(
+            applied_spans(&history),
+            vec![(0, vec![Span::new(0..2, 0)]), (1, vec![Span::new(4..6, 3)]),]
+        );
+    }
+
+    #[test]
+    fn replace_unspecified_replaces_all_existing_layers() {
+        let mut history = History::default();
+        history.push(untracked_add_area(0, 0));
+        history.push(untracked_add_area(0, 1));
+        history.push(replace_action(
+            Span::new(4..6, 3).into(),
+            AffectedLayer::Unspecified,
+        ));
+
+        assert_eq!(
+            applied_spans(&history),
+            vec![(0, vec![Span::new(4..6, 3)]), (1, vec![Span::new(4..6, 3)]),]
+        );
+    }
+
+    #[test]
+    fn replace_range_of_layers() {
+        let mut history = History::default();
+        history.push(untracked_add_area(0, 0));
+        history.push(untracked_add_area(0, 1));
+        history.push(untracked_add_area(0, 2));
+        history.push(replace_action(
+            Span::new(4..6, 3).into(),
+            AffectedLayer::Range(1, Some(3)),
+        ));
+
+        assert_eq!(
+            applied_spans(&history),
+            vec![
+                (0, vec![Span::new(0..2, 0)]),
+                (1, vec![Span::new(4..6, 3)]),
+                (2, vec![Span::new(4..6, 3)]),
+            ]
+        );
     }
 }
