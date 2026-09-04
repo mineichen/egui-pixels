@@ -56,7 +56,9 @@
         podmanRun = "${pkgs.podman}/bin/podman run --rm -it "
           + "--network=slirp4netns "
           + "--tmpfs /tmp "
-          + "-v ..:/workspace:z "
+          + "-v ../imanot:/workspace/imanot:z "
+          + "-v ../imask:/workspace/imask:z "
+          + "-v ../imbuf:/workspace/imbuf:z "
           + "-e HOME=/root "
           + "${containername}:latest /bin/entrypoint.sh";
       in
